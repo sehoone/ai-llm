@@ -32,6 +32,7 @@ input_embeddings.shape
 torch.Size([1, 5, 16])
 
 # 3. 위치 인코딩
+
 # RNN과 트랜트포머의 가장 큰 차이점은 입력을 순차적으로 처리하는지 여부이다. 
 # RNN은 순차적으로 처리하기 때문에 단어의 위치 정보를 알 수 있지만, 트랜스포머는 입력을 한번에 처리하기 때문에 단어의 위치 정보를 알 수 없다.
 # 하지만 텍스트에서 순서는 중요한 정보이기 때문에 이를 위해 위치 인코딩을 사용한다.
@@ -50,3 +51,33 @@ token_embeddings = token_embeddings.unsqueeze(0) # (1, 5, 16)
 input_embeddings = token_embeddings + position_encodings
 input_embeddings.shape
 torch.Size([1, 5, 16])
+
+# 4. 어텐션
+# 어텐션은 쿼리, 키, 밸류를 입력으로 받아 가중합을 계산하는 메커니즘. 어텐션은 셀프 어텐션과 멀티 헤드 어텐션으로 나뉨. 
+# 셀프 어텐션은 쿼리, 키, 밸류가 모두 같은 경우를 말하며, 멀티 헤드 어텐션은 쿼리, 키, 밸류가 각각 다른 경우를 말함.
+
+from math import sqrt
+import torch.nn.functional as F
+
+head_dim = 16
+
+# 쿼리, 키, 값을 계산하기 위한 변환
+weight_q = nn.Linear(embedding_dim, head_dim)
+weight_k = nn.Linear(embedding_dim, head_dim)
+weight_v = nn.Linear(embedding_dim, head_dim)
+# 변환 수행
+querys = weight_q(input_embeddings) # (1, 5, 16)
+keys = weight_k(input_embeddings) # (1, 5, 16)
+values = weight_v(input_embeddings) # (1, 5, 16)
+
+def compute_attention(querys, keys, values, is_causal=False):
+	dim_k = querys.size(-1) # 16
+	scores = querys @ keys.transpose(-2, -1) / sqrt(dim_k)
+	weights = F.softmax(scores, dim=-1)
+	return weights @ values
+
+print("원본 입력 형태: ", input_embeddings.shape)
+
+after_attention_embeddings = compute_attention(querys, keys, values)
+
+print("어텐션 적용 후 형태: ", after_attention_embeddings.shape)
