@@ -8,6 +8,7 @@ https://www.python.org/downloads/windows/
     - 명령어 실행
         ```sh
         pipenv shell
+        pipenv install
         ```
 
 ### vscode setting
