@@ -5,6 +5,8 @@ from langchain_core.output_parsers import StrOutputParser
 
 import os
 
+from third_parties.linkedin import scrape_linkedin_profile
+
 if __name__ == '__main__':
     print("Hello, World!")
     
@@ -33,12 +35,17 @@ In October 2002, eBay acquired PayPal for $1.5 billion, and that same year, with
     )
 
     # OpenAI의 ChatOpenAI를 사용하여 응답을 받음
-    # llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+    llm = ChatOpenAI(temperature=0, model_name="gpt-4o-mini")
     # language model을 llama3.2를 사용하여 응답을 받음
-    llm = ChatOllama(model="llama3.2")
+    # llm = ChatOllama(model="llama3.2")
 
     # 프롬프트 템플릿과 ChatOpenAI를 연결하여 응답을 받음
     chain = summary_prompt_template | llm | StrOutputParser()
+
+    # 외부 사이트를 스크랩핑하여 LLM에 정보를 전달함. 스크립핑 API는 유로라서 GIST를 활용하여 데이터를 받음
+    linkedin_data = scrape_linkedin_profile(
+        linkedin_profile_url="https://www.linkedin.com/in/eden-marco/"
+    )
     res = chain.invoke(input={"information": information})
 
     print(res)
