@@ -9,13 +9,22 @@ st.header("Documentation Helper Bot")
 # 사용자로부터 입력을 받는 텍스트 입력 필드 생성
 prompt = st.text_input("Prompt", placeholder="Enter your prompt here..")
 
-# 세션 상태에 사용자 프롬프트 히스토리가 없으면 빈 리스트로 초기화
-if "user_prompt_history" not in st.session_state:
-    st.session_state["user_prompt_history"] = []
+# # 세션 상태에 사용자 프롬프트 히스토리가 없으면 빈 리스트로 초기화
+# if "user_prompt_history" not in st.session_state:
+#     st.session_state["user_prompt_history"] = []
 
-# 세션 상태에 채팅 응답 히스토리가 없으면 빈 리스트로 초기화
-if "chat_answers_history" not in st.session_state:
+# # 세션 상태에 채팅 응답 히스토리가 없으면 빈 리스트로 초기화
+# if "chat_answers_history" not in st.session_state:
+#     st.session_state["chat_answers_history"] = []
+
+if (
+    "chat_answers_history" not in st.session_state
+    and "user_prompt_history" not in st.session_state
+    and "chat_history" not in st.session_state
+):
     st.session_state["chat_answers_history"] = []
+    st.session_state["user_prompt_history"] = []
+    st.session_state["chat_history"] = []
 
 # 소스 URL들을 문자열로 변환하는 함수
 def create_sources_string(source_urls: Set[str]) -> str:
@@ -46,6 +55,8 @@ if prompt:
         # 세션 상태에 사용자 프롬프트와 응답을 추가
         st.session_state["user_prompt_history"].append(prompt)
         st.session_state["chat_answers_history"].append(formatted_response)
+        st.session_state["chat_history"].append(("human", prompt))
+        st.session_state["chat_history"].append(("ai", generated_response["result"]))
 
 # 세션 상태에 저장된 채팅 응답 히스토리가 있을 때
 if st.session_state["chat_answers_history"]:
