@@ -41,6 +41,7 @@ def run_llm(query: str, chat_history: List[Dict[str, Any]] = []):
 
     # 채팅 히스토리를 사용하여 LLM 모델을 호출
     result = qa.invoke(input={"input": query, "chat_history": chat_history})
+    print(result)
     return result
 
     # # 랭체인허브에서 검색 QA 채팅 프롬프트 가져오기
