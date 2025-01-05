@@ -5,6 +5,7 @@ from django.shortcuts import render
 from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
+from langchain_openai import ChatOpenAI
 
 from chatbot.core import run_llm
 
@@ -46,18 +47,31 @@ def stream_conversation(request: HttpRequest) -> StreamingHttpResponse:
 
     def stream():
         for chunk in run_llm(data['prompt']):
-            yield chunk + "\n"
-            time.sleep(1)
+            yield chunk
+            # time.sleep(1)
 
     return StreamingHttpResponse(stream(), content_type='text/plain')
+
+# @csrf_exempt
+# @require_GET
+# def stream_text(request: HttpRequest) -> StreamingHttpResponse:
+#     def stream():
+#         texts = ["This is a test message.", "Streaming data in chunks.", "End of stream."]
+#         for text in texts:
+#             yield text + "\n"
+#             time.sleep(1) 
+    
+#     return StreamingHttpResponse(stream(), content_type='text/plain')
 
 @csrf_exempt
 @require_GET
 def stream_text(request: HttpRequest) -> StreamingHttpResponse:
     def stream():
-        texts = ["This is a test message.", "Streaming data in chunks.", "End of stream."]
-        for text in texts:
-            yield text + "\n"
-            time.sleep(1) 
+        model = ChatOpenAI(model="gpt-4o-mini")
+        chunks = []
+        for chunk in model.stream("what color is the sky?"):
+            yield chunk
+            # chunks.append(chunk)
+            # print(chunk.content, end="|", flush=True)
     
     return StreamingHttpResponse(stream(), content_type='text/plain')
