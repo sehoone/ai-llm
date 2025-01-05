@@ -20,7 +20,7 @@ def run_llm(query: str, chat_history: List[Dict[str, Any]] = []):
     # 주어진 인덱스 이름과 임베딩을 사용하여 Pinecone 벡터 스토어 초기화
     docsearch = PineconeVectorStore(index_name=INDEX_NAME, embedding=embeddings)
     # 특정 매개변수로 채팅 모델 초기화
-    chat = ChatOpenAI(verbose=True, temperature=0)
+    chat = ChatOpenAI(verbose=True, temperature=0, stream=True, model_name="gpt-4o-mini")
 
     # 히스토리(캐시) 기반의 검색을 위한 프롬프트 가져오기
     rephrase_prompt = hub.pull("langchain-ai/chat-langchain-rephrase")
@@ -40,9 +40,14 @@ def run_llm(query: str, chat_history: List[Dict[str, Any]] = []):
     )
 
     # 채팅 히스토리를 사용하여 LLM 모델을 호출
-    result = qa.invoke(input={"input": query, "chat_history": chat_history})
-    print(result)
-    return result
+    # result = qa.invoke(input={"input": query, "chat_history": chat_history})
+    # print(result)
+    for chunk in qa.invoke(input={"input": query, "chat_history": chat_history}):
+        if isinstance(chunk, dict):
+            yield chunk
+        else:
+            yield chunk.decode('utf-8')
+    # return result
 
     # # 랭체인허브에서 검색 QA 채팅 프롬프트 가져오기
     # retrieval_qa_chat_prompt = hub.pull("langchain-ai/retrieval-qa-chat")
