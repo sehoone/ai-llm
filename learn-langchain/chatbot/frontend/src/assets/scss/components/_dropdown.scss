@@ -1,0 +1,60 @@
+@use '../helpers' as *;
+
+.dropdown {
+  display: inline-flex;
+  flex-direction: column;
+  &.is-active {
+    .dropdown-toggle {
+      &::after {
+        transform: rotate(180deg);
+      }
+    }
+    .dropdown-content {
+      display: block;
+    }
+  }
+  &-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 20rem;
+    padding: 1rem;
+    border: 0.1rem solid $line1;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    &::after {
+      content: '';
+      display: inline-block;
+      width: 1.6rem;
+      height: 1.6rem;
+      margin-left: 1rem;
+      @include icon-bg(16, 'arrow_active');
+    }
+  }
+  &-content {
+    display: none;
+    width: 20rem;
+    margin-top: 0.4rem;
+    border: 0.1rem solid $line1;
+    border-radius: 0.4rem;
+    li {
+      ~ li {
+        border-top: 0.1rem solid $line1;
+      }
+    }
+    .dropdown-item {
+      display: block;
+      width: 100%;
+      padding: 1rem;
+      color: $text1;
+      text-align: left;
+      cursor: pointer;
+      &:hover {
+        background-color: $bg1;
+      }
+      &.is-active {
+        color: $primary1;
+      }
+    }
+  }
+}

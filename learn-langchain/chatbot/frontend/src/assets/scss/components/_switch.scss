@@ -1,0 +1,43 @@
+@use '../helpers' as *;
+
+// switch
+.form-switch {
+  display: inline-flex;
+  align-items: center;
+  .form-switch-input {
+    display: inline-flex;
+    width: 4rem;
+    height: 2rem;
+    margin: 0;
+    border: 0.1rem solid $line1;
+    border-radius: 1rem;
+    box-sizing: border-box;
+    appearance: none;
+    &::before {
+      content: '';
+      display: inline-block;
+      width: 1.4rem;
+      height: 1.4rem;
+      border: 0.2rem solid $white;
+      border-radius: 1rem;
+      background-color: $grayccc;
+      transform: translateX(0);
+      transition: transform 0.2s;
+    }
+    &:checked {
+      border-color: $primary1;
+      &::before {
+        background-color: $primary1;
+        transform: translateX(2rem);
+      }
+    }
+    &:disabled {
+      ~ .form-switch-label {
+        color: $disabled3;
+      }
+    }
+  }
+  .form-switch-label {
+    padding: 0 1rem;
+  }
+}

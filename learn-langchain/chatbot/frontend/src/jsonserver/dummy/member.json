@@ -1,0 +1,87 @@
+{
+  "auth": {
+    "rstCd": "200",
+    "errMsg": "",
+    "dta": {
+      "userId": "test",
+      "name": "관리자",
+      "lv": 1,
+      "token": "369369369veryveryhardkey3696369veryveryhardkey36369369369veryveryhardkey369"
+    }
+  },
+  "postInfo": {
+    "rstCd": "200",
+    "errMsg": "",
+    "dta": {
+      "id": 1,
+      "title": "제목1",
+      "content": "내용1",
+      "image": "https://www.google.com",
+      "animals": "강아지",
+      "author": "관리자",
+      "createAt": "2021-01-01"
+    }
+  },
+  "posts": {
+    "rstCd": "200",
+    "errMsg": "",
+    "dta": {
+      "posts": [
+        {
+          "id": 1,
+          "title": "제목1",
+          "content": "내용1",
+          "image": "https://www.google.com",
+          "animals": "강아지",
+          "author": "관리자",
+          "createAt": "2021-01-01"
+        },
+        {
+          "id": 2,
+          "title": "제목2",
+          "content": "내용2",
+          "image": "https://www.google.com",
+          "animals": "고양이",
+          "author": "관리자",
+          "createAt": "2021-01-02"
+        },
+        {
+          "id": 3,
+          "title": "제목3",
+          "content": "내용3",
+          "image": "https://www.google.com",
+          "animals": "토끼",
+          "author": "관리자",
+          "createAt": "2021-01-03"
+        },
+        {
+          "id": 4,
+          "title": "제목3",
+          "content": "내용3",
+          "image": "https://www.google.com",
+          "animals": "토끼",
+          "author": "관리자",
+          "createAt": "2021-01-03"
+        },
+        {
+          "id": 5,
+          "title": "제목3",
+          "content": "내용3",
+          "image": "https://www.google.com",
+          "animals": "토끼",
+          "author": "관리자",
+          "createAt": "2021-01-03"
+        },
+        {
+          "id": 6,
+          "title": "제목3",
+          "content": "내용3",
+          "image": "https://www.google.com",
+          "animals": "토끼",
+          "author": "관리자",
+          "createAt": "2021-01-03"
+        }
+      ]
+    }
+  }
+}

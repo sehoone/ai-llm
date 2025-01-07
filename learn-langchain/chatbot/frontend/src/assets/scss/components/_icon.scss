@@ -1,0 +1,107 @@
+@use '../helpers' as *;
+
+// icon
+$icons: (
+  // 12
+  12 'arrow' 'gray',
+  12 'arrow' 'gray2',
+  // 16
+  16 'arrow',
+  16 'arrow' 'active',
+  16 'arrow' 'disabled',
+  16 'clear' 'gray',
+  // 24
+  24 'menu' 'white',
+  // 28
+  28 'close',
+  28 'close' 'white',
+);
+
+.icon {
+  &.right {
+    transform: rotate(90deg);
+  }
+
+  &.down {
+    transform: rotate(180deg);
+  }
+
+  &.left {
+    transform: rotate(-90deg);
+  }
+
+  @each $size, $name, $color, $status in $icons {
+    &-#{$size} {
+      &-#{$name} {
+        @if $color {
+          &-#{$color} {
+            @include icon($size, #{$name}_#{$color});
+
+            @if $color =='active' {
+              &-active {
+                @include icon($size, #{$name}_active);
+              }
+            }
+
+            @else if $color =='disabled' {
+              &-disabled {
+                @include icon($size, #{$name}_disabled);
+              }
+            }
+
+            @if $status {
+              &-#{$status} {
+                @include icon($size, #{$name}_#{$color}_#{$status});
+              }
+            }
+          }
+        }
+
+        @else {
+          @include icon($size, #{$name});
+        }
+      }
+    }
+  }
+  svg {
+    display: block;
+  }
+}
+
+.icon-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  > div {
+    display: inline-flex;
+    flex-direction: column-reverse;
+    min-width: 10rem;
+    min-height: 10rem;
+    border: 0.1rem dotted $line4;
+    &.bg {
+      dd {
+        .icon {
+          background-color: $black;
+          border: 0 none;
+        }
+      }
+    }
+    dt {
+      width: 100%;
+      padding: 0.2rem 0.4rem;
+      border-top: 0.1rem dotted $line4;
+      @include fontHeight(1.2);
+      text-align: center;
+    }
+    dd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      .icon {
+        border: 0.1rem dotted $line4;
+      }
+    }
+  }
+}

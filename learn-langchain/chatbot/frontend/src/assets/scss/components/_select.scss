@@ -1,0 +1,55 @@
+@use '../helpers' as *;
+
+// select
+.form-select {
+  margin-bottom: 1rem;
+  &:last-child {
+    margin-bottom: 0;
+  }
+  &.is-error {
+    .form-control {
+      border-color: $error1;
+    }
+    .form-valid {
+      display: block;
+    }
+  }
+  &.form-inline {
+    display: inline-block;
+    margin-right: 1rem;
+    vertical-align: top;
+    &:last-child {
+      margin-right: 0;
+    }
+    .form-label {
+      margin-bottom: 0;
+    }
+  }
+  .form-label {
+    display: block;
+    margin-bottom: 1rem;
+    @include fontHeight(1.6);
+  }
+  .form-control {
+    display: block;
+    position: relative;
+    width: 100%;
+    padding: 1rem 4rem 1rem 1rem;
+    border-radius: 0.6rem;
+    border-color: $line1;
+    @include icon-bg(16, 'arrow_active');
+    background-position: calc(100% - 1rem) 50%;
+    @include fontHeight(1.4);
+    appearance: none;
+    &[multiple] {
+      padding-right: 1rem;
+      background-image: none;
+    }
+  }
+  .form-valid {
+    display: none;
+    margin-top: 0.6rem;
+    @include fontHeight(1.2);
+    color: $error1;
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "useDefineForClassFields": true,
+
+    // Required in Vue projects
+    "jsx": "preserve",
+
+    // `"noImplicitThis": true` is part of `strict`
+    // Added again here in case some users decide to disable `strict`.
+    // This enables stricter inference for data properties on `this`.
+    "noImplicitThis": true,
+    "strict": true,
+
+    // Required in Vite
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "target": "ESNext",
+
+    // Recommended
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    // See <https://github.com/vuejs/vue-cli/pull/5688>
+    "skipLibCheck": true,
+    "types": ["node", "vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "allowJs": true
+  },
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
+  "exclude": ["node_modules", "src/assets", "src/jsonserver"]
+}
