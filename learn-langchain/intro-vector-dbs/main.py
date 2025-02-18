@@ -20,7 +20,7 @@ if __name__ == "__main__":
     embeddings = OpenAIEmbeddings()
     llm = ChatOpenAI(model_name="gpt-4o-mini")
 
-    query = "what is Pinecone in machine learning?"
+    query = "최세훈은 몇살인가요?"
     chain = PromptTemplate.from_template(template=query) | llm
     # result = chain.invoke(input={})
     # print(result.content)
