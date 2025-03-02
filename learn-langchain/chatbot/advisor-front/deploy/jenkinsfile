@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'node' // 'node'는 Jenkins에서 설정한 Node.js의 이름.
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+              // TODO 형상관리 도구(Git, SVN 등)를 사용하여 소스코드를 체크아웃
+              git 'https://github.com/your-username/your-vuejs-repo.git'
+            }
+        }
+
+        stage('Install') {
+            steps {
+                // vue install
+                sh 'pnpm install'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                // vue build
+                sh 'pnpm build-only'
+                // dist 디렉토리 내부의 파일 목록을 filelist.txt에 저장. deploy 할때 해당 파일만 남기고 삭제하기위함
+                sh 'ls dist/ > dist/filelist.txt'
+                // 빌드 결과물 tar로 압축. -C 를 사용하여 dist 디렉토리 내부의 파일만 압축
+                sh 'tar -czvf dist.tar.gz -C dist .'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                // 1. 배포 서버로 dist.tar.gz 파일을 전송. TODO 배포 서버로 어떤방식으로 전달하는지 확인필요
+                
+                // 2. 배포 서버에서 dist.tar.gz 파일을 압축 해제
+                sh 'tar -xzvf dist.tar.gz'
+
+                // 3. 웹서버 root 디렉토리에 배포/복사
+                sh 'cp -r dist/* /var/www/html'
+
+                // 4. 삭제하지 않을 파일 목록 생성. 빌드할때 만든 filelist.txt를 사용
+                sh 'cd /var/www/html'
+                sh 'sed -e \'s/^/\.\//\' filelist.txt > dontdel.txt'
+
+                // 5. 삭제하지 않을 파일을 제외한 나머지 파일 삭제.
+                // find 명령어로 파일 목록을 가져온 후, grep 명령어로 삭제하지 않을 파일 목록을 제외하고, xargs 명령어로 삭제
+                sh 'find . -type f -print | grep -Fxvf dontdel.txt | xargs -d\'\n\' rm'
+            }
+        }
+    }
+}

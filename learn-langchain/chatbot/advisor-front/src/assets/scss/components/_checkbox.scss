@@ -1,0 +1,70 @@
+@use '../helpers' as *;
+
+// checkbox
+.form-checkbox {
+  position: relative;
+  margin-bottom: 1rem;
+  &:last-child {
+    margin-bottom: 0;
+  }
+  &.form-inline {
+    display: inline-block;
+    margin-right: 2rem;
+    margin-bottom: 1rem;
+    &:last-child {
+      margin-right: 0;
+      margin-bottom: 0;
+    }
+  }
+  .form-checkbox-input {
+    @include sr-only;
+    &:checked {
+      ~ .form-checkbox-label {
+        &::before {
+          border-color: $primary1;
+        }
+        &::after {
+          content: '';
+          display: block;
+          width: 1rem;
+          height: 0.4rem;
+          border: 0.2rem solid $primary1;
+          border-top: 0;
+          border-right: 0;
+          transform: rotate(-45deg);
+        }
+      }
+    }
+    &:disabled {
+      ~ .form-checkbox-label {
+        color: $disabled3;
+        &::before,
+        &::after {
+          border-color: $disabled3;
+        }
+      }
+    }
+  }
+  .form-checkbox-label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    @include fontHeight(1.6);
+    &::before {
+      content: '';
+      display: inline-flex;
+      width: 2.4rem;
+      height: 2.4rem;
+      margin-right: 1rem;
+      border: 0.1rem solid $line1;
+      border-radius: 0.4rem;
+      box-sizing: border-box;
+    }
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0.8rem;
+      left: 0.6rem;
+    }
+  }
+}

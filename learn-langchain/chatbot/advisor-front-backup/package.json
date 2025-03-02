@@ -1,0 +1,38 @@
+{
+  "name": "nuxt-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@babel/plugin-transform-typescript": "^7.26.8",
+    "@microsoft/fetch-event-source": "^2.0.1",
+    "copy-to-clipboard": "^3.3.3",
+    "highlight.js": "^11.11.1",
+    "http-proxy-middleware": "^3.0.3",
+    "is-mobile": "^5.0.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-mathjax3": "^4.3.2",
+    "nanoid": "^5.1.2",
+    "nuxt": "^3.15.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "^2.1.1",
+    "@nuxt/types": "^2.18.1",
+    "@nuxt/typescript-build": "^3.0.2",
+    "@nuxtjs/color-mode": "^3.5.2",
+    "@nuxtjs/i18n": "^9.2.1",
+    "material-design-icons-iconfont": "^6.7.0",
+    "typescript": "^5.7.3",
+    "unplugin-vue-inspector": "^2.3.1",
+    "vite-plugin-vue-inspector": "^5.3.1",
+    "vuepress": "^1.9.10"
+  }
+}

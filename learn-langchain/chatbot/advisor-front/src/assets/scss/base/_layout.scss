@@ -1,0 +1,26 @@
+@use '../helpers' as *;
+
+/* Base Common */
+html {
+  font-size: 62.5% !important;
+}
+body {
+  color: $text1;
+  font-size: 1.4rem;
+  line-height: 1.4;
+  font-family: $font, sans-serif;
+}
+html,
+body {
+  height: 100%;
+}
+
+.content {
+  &.content-side {
+    padding: 0 1.8rem;
+  }
+}
+
+button {
+  cursor: pointer;
+}

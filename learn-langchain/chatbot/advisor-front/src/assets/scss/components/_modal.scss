@@ -1,0 +1,133 @@
+@use '../helpers' as *;
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 99;
+  width: 100%;
+  height: 100%;
+  background-color: rgba($black, 0.6);
+  .modal-dialog {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 1.5rem;
+    .modal-content {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      background-color: $white;
+      border: 0.1rem solid $line1;
+      border-radius: 1.6rem;
+      .modal-header {
+        display: flex;
+        align-items: center;
+        height: 4.8rem;
+        padding: 0 0 0 1.5rem;
+        border-bottom: 0.1rem solid $line1;
+        &.is-hide {
+          padding: 0;
+          border: 0;
+          .modal-title {
+            @include sr-only;
+          }
+        }
+        .modal-title {
+          font-weight: $fontBold;
+          @include fontHeight(1.8);
+          text-align: center;
+        }
+        .btn-close {
+          width: 4.8rem;
+          height: 4.8rem;
+          margin-left: auto;
+        }
+      }
+      .modal-body {
+        min-height: 10rem;
+        padding: 1.5rem;
+        @include fontHeight(1.6);
+      }
+      .modal-footer {
+        padding: 1rem;
+        border-top: 0.1rem solid $line1;
+        .btn-area {
+          justify-content: flex-end;
+          .btn {
+            width: auto;
+            min-width: 9rem;
+          }
+        }
+      }
+    }
+  }
+  &.alert,
+  &.confirm {
+    .modal-dialog {
+      .modal-content {
+        max-width: 50rem;
+      }
+    }
+  }
+  &.full {
+    height: 100%;
+    .modal-dialog {
+      padding: 0;
+      .modal-content {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        border: 0;
+        border-radius: 0;
+        .modal-header {
+          flex-shrink: 0;
+        }
+        .modal-body {
+          overflow-y: auto;
+          height: 100%;
+        }
+        .modal-footer {
+          flex-shrink: 0;
+        }
+      }
+    }
+  }
+  &.bottom {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    transition: transform 0.2s ease;
+    .modal-dialog {
+      padding: 0;
+      .modal-content {
+        max-height: 80vh;
+        margin-top: auto;
+        border-radius: 1.6rem 1.6rem 0 0;
+      }
+    }
+  }
+  &-bottom {
+    &-enter-active, &-leave-active {
+      .modal-dialog {
+        .modal-content {
+          transition: transform 0.2s ease;
+        }
+      }
+     
+    }
+    &-enter-from, &-leave-to {
+      .modal-dialog {
+        .modal-content {
+          transform: translate(0, 100%);
+        }
+      }
+    }
+  }
+  &-open {
+    overflow: hidden;
+    touch-action: none;
+  }
+}

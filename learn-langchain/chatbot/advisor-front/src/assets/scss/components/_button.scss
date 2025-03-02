@@ -1,0 +1,110 @@
+@use '../helpers' as *;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 4.2rem;
+  white-space: nowrap;
+  ~ .btn {
+    margin-left: 0.8rem;
+  }
+  > span {
+    pointer-events: none;
+  }
+  &:disabled,
+  &.is-disabled {
+    opacity: 0.3;
+  }
+  &-area {
+    display: flex;
+    width: 100%;
+    .btn {
+      width: 100%;
+      ~ .btn {
+        margin-left: 1rem;
+      }
+    }
+  }
+  &-icon {
+    width: 3.8rem;
+    height: 3.8rem;
+    ~ .btn-icon {
+      margin-left: 0;
+    }
+    &.is-new {
+      position: relative;
+      &::after {
+        content: '';
+        display: inline-block;
+        position: absolute;
+        top: 0.4rem;
+        right: 0.4rem;
+        width: 0.4rem;
+        height: 0.4rem;
+        background-color: $primary1;
+        border-radius: 50%;
+      }
+    }
+  }
+  $types: (
+    'primary': $primary1,
+    'secondary': $secondary1,
+    'round': $primary1,
+    'line': transparent,
+    'white': $white
+  );
+  $sizes: (
+    'tiny': 2.2,
+    'xs': 3.2,
+    'sm': 3.6,
+    'md': 4,
+    'lg': 4.8
+  );
+
+  $btnHeight: 4.8;
+  @each $type, $color in $types {
+    &-#{$type} {
+      padding: 0 2rem;
+      border-radius: 0.6rem;
+      background-color: $color;
+      font-weight: $fontBold;
+      @include fontHeight(1.4);
+      color: $white;
+      @if $type == 'secondary' {
+        color: $black;
+      }
+      @if $type == 'round' {
+        border-top-left-radius: $btnHeight * 0.5 + rem;
+        border-top-right-radius: $btnHeight * 0.5 + rem;
+        border-bottom-left-radius: $btnHeight * 0.5 + rem;
+        border-bottom-right-radius: $btnHeight * 0.5 + rem;
+      }
+      @if $type == 'line' {
+        border: 0.1rem solid $primary1;
+        color: $primary1;
+      }
+      @if $type == 'white' {
+        border: 0.1rem solid $line3;
+        border-top-left-radius: $btnHeight * 0.5 + rem;
+        border-top-right-radius: $btnHeight * 0.5 + rem;
+        border-bottom-left-radius: $btnHeight * 0.5 + rem;
+        border-bottom-right-radius: $btnHeight * 0.5 + rem;
+        background-color: $white;
+        font-weight: $fontRegular;
+        color: $black;
+      }
+    }
+  }
+  @each $size, $number in $sizes {
+    &-#{$size} {
+      height: $number + rem;
+      @if $size == 'tiny' {
+        padding: 0;
+        height: auto;
+      }
+      @if $size == 'xs' or $size == 'sm' {
+        padding: 0 1.2rem;
+      }
+    }
+  }
+}

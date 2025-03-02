@@ -1,0 +1,7 @@
+{
+  "api": {
+    "errorMessage": "애러",
+    "timeoutMessage": "네트워크 타임아웃",
+    "networkException": "네트워크 애러"
+  }
+}

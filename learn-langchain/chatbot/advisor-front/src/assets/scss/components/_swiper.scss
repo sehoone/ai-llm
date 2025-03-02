@@ -1,0 +1,11 @@
+@use '../helpers' as *;
+
+.swiper-wrap {
+  .swiper-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 10rem;
+    border: 0.1rem solid $black;
+  }
+}

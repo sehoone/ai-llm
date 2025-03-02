@@ -1,0 +1,71 @@
+// images
+$img-path: '../images';
+// font
+$font: 'Noto Sans Korean';
+$font-path: '../fonts';
+$fontLight: 300;
+$fontRegular: 400;
+$fontMedium: 500;
+$fontBold: 700;
+
+// color
+
+// grayscale
+$white: #fff;
+$grayeee: #eee;
+$grayddd: #ddd;
+$grayccc: #ccc;
+$graybbb: #bbb;
+$grayaaa: #aaa;
+$gray999: #999;
+$gray666: #666;
+$gray555: #555;
+$gray333: #333;
+$gray111: #111;
+$black: #000;
+
+// primary
+$primary1: #3a56c9;
+$primary2: #488be2;
+
+// sub
+$secondary1: #9aa1aa;
+
+// background
+$bg1: #f3f5fc;
+$bg2: #f0f2f9;
+$bg3: #f2f5f8;
+$bg4: #f7f7fa;
+
+// line
+$line1: #dadde1;
+$line2: #e6e6e6;
+$line3: $grayeee;
+$line4: #c4cad2;
+$line5: $gray555;
+
+// text
+$text1: $gray111;
+$text2: $gray666;
+$text3: $gray999;
+$text4: $grayccc;
+$text5: $graybbb;
+
+// status
+$active1: #2e4295;
+$active2: #6b737d;
+$active3: #eaeeff;
+
+$disabled1: #f8f8f8;
+$disabled2: #d2d8e0;
+$disabled3: $grayccc;
+
+$error1: #e02d23;
+
+// dimed
+$dim1: rgba($black, 0.7);
+
+// media query
+$breakpoint-mobile: 480px;
+$breakpoint-tablet: 1024px;
+$breakpoint-desktop: 1200px;

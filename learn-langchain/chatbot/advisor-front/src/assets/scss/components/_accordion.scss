@@ -1,0 +1,77 @@
+@use '../helpers' as *;
+
+.accordion {
+  overflow: hidden;
+  border: 0.1rem solid $line4;
+  border-radius: 0.6rem;
+  .accordion-item {
+    ~ .accordion-item {
+      border-top: 0.1rem solid $line4;
+    }
+    .accordion-header {
+      display: flex;
+      align-items: center;
+      height: 5rem;
+      .accordion-btn {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        width: 100%;
+        height: 100%;
+        padding: 0 1.2rem 0 2rem;
+        &:disabled {
+          .icon-arrow {
+            opacity: 0.3;
+          }
+        }
+        .accordion-title {
+          margin: 0;
+        }
+        .icon {
+          margin-left: auto;
+        }
+        &[aria-expanded="true"] {
+          .icon {
+            transform: rotate(0);
+          }
+        }
+        &[aria-expanded="false"] {
+          .icon {
+            transform: rotate(180deg);
+          }
+        }
+      }
+      .accordion-title {
+        margin-left: 2rem;
+        font-weight: $fontBold;
+        @include fontHeight(1.6);
+        &.is-disabled {
+          opacity: 0.3;
+        }
+        ~ .accordion-btn {
+          justify-content: center;
+          width: 4.8rem;
+          padding: 0;
+          margin-left: auto;
+          .icon {
+            margin-left: 0;
+          }
+        }
+      }
+    }
+    .accordion-body {
+      overflow: hidden;
+      background-color: $bg3;
+      transition: height .3s ease-in-out;
+      &-enter-active, &-leave-active {
+        transition: all .3s ease;
+      }
+      &-enter-from, &-leave-to {
+        height: 0 !important;
+      }
+      .accordion-content {
+        padding: 2rem;
+      }
+    }
+  }
+}
