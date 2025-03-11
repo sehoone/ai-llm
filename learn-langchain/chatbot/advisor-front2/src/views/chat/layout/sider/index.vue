@@ -91,7 +91,7 @@ watch(
         <div class="p-4">
           <NButton size="large" type="info" ghost block @click="handleAdd">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="#2080f0" d="M19 12.998h-6v6h-2v-6H5v-2h6v-6h2v6h6z" /></svg>
-            <strong>{{ $t('chat.newChatButton') }}</strong>
+            {{ $t('chat.newChatButton') }}
           </NButton>
         </div>
         <div class="pl-4 pr-4 pb-4 pt-1 border-b-2 border-[rgb(239,239,245)]">

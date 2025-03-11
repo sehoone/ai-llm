@@ -27,10 +27,11 @@ export function useTheme() {
     }
     return {
       common: {
-        baseColor: '#2080f0',
+        // baseColor: '#2080f0',
         primaryColorHover: '#2080f0',
         primaryColorPressed: '#2080f0',
         infoColor: '#2080f0',
+        fontFamily: 'Spoqa Han Sans Neo, sans-serif',
       },
     }
   })

@@ -531,6 +531,7 @@ onUnmounted(() => {
                 ref="inputRef"
                 v-model:value="prompt"
                 type="textarea"
+                size="large"
                 :placeholder="placeholder"
                 :autosize="{ minRows: 1, maxRows: isMobile ? 4 : 8 }"
                 @input="handleInput"
