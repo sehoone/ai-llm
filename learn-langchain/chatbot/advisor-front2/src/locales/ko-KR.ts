@@ -29,8 +29,8 @@ export default {
     stopResponding: '응답 중지',
   },
   chat: {
-    newChatButton: '새로운 채팅',
-    newChatTitle: '새로운 채팅',
+    newChatButton: '새 대화',
+    newChatTitle: '새 대화',
     placeholder: '무엇이든 물어보세요...(Shift + Enter = 줄바꿈, "/"를 눌러서 힌트를 보세요)',
     placeholderMobile: '무엇이든 물어보세요...',
     copy: '복사',

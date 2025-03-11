@@ -25,7 +25,14 @@ export function useTheme() {
         common: {},
       }
     }
-    return {}
+    return {
+      common: {
+        baseColor: '#2080f0',
+        primaryColorHover: '#2080f0',
+        primaryColorPressed: '#2080f0',
+        infoColor: '#2080f0',
+      },
+    }
   })
 
   watch(
