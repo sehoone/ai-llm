@@ -196,92 +196,10 @@ docker run --name chatgpt-web -d -p 127.0.0.1:3002:3002 --env OPENAI_API_KEY=you
 http://localhost:3002/
 ```
 
-#### Docker compose
-
-[Hub address](https://hub.docker.com/repository/docker/chenzhaoyu94/chatgpt-web/general)
-
-```yml
-version: '3'
-
-services:
-  app:
-    image: chenzhaoyu94/chatgpt-web # always use latest, pull the tag image again to update
-    ports:
-      - 127.0.0.1:3002:3002
-    environment:
-      # choose one
-      OPENAI_API_KEY: sk-xxx
-      # choose one
-      OPENAI_ACCESS_TOKEN: xxx
-      # API interface address, optional, available when OPENAI_API_KEY is set
-      OPENAI_API_BASE_URL: xxx
-      # API model, optional, available when OPENAI_API_KEY is set, https://platform.openai.com/docs/models
-      # gpt-4, gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-4-turbo-preview, gpt-4-0125-preview, gpt-4-1106-preview, gpt-4-0314, gpt-4-0613, gpt-4-32k, gpt-4-32k-0314, gpt-4-32k-0613, gpt-3.5-turbo-16k, gpt-3.5-turbo-16k-0613, gpt-3.5-turbo, gpt-3.5-turbo-0301, gpt-3.5-turbo-0613, text-davinci-003, text-davinci-002, code-davinci-002
-      OPENAI_API_MODEL: xxx
-      # reverse proxy, optional
-      API_REVERSE_PROXY: xxx
-      # access permission key, optional
-      AUTH_SECRET_KEY: xxx
-      # maximum number of requests per hour, optional, unlimited by default
-      MAX_REQUEST_PER_HOUR: 0
-      # timeout, unit milliseconds, optional
-      TIMEOUT_MS: 60000
-      # Socks proxy, optional, take effect with SOCKS_PROXY_PORT
-      SOCKS_PROXY_HOST: xxx
-      # Socks proxy port, optional, take effect with SOCKS_PROXY_HOST
-      SOCKS_PROXY_PORT: xxx
-      # HTTPS proxy, optional, support http,https,socks5
-      HTTPS_PROXY: http://xxx:7890
-```
 
 - `OPENAI_API_BASE_URL` Optional, available when `OPENAI_API_KEY` is set
 - `OPENAI_API_MODEL` Optional, available when `OPENAI_API_KEY` is set
 
-#### Prevent Crawlers
-
-**nginx**
-
-Fill in the following configuration in the nginx configuration file to prevent crawlers. You can refer to the `docker-compose/nginx/nginx.conf` file to add anti-crawler methods
-
-```
-    # Prevent crawlers
-    if ($http_user_agent ~* "360Spider|JikeSpider|Spider|spider|bot|Bot|2345Explorer|curl|wget|webZIP|qihoobot|Baiduspider|Googlebot|Googlebot-Mobile|Googlebot-Image|Mediapartners-Google|Adsbot-Google|Feedfetcher-Google|Yahoo! Slurp|Yahoo! Slurp China|YoudaoBot|Sosospider|Sogou spider|Sogou web spider|MSNBot|ia_archiver|Tomato Bot|NSPlayer|bingbot")
-    {
-      return 403;
-    }
-```
-
-### Deploy with Railway
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/yytmgc)
-
-#### Railway Environment Variables
-
-| Environment variable name | Required | Remarks |
-| --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------- |
-| `PORT`                | Required | Default `3002` |
-| `AUTH_SECRET_KEY`          | Optional | Access permission key                             |
-| `MAX_REQUEST_PER_HOUR`          | Optional | Maximum number of requests per hour, optional, unlimited by default                             |
-| `TIMEOUT_MS`          | Optional | Timeout, unit milliseconds                                                                    |
-| `OPENAI_API_KEY`      | `OpenAI API` choose one | `apiKey` required for `OpenAI API` [(get apiKey)](https://platform.openai.com/overview)           |
-| `OPENAI_ACCESS_TOKEN` | `Web API` choose one | `accessToken` required for `Web API` [(get accessToken)](https://chat.openai.com/api/auth/session) |
-| `OPENAI_API_BASE_URL`   | Optional, available when `OpenAI API` | `API` interface address |
-| `OPENAI_API_MODEL`   | Optional, available when `OpenAI API` | `API` model |
-| `API_REVERSE_PROXY`   | Optional, available when `Web API` | `Web API` reverse proxy address [Details](https://github.com/transitive-bullshit/chatgpt-api#reverse-proxy) |
-| `SOCKS_PROXY_HOST`   | Optional, take effect with `SOCKS_PROXY_PORT` | Socks proxy |
-| `SOCKS_PROXY_PORT`   | Optional, take effect with `SOCKS_PROXY_HOST` | Socks proxy port |
-| `SOCKS_PROXY_USERNAME`   | Optional, take effect with `SOCKS_PROXY_HOST` | Socks proxy username |
-| `SOCKS_PROXY_PASSWORD`   | Optional, take effect with `SOCKS_PROXY_HOST` | Socks proxy password |
-| `HTTPS_PROXY`   | Optional | HTTPS proxy, support http,https, socks5 |
-| `ALL_PROXY`   | Optional | All proxies, support http,https, socks5 |
-
-> Note: Modifying environment variables on `Railway` will re-`Deploy`
-
-### Deploy with Sealos
-
-[![](https://raw.githubusercontent.com/labring-actions/templates/main/Deploy-on-Sealos.svg)](https://cloud.sealos.io/?openapp=system-fastdeploy%3FtemplateName%3Dchatgpt-web)
-
-> Environment variables are consistent with Docker environment variables
 
 ### Package Manually
 #### Backend Service
@@ -359,6 +277,3 @@ If you find this project helpful and can afford it, you can give me a little sup
 		<p>Alipay</p>
 	</div>
 </div>
-
-## License
-MIT © [ChenZhaoYu]
