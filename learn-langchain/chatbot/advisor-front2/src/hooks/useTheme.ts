@@ -22,16 +22,23 @@ export function useTheme() {
   const themeOverrides = computed<GlobalThemeOverrides>(() => {
     if (isDark.value) {
       return {
-        common: {},
+        common: {
+          // primaryColor: '#2080f0',
+          // primaryColorHover: '#2080f0',
+          // primaryColorPressed: '#2080f0',
+          // infoColor: '#2080f0',
+        },
       }
     }
     return {
       common: {
         // baseColor: '#2080f0',
+        primaryColor: '#2080f0',
         primaryColorHover: '#2080f0',
         primaryColorPressed: '#2080f0',
         infoColor: '#2080f0',
-        fontFamily: 'Spoqa Han Sans Neo, sans-serif',
+        // actionColor: '#2080f0',
+        pressedColor: '#2080f0',
       },
     }
   })
