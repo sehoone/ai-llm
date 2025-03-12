@@ -40,13 +40,13 @@ const prompt = ref<string>('')
 const loading = ref<boolean>(false)
 const inputRef = ref<Ref | null>(null)
 
-// 添加PromptStore
+// Add PromptStore
 const promptStore = usePromptStore()
 
-// 使用storeToRefs，保证store修改后，联想部分能够重新渲染
+// Use storeToRefs to ensure that the association part can be re-rendered after the store is modified
 const { promptList: promptTemplate } = storeToRefs<any>(promptStore)
 
-// 未知原因刷新页面，loading 状态不会重置，手动重置
+// Manually reset the loading state because it won't reset for unknown reasons when the page is refreshed
 dataSources.value.forEach((item, index) => {
   if (item.loading)
     updateChatSome(+uuid, index, { loading: false })
@@ -404,9 +404,9 @@ function handleStop() {
   }
 }
 
-// 可优化部分
-// 搜索选项计算，这里使用value作为索引项，所以当出现重复value时渲染异常(多项同时出现选中效果)
-// 理想状态下其实应该是key作为索引项,但官方的renderOption会出现问题，所以就需要value反renderLabel实现
+// Optimizable part
+// Search option calculation, here use value as the index item, so when duplicate value appears, rendering exception (multiple items appear selected at the same time)
+// Ideally, it should be key as the index item, but the official renderOption will have problems, so it needs value to renderLabel
 const searchOptions = computed(() => {
   if (prompt.value.startsWith('/')) {
     return promptTemplate.value.filter((item: { key: string }) => item.key.toLowerCase().includes(prompt.value.substring(1).toLowerCase())).map((obj: { value: any }) => {
@@ -421,7 +421,7 @@ const searchOptions = computed(() => {
   }
 })
 
-// value反渲染key
+// value render key
 const renderOption = (option: { label: string }) => {
   for (const i of promptTemplate.value) {
     if (i.value === option.label)
@@ -475,9 +475,19 @@ onUnmounted(() => {
         >
           <div id="image-wrapper" class="relative">
             <template v-if="!dataSources.length">
-              <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
-                <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
-                <span>{{ t('chat.newChatTitle') }}</span>
+              <div>
+                <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
+                  <img src="@/assets/images/ai-icon-image.png" alt="empty" class="max-w-[72px]" />
+                </div>
+                <div class="flex items-center justify-center mt-4 text-center">
+                  <strong><p class="text-4xl text-transparent bg-clip-text bg-gradient-to-br from-[#6785ef] to-[#9bdbcd]">{{ t('chat.chatTitle') }}</p></strong>
+                </div>
+                <div class="flex items-center justify-center mt-4 text-center">
+                  <strong><p class="text-xl">{{ t('chat.chatSubTitle') }}</p></strong>
+                </div>
+                <div class="flex items-center justify-center mt-4 text-center">
+                  <p>{{ t('chat.chatDetail1') }}<br>{{ t('chat.chatDetail2') }}<br>{{ t('chat.chatDetail3') }}</p>
+                </div>
               </div>
             </template>
             <template v-else>

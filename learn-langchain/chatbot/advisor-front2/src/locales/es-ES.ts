@@ -52,6 +52,11 @@ export default {
     clearHistoryConfirm: '¿Estás seguro de borrar el historial de chat?',
     preview: 'Avance',
     showRawText: 'Mostrar como texto sin formato',
+    chatTitle: 'I am a Multicampus AI Advisor',
+    chatSubTitle: 'We can respond to inquiries regarding course recommendations and platform operation.',
+    chatDetail1: 'Advisor Chatbot is a Gen AI-based service from Multicampus that answers users questions through conversation.',
+    chatDetail2: 'Start a new experience where you can naturally enter questions about the entire running platform and easily find the information you need.',
+    chatDetail3: 'Advisor Chatbot may make mistakes occasionally. We appreciate your feedback to help us grow better!',
   },
   setting: {
     setting: 'Configuración',

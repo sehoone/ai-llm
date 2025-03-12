@@ -53,6 +53,11 @@ export default {
     preview: '미리보기',
     showRawText: '원본 텍스트로 보기',
     thinking: '생각 중...',
+    chatTitle: '저는 멀티캠퍼스 AI Advisor 입니다',
+    chatSubTitle: '과정 추천 및 플랫폼 운영관련 문의들을 응대할 수 있어요.',
+    chatDetail1: 'Advisor 챗봇은 멀티캠퍼스의 Gen AI 기반 서비스로, 대화를 통해 사용자의 질문에 답변해드립니다.',
+    chatDetail2: '러닝플랫폼 전반에 관한 문의를 자연스럽게 입력하고, 필요한 정보를 손쉽게 파악할 수 있는 새로운 경험을 시작해보세요.',
+    chatDetail3: 'Advisor 챗봇은 가끔씩 실수할 수 있습니다. 더 나은 성장을 위해 피드백을 주시면 감사하겠습니다!',
   },
   setting: {
     setting: '설정',
