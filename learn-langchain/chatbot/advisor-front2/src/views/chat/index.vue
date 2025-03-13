@@ -44,7 +44,7 @@ const inputRef = ref<Ref | null>(null)
 const promptStore = usePromptStore()
 
 // Use storeToRefs to ensure that the association part can be re-rendered after the store is modified
-const { promptList: promptTemplate } = storeToRefs<any>(promptStore)
+const { promptList: promptTemplate } = storeToRefs(promptStore)
 
 // Manually reset the loading state because it won't reset for unknown reasons when the page is refreshed
 dataSources.value.forEach((item, index) => {

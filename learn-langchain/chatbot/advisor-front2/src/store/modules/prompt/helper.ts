@@ -2,8 +2,8 @@ import { ss } from '@/utils/storage'
 
 const LOCAL_NAME = 'promptStore'
 
-// export type PromptList = Array<{ key: string, value: string }>
-export type PromptList = []
+export type PromptList = Array<{ key: string, value: string }>
+// export type PromptList = []
 export interface PromptStore {
   promptList: PromptList
 }
