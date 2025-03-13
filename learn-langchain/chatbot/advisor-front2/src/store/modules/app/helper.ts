@@ -4,7 +4,7 @@ const LOCAL_NAME = 'appSetting'
 
 export type Theme = 'light' | 'dark' | 'auto'
 
-export type Language = 'en-US' | 'es-ES' | 'ko-KR' | 'ru-RU' | 'vi-VN' | 'zh-CN' | 'zh-TW'
+export type Language = 'en-US' | 'es-ES' | 'ko-KR'
 
 const languageMap: { [key: string]: Language } = {
   'en': 'en-US',
@@ -13,13 +13,6 @@ const languageMap: { [key: string]: Language } = {
   'es-ES': 'es-ES',
   'ko': 'ko-KR',
   'ko-KR': 'ko-KR',
-  'ru': 'ru-RU',
-  'ru-RU': 'ru-RU',
-  'vi': 'vi-VN',
-  'vi-VN': 'vi-VN',
-  'zh': 'zh-CN',
-  'zh-CN': 'zh-CN',
-  'zh-TW': 'zh-TW',
 }
 
 export interface AppState {

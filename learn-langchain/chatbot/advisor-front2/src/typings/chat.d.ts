@@ -43,4 +43,5 @@ declare namespace Chat {
 		role: string
 		text: string
 	}
+
 }

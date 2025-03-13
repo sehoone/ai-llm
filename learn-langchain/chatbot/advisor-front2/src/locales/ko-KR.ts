@@ -27,6 +27,7 @@ export default {
     verify: '검증',
     unauthorizedTips: '인증되지 않았습니다. 먼저 확인하십시오.',
     stopResponding: '응답 중지',
+
   },
   chat: {
     newChatButton: '새 대화',
@@ -58,6 +59,7 @@ export default {
     chatDetail1: 'Advisor 챗봇은 멀티캠퍼스의 Gen AI 기반 서비스로, 대화를 통해 사용자의 질문에 답변해드립니다.',
     chatDetail2: '러닝플랫폼 전반에 관한 문의를 자연스럽게 입력하고, 필요한 정보를 손쉽게 파악할 수 있는 새로운 경험을 시작해보세요.',
     chatDetail3: 'Advisor 챗봇은 가끔씩 실수할 수 있습니다. 더 나은 성장을 위해 피드백을 주시면 감사하겠습니다!',
+    searchPlaceholder: '검색어 입력',
   },
   setting: {
     setting: '설정',

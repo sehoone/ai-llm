@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { NInput, NPopconfirm, NScrollbar } from 'naive-ui'
 import { SvgIcon } from '@/components/common'
-import { useAppStore, useChatStore } from '@/store'
+import { useAppStore, useChatStore, useSiderStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { debounce } from '@/utils/functions/debounce'
 
@@ -10,8 +10,14 @@ const { isMobile } = useBasicLayout()
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
+const siderStore = useSiderStore()
 
-const dataSources = computed(() => chatStore.history)
+const dataSources = computed(() => {
+  if (!siderStore.searchQuery) {
+    return chatStore.history
+  }
+  return chatStore.history.filter(item => item.title.toLowerCase().includes(siderStore.searchQuery.toLowerCase()))
+  })
 
 async function handleSelect({ uuid }: Chat.History) {
   if (isActive(uuid))

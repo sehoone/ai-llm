@@ -58,6 +58,7 @@ export default {
     chatDetail1: 'Advisor Chatbot is a Gen AI-based service from Multicampus that answers users questions through conversation.',
     chatDetail2: 'Start a new experience where you can naturally enter questions about the entire running platform and easily find the information you need.',
     chatDetail3: 'Advisor Chatbot may make mistakes occasionally. We appreciate your feedback to help us grow better!',
+    searchPlaceholder: 'Enter search term',
   },
   setting: {
     setting: 'Setting',

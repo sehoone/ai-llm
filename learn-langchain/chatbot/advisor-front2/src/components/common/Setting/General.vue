@@ -57,11 +57,6 @@ const languageOptions: { label: string; key: Language; value: Language }[] = [
 { label: '한국어', key: 'ko-KR', value: 'ko-KR' },
   { label: 'English', key: 'en-US', value: 'en-US' },
   { label: 'Español', key: 'es-ES', value: 'es-ES' },
-  
-  // { label: 'Русский язык', key: 'ru-RU', value: 'ru-RU' },
-  // { label: 'Tiếng Việt', key: 'vi-VN', value: 'vi-VN' },
-  // { label: '简体中文', key: 'zh-CN', value: 'zh-CN' },
-  // { label: '繁體中文', key: 'zh-TW', value: 'zh-TW' },
 ]
 
 function updateUserInfo(options: Partial<UserInfo>) {

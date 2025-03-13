@@ -15,12 +15,12 @@ const { HttpsProxyAgent } = httpsProxyAgent
 dotenv.config()
 
 const ErrorCodeMessage: Record<string, string> = {
-  401: '[OpenAI] 提供错误的API密钥 | Incorrect API key provided',
-  403: '[OpenAI] 服务器拒绝访问，请稍后再试 | Server refused to access, please try again later',
-  502: '[OpenAI] 错误的网关 |  Bad Gateway',
-  503: '[OpenAI] 服务器繁忙，请稍后再试 | Server is busy, please try again later',
-  504: '[OpenAI] 网关超时 | Gateway Time-out',
-  500: '[OpenAI] 服务器繁忙，请稍后再试 | Internal Server Error',
+  401: '[OpenAI] Incorrect API key provided',
+  403: '[OpenAI] Server refused to access, please try again later',
+  502: '[OpenAI] Bad Gateway',
+  503: '[OpenAI] Server is busy, please try again later',
+  504: '[OpenAI] Gateway Time-out',
+  500: '[OpenAI] Internal Server Error',
 }
 
 const timeoutMs: number = !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT_MS : 100 * 1000
@@ -46,9 +46,9 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
       debug: !disableDebug,
     }
 
-    // increase max token limit if use gpt-4
+    // increase max token limit if using gpt-4
     if (model.toLowerCase().includes('gpt-4')) {
-      // if use 32k model
+      // if using 32k model
       if (model.toLowerCase().includes('32k')) {
         options.maxModelTokens = 32768
         options.maxResponseTokens = 8192
@@ -57,7 +57,7 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
         options.maxModelTokens = 128000
         options.maxResponseTokens = 16384
       }
-      // if use GPT-4 Turbo or GPT-4o
+      // if using GPT-4 Turbo or GPT-4o
       else if (/-preview|-turbo|o/.test(model.toLowerCase())) {
         options.maxModelTokens = 128000
         options.maxResponseTokens = 4096
@@ -75,7 +75,7 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
     }
 
     if (isNotEmptyString(OPENAI_API_BASE_URL)) {
-      // if find /v1 in OPENAI_API_BASE_URL then use it
+      // if /v1 is found in OPENAI_API_BASE_URL then use it
       if (OPENAI_API_BASE_URL.includes('/v1'))
         options.apiBaseUrl = `${OPENAI_API_BASE_URL}`
       else
@@ -151,7 +151,7 @@ async function fetchUsage() {
 
   const [startDate, endDate] = formatDate()
 
-  // 每月使用量
+  // Monthly usage
   const urlUsage = `${API_BASE_URL}/v1/dashboard/billing/usage?start_date=${startDate}&end_date=${endDate}`
 
   const headers = {
@@ -164,10 +164,10 @@ async function fetchUsage() {
   setupProxy(options)
 
   try {
-    // 获取已使用量
+    // Get usage
     const useResponse = await options.fetch(urlUsage, { headers })
     if (!useResponse.ok)
-      throw new Error('获取使用量失败')
+      throw new Error('server error')
     const usageData = await useResponse.json() as UsageResponse
     const usage = Math.round(usageData.total_usage) / 100
     return Promise.resolve(usage ? `$${usage}` : '-')
@@ -201,7 +201,7 @@ async function chatConfig() {
   })
 }
 
-function setupProxy(options: SetProxyOptions) {
+function setupProxy(options: any) {
   if (isNotEmptyString(process.env.SOCKS_PROXY_HOST) && isNotEmptyString(process.env.SOCKS_PROXY_PORT)) {
     const agent = new SocksProxyAgent({
       hostname: process.env.SOCKS_PROXY_HOST,
