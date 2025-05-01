@@ -1,6 +1,10 @@
 logging:
   pattern:
     console:
+  level:
+    root: DEBUG
+    org:
+      springframework: DEBUG
 spring:
   main:
     banner-mode: off

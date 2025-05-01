@@ -11,12 +11,12 @@ import com.sehoon.mcp_weather.module.weather.service.WeatherService;
 @SpringBootApplication
 public class McpWeatherApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(McpWeatherApplication.class, args);
-	}
-	
-	@Bean
-	public ToolCallbackProvider weatherTools(WeatherService weatherService) {
-		return  MethodToolCallbackProvider.builder().toolObjects(weatherService).build();
-	}
+  public static void main(String[] args) {
+    SpringApplication.run(McpWeatherApplication.class, args);
+  }
+
+  @Bean
+  public ToolCallbackProvider weatherTools(WeatherService weatherService) {
+    return MethodToolCallbackProvider.builder().toolObjects(weatherService).build();
+  }
 }
