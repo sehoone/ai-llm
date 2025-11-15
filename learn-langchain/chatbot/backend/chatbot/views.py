@@ -9,6 +9,9 @@ from langchain_openai import ChatOpenAI
 
 from chatbot.core import run_llm
 
+# Bedrock 챗봇 함수 import
+from chatbot.bedrock_chatbot import run_bedrock_llm
+
 class PromptRequest(TypedDict):
     prompt: str
     
@@ -33,6 +36,19 @@ def conversation(request: HttpRequest) -> JsonResponse:
                 "message": "Received data successfully",
                 "received_data": generated_response["answer"]
             }
+    return JsonResponse(response_data, status=200)
+
+
+# Bedrock 챗봇 API 엔드포인트
+@csrf_exempt
+@require_POST
+def bedrock_conversation(request: HttpRequest) -> JsonResponse:
+    data: PromptRequest = json.loads(request.body)
+    generated_response = run_bedrock_llm(data['prompt'])
+    response_data = {
+        "message": "Bedrock 응답",
+        "received_data": generated_response
+    }
     return JsonResponse(response_data, status=200)
 
 # stream응답을 테스트 하기위해 curl로 호출함

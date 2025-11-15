@@ -1,0 +1,32 @@
+[project]
+name = "chatbot-backend"
+version = "0.1.0"
+description = "Django 기반 LangChain + Bedrock 챗봇 백엔드"
+authors = ["Your Name <your@email.com>"]
+
+
+dependencies = [
+	"django==5.1.4",
+	"langchain==1.0.7",
+	"langchain-pinecone==0.2.13",
+	"langchain-openai==1.0.3",
+	"langchain-community==0.4.1",
+	"langchainhub==0.1.21",
+	"python-dotenv==1.2.1",
+	"boto3==1.40.74",
+	"requests==2.32.5"
+]
+
+[tool.uv]
+
+dependencies = [
+	"django==5.1.4",
+	"langchain",
+	"langchain-pinecone",
+	"langchain-openai",
+	"langchain-community",
+	"langchainhub",
+	"python-dotenv",
+	"boto3",
+	"requests"
+]
