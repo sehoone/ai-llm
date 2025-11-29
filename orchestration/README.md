@@ -105,11 +105,24 @@ uv sync
 
 2. Run the application:
 
+**On Linux/macOS:**
 ```bash
 make [dev|staging|prod] # e.g. make dev
 ```
 
-1. Go to Swagger UI:
+**On Windows (PowerShell):**
+```powershell
+# Development
+$env:APP_ENV='development'; uv run uvicorn app.main:app --reload --port 8000
+
+# Staging
+$env:APP_ENV='staging'; uv run uvicorn app.main:app --reload --port 8000
+
+# Production
+$env:APP_ENV='production'; uv run uvicorn app.main:app --port 8000
+```
+
+3. Go to Swagger UI:
 
 ```bash
 http://localhost:8000/docs
@@ -119,9 +132,19 @@ http://localhost:8000/docs
 
 1. Build and run with Docker Compose:
 
+**On Linux/macOS:**
 ```bash
 make docker-build-env ENV=[development|staging|production] # e.g. make docker-build-env ENV=development
 make docker-run-env ENV=[development|staging|production] # e.g. make docker-run-env ENV=development
+```
+
+**On Windows (PowerShell):**
+```powershell
+# Build Docker image
+docker build -t fastapi-langgraph-template .
+
+# Run with Docker Compose
+docker-compose --env-file .env.development up -d --build db app
 ```
 
 2. Access the monitoring stack:
@@ -157,6 +180,7 @@ The project includes a robust evaluation framework for measuring and tracking mo
 
 You can run evaluations with different options using the provided Makefile commands:
 
+**On Linux/macOS:**
 ```bash
 # Interactive mode with step-by-step prompts
 make eval [ENV=development|staging|production]
@@ -166,6 +190,18 @@ make eval-quick [ENV=development|staging|production]
 
 # Evaluation without report generation
 make eval-no-report [ENV=development|staging|production]
+```
+
+**On Windows (PowerShell):**
+```powershell
+# Interactive mode
+$env:APP_ENV='development'; python -m evals.main --interactive
+
+# Quick mode
+$env:APP_ENV='development'; python -m evals.main --quick
+
+# Without report generation
+$env:APP_ENV='development'; python -m evals.main --no-report
 ```
 
 ### Evaluation Features
