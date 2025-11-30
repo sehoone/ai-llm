@@ -47,6 +47,14 @@ A production-ready FastAPI template for building AI agent applications with Lang
   - Interactive command-line interface
   - Customizable evaluation metrics
 
+- **Multi-Bot RAG System**
+  - Separate RAG knowledge bases for different chatbots
+  - Document upload with automatic chunking and embedding
+  - Vector storage using pgvector (1536-dimensional OpenAI embeddings)
+  - Semantic similarity search with configurable limits
+  - RAG key-based isolation for bot-specific knowledge
+  - Batch embedding processing with rate limit protection
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -333,6 +341,151 @@ The LLM service provides robust, production-ready language model interactions wi
 - **Wait Strategy**: Exponential backoff (1s, 2s, 4s)
 - **Logging**: All retry attempts are logged with context
 
+## 📚 Multi-Bot RAG System
+
+Support for multiple chatbots with isolated knowledge bases using RAG (Retrieval-Augmented Generation).
+
+### Architecture
+
+- **RAG Keys**: Each chatbot has a unique `rag_key` for knowledge base isolation
+- **Document Chunking**: Large documents are automatically split into 500-character chunks with 100-character overlap
+- **Vector Embeddings**: Documents are converted to 1536-dimensional OpenAI embeddings (text-embedding-3-small)
+- **pgvector Storage**: Vectors are stored in PostgreSQL with IVFFlat indexing for fast similarity search
+- **Batch Processing**: Embeddings are processed in batches of 5 with rate limit protection
+
+### How It Works
+
+1. **Document Upload**
+   ```bash
+   POST /api/v1/rag/upload
+   Content-Type: multipart/form-data
+   
+   file: document.txt
+   rag_key: chatbot_general
+   tags: [optional] important
+   ```
+
+2. **Automatic Processing**
+   - Document is stored in database
+   - Content is split into chunks
+   - Each chunk is embedded using OpenAI API
+   - Embeddings are stored in pgvector table
+
+3. **Semantic Search**
+   ```bash
+   POST /api/v1/rag/search
+   
+   rag_key: chatbot_general
+   query: What is Python?
+   limit: 5
+   ```
+
+4. **Result Filtering**
+   - Search returns most similar chunks by cosine distance
+   - Results include similarity scores (0-1)
+   - Content is truncated to 500 characters in response
+
+### Database Schema
+
+```sql
+-- Documents table
+CREATE TABLE document (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES "user"(id),
+    rag_key VARCHAR(255) NOT NULL,  -- Chatbot identifier
+    filename VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    doc_metadata VARCHAR(500),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_document_user_rag ON document(user_id, rag_key);
+
+-- RAG embeddings table
+CREATE TABLE rag_embedding (
+    id INTEGER PRIMARY KEY,
+    doc_id INTEGER REFERENCES document(id) ON DELETE CASCADE,
+    rag_key VARCHAR(255) NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector(1536) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_rag_embedding_rag_key ON rag_embedding(rag_key);
+CREATE INDEX idx_rag_embedding_vector ON rag_embedding 
+    USING ivfflat(embedding vector_cosine_ops) WITH (lists=100);
+```
+
+### Usage Examples
+
+#### Python Client Example
+
+```python
+import aiohttp
+
+async with aiohttp.ClientSession() as session:
+    # Upload document
+    form_data = aiohttp.FormData()
+    form_data.add_field("file", open("guide.txt", "rb"), filename="guide.txt")
+    form_data.add_field("rag_key", "chatbot_support")
+    
+    resp = await session.post(
+        "http://localhost:8000/api/v1/rag/upload",
+        data=form_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    doc = await resp.json()
+    
+    # Search documents
+    search_data = {
+        "rag_key": "chatbot_support",
+        "query": "How do I reset my password?",
+        "limit": 3
+    }
+    resp = await session.post(
+        "http://localhost:8000/api/v1/rag/search",
+        data=search_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    results = await resp.json()
+```
+
+#### cURL Example
+
+```bash
+# Upload
+curl -X POST http://localhost:8000/api/v1/rag/upload \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "file=@document.txt" \
+  -F "rag_key=chatbot_general" \
+  -F "tags=important"
+
+# Search
+curl -X POST http://localhost:8000/api/v1/rag/search \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "rag_key=chatbot_general&query=What is Python?&limit=5"
+
+# List documents for a specific RAG
+curl -X GET "http://localhost:8000/api/v1/rag/documents?rag_key=chatbot_general" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Testing RAG System
+
+Run the included test script to verify RAG functionality:
+
+```bash
+# Run comprehensive RAG test
+$env:APP_ENV='development'; uv run python test_rag.py
+```
+
+The test script demonstrates:
+- Multiple chatbot RAG keys
+- Document upload and chunking
+- Embedding generation
+- Semantic search across different RAGs
+- RAG key isolation verification
+
 ## 📝 Advanced Logging
 
 The application uses structlog for structured, contextual logging with automatic request tracking.
@@ -401,6 +554,17 @@ The application uses uvloop for enhanced async performance (automatically enable
 - `GET /api/v1/chatbot/history` - Get conversation history
 - `DELETE /api/v1/chatbot/history` - Clear chat history
 
+### RAG Endpoints
+
+- `POST /api/v1/rag/upload` - Upload document for specific chatbot RAG
+  - Required: `file`, `rag_key`
+  - Optional: `tags`
+- `GET /api/v1/rag/documents` - List documents (optionally filtered by `rag_key`)
+- `POST /api/v1/rag/search` - Search documents using semantic similarity
+  - Required: `rag_key`, `query`
+  - Optional: `limit` (1-20, default 5)
+- `DELETE /api/v1/rag/documents/{doc_id}` - Delete document
+
 ### Health & Monitoring
 
 - `GET /health` - Health check with database status
@@ -417,6 +581,7 @@ whatsapp-food-order/
 │   │   └── v1/
 │   │       ├── auth.py              # Authentication endpoints
 │   │       ├── chatbot.py           # Chat endpoints
+│   │       ├── rag.py               # RAG endpoints
 │   │       └── api.py               # API router aggregation
 │   ├── core/
 │   │   ├── config.py                # Configuration management
@@ -432,14 +597,19 @@ whatsapp-food-order/
 │   │       └── system.md            # System prompts
 │   ├── models/
 │   │   ├── user.py                  # User model
-│   │   └── session.py               # Session model
+│   │   ├── session.py               # Session model
+│   │   ├── document.py              # Document model for RAG
+│   │   └── thread.py                # Thread model
 │   ├── schemas/
 │   │   ├── auth.py                  # Auth schemas
 │   │   ├── chat.py                  # Chat schemas
+│   │   ├── rag.py                   # RAG schemas
 │   │   └── graph.py                 # Graph state schemas
 │   ├── services/
 │   │   ├── database.py              # Database service
-│   │   └── llm.py                   # LLM service with retries
+│   │   ├── llm.py                   # LLM service with retries
+│   │   ├── rag.py                   # RAG service with embeddings
+│   │   └── document.py              # Document management service
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   └── graph.py                 # Graph utility functions
