@@ -145,8 +145,43 @@ def process_llm_response(response: BaseMessage) -> BaseMessage:
     return response
 
 
+def _replace_images_with_placeholder(message: dict) -> dict:
+    """Replace image content in a message with a text placeholder.
+    
+    This is used to reduce token usage by not sending the same image
+    multiple times in conversation history.
+    
+    Args:
+        message: A message dict that may contain multimodal content.
+        
+    Returns:
+        dict: Message with images replaced by placeholders.
+    """
+    if not isinstance(message.get("content"), list):
+        return message
+    
+    new_content = []
+    image_count = 0
+    
+    for part in message["content"]:
+        if isinstance(part, dict) and part.get("type") == "image_url":
+            image_count += 1
+        else:
+            new_content.append(part)
+    
+    # Add placeholder for removed images
+    if image_count > 0:
+        placeholder_text = f"[이전에 첨부된 이미지 {image_count}개 - 이미 분석 완료됨]"
+        new_content.append({"type": "text", "text": placeholder_text})
+    
+    return {"role": message["role"], "content": new_content if len(new_content) > 1 else new_content[0].get("text", "") if new_content else ""}
+
+
 def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt: str) -> list[dict]:
     """Prepare the messages for the LLM.
+    
+    Images are only kept in the last user message to reduce token usage.
+    Previous images are replaced with placeholders.
 
     Args:
         messages (list[Message]): The messages to prepare.
@@ -157,11 +192,31 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
         list[dict]: The prepared messages as dictionaries ready for LLM.
     """
     dumped = dump_messages(messages)
-    logger.debug("prepare_messages_dumped", message_count=len(dumped), messages=dumped)
+    # logger.debug("prepare_messages_dumped", message_count=len(dumped), messages=dumped)
+    
+    # Replace images in all messages except the last user message
+    # Find the last user message index
+    last_user_idx = -1
+    for i in range(len(dumped) - 1, -1, -1):
+        if dumped[i].get("role") == "user":
+            last_user_idx = i
+            break
+    
+    # Process messages: replace images with placeholders except for the last user message
+    processed_messages = []
+    for i, msg in enumerate(dumped):
+        if i == last_user_idx:
+            # Keep the last user message as-is (with images)
+            processed_messages.append(msg)
+        elif msg.get("role") == "user" and isinstance(msg.get("content"), list):
+            # Replace images in previous user messages
+            processed_messages.append(_replace_images_with_placeholder(msg))
+        else:
+            processed_messages.append(msg)
     
     try:
         trimmed_messages = _trim_messages(
-            dumped,
+            processed_messages,
             strategy="last",
             token_counter=llm,
             max_tokens=settings.MAX_TOKENS,
@@ -179,7 +234,7 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
                 message_count=len(messages),
             )
             # Skip trimming and return all messages as dicts
-            trimmed_messages = dumped
+            trimmed_messages = processed_messages
         else:
             raise
 
