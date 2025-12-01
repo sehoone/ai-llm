@@ -35,12 +35,23 @@ from app.services.database import database_service
 # Load environment variables
 load_dotenv()
 
-# Initialize Langfuse
-langfuse = Langfuse(
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
-)
+# Initialize Langfuse (optional - only if credentials are provided)
+langfuse = None
+langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY", "")
+langfuse_enabled = os.getenv("LANGFUSE_ENABLED", "true").lower() == "true"
+
+if langfuse_enabled and langfuse_public_key and langfuse_secret_key:
+    try:
+        langfuse = Langfuse(
+            public_key=langfuse_public_key,
+            secret_key=langfuse_secret_key,
+            host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+        )
+    except Exception as e:
+        logger.warning("langfuse_initialization_failed", error=str(e))
+else:
+    logger.info("langfuse_disabled", reason="credentials not provided or LANGFUSE_ENABLED=false")
 
 
 @asynccontextmanager

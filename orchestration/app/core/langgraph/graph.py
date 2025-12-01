@@ -1,6 +1,7 @@
 """This file contains the LangGraph Agent/workflow and interactions with the LLM."""
 
 import asyncio
+import os
 from typing import (
     AsyncGenerator,
     Optional,
@@ -13,7 +14,6 @@ from langchain_core.messages import (
     ToolMessage,
     convert_to_openai_messages,
 )
-from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import (
     END,
@@ -48,6 +48,21 @@ from app.utils import (
     prepare_messages,
     process_llm_response,
 )
+
+# Check if Langfuse is enabled
+_langfuse_enabled = (
+    os.getenv("LANGFUSE_ENABLED", "true").lower() == "true"
+    and os.getenv("LANGFUSE_PUBLIC_KEY", "")
+    and os.getenv("LANGFUSE_SECRET_KEY", "")
+)
+
+
+def _get_langfuse_callbacks(**kwargs):
+    """Get Langfuse callbacks if enabled, otherwise return empty list."""
+    if _langfuse_enabled:
+        from langfuse.langchain import CallbackHandler
+        return [CallbackHandler(**kwargs)]
+    return []
 
 
 class LangGraphAgent:
@@ -165,8 +180,32 @@ class LangGraphAgent:
         """
         try:
             memory = await self._long_term_memory()
-            await memory.add(messages, user_id=str(user_id), metadata=metadata)
-            logger.info("long_term_memory_updated_successfully", user_id=user_id)
+            
+            # Filter out image content from messages to avoid mem0 vision processing issues
+            filtered_messages = []
+            for msg in messages:
+                if isinstance(msg.get("content"), list):
+                    # Extract only text content from multimodal messages
+                    text_parts = []
+                    for block in msg["content"]:
+                        if isinstance(block, dict):
+                            if block.get("type") == "text" and "text" in block:
+                                text_parts.append(block["text"])
+                            # Skip image_url blocks
+                        elif isinstance(block, str):
+                            text_parts.append(block)
+                    
+                    if text_parts:
+                        filtered_messages.append({
+                            "role": msg.get("role"),
+                            "content": "\n".join(text_parts)
+                        })
+                else:
+                    filtered_messages.append(msg)
+            
+            if filtered_messages:
+                await memory.add(filtered_messages, user_id=str(user_id), metadata=metadata)
+                logger.info("long_term_memory_updated_successfully", user_id=user_id)
         except Exception as e:
             logger.exception(
                 "failed_to_update_long_term_memory",
@@ -193,13 +232,13 @@ class LangGraphAgent:
 
         SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
 
-        # Prepare messages with system prompt
+        # Prepare messages with system prompt (returns list of dicts ready for LLM)
         messages = prepare_messages(state.messages, current_llm, SYSTEM_PROMPT)
 
         try:
             # Use LLM service with automatic retries and circular fallback
             with llm_inference_duration_seconds.labels(model=model_name).time():
-                response_message = await self.llm_service.call(dump_messages(messages))
+                response_message = await self.llm_service.call(messages)
 
             # Process response to handle structured content blocks
             response_message = process_llm_response(response_message)
@@ -314,7 +353,7 @@ class LangGraphAgent:
             self._graph = await self.create_graph()
         config = {
             "configurable": {"thread_id": session_id},
-            "callbacks": [CallbackHandler()],
+            "callbacks": _get_langfuse_callbacks(),
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
@@ -339,6 +378,7 @@ class LangGraphAgent:
             return self.__process_messages(response["messages"])
         except Exception as e:
             logger.error(f"Error getting response: {str(e)}")
+            raise  # Re-raise to let caller handle the error
 
     async def get_stream_response(
         self, messages: list[Message], session_id: str, user_id: Optional[str] = None
@@ -355,11 +395,9 @@ class LangGraphAgent:
         """
         config = {
             "configurable": {"thread_id": session_id},
-            "callbacks": [
-                CallbackHandler(
-                    environment=settings.ENVIRONMENT.value, debug=False, user_id=user_id, session_id=session_id
-                )
-            ],
+            "callbacks": _get_langfuse_callbacks(
+                environment=settings.ENVIRONMENT.value, debug=False, user_id=user_id, session_id=session_id
+            ),
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
@@ -418,12 +456,33 @@ class LangGraphAgent:
 
     def __process_messages(self, messages: list[BaseMessage]) -> list[Message]:
         openai_style_messages = convert_to_openai_messages(messages)
+        result = []
         # keep just assistant and user messages
-        return [
-            Message(role=message["role"], content=str(message["content"]))
-            for message in openai_style_messages
-            if message["role"] in ["assistant", "user"] and message["content"]
-        ]
+        for message in openai_style_messages:
+            if message["role"] not in ["assistant", "user"] or not message["content"]:
+                continue
+            
+            content = message["content"]
+            
+            # Handle multimodal content (list of content blocks)
+            if isinstance(content, list):
+                # Extract only text content from multimodal messages
+                text_parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text" and "text" in block:
+                            text_parts.append(block["text"])
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+                content = "\n".join(text_parts) if text_parts else ""
+            
+            # Skip empty content after processing
+            if not content:
+                continue
+                
+            result.append(Message(role=message["role"], content=str(content)))
+        
+        return result
 
     async def clear_chat_history(self, session_id: str) -> None:
         """Clear all chat history for a given thread ID.

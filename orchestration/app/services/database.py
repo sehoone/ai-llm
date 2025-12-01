@@ -59,7 +59,7 @@ class DatabaseService:
             )
 
             # 테이블이 존재 하지 않으면 생성. SQLModel.metadata.create_all은 import된 모든 모델을 기준으로 테이블을 생성함.
-            SQLModel.metadata.create_all(self.engine)
+            # SQLModel.metadata.create_all(self.engine)
 
             logger.info(
                 "database_initialized",
