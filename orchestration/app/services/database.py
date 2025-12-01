@@ -45,6 +45,7 @@ class DatabaseService:
             connection_url = (
                 f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
                 f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+                f"?options=-csearch_path%3D{settings.POSTGRES_SCHEMA},public"
             )
 
             self.engine = create_engine(
@@ -56,12 +57,9 @@ class DatabaseService:
                 pool_timeout=30,  # Connection timeout (seconds)
                 pool_recycle=1800,  # Recycle connections after 30 minutes
             )
-            
+
             # 테이블이 존재 하지 않으면 생성. SQLModel.metadata.create_all은 import된 모든 모델을 기준으로 테이블을 생성함.
             SQLModel.metadata.create_all(self.engine)
-            
-            # Initialize pgvector extension and RAG-specific setup
-            self._initialize_rag_tables()
 
             logger.info(
                 "database_initialized",
@@ -75,29 +73,7 @@ class DatabaseService:
             if settings.ENVIRONMENT != Environment.PRODUCTION:
                 raise
 
-    def _initialize_rag_tables(self):
-        """Initialize pgvector extension and RAG table indexes."""
-        try:
-            with Session(self.engine) as session:
-                # Enable pgvector extension
-                session.exec(text("CREATE EXTENSION IF NOT EXISTS vector"))
-                session.commit()
-                logger.info("pgvector_extension_enabled")
-                
-                # Create vector index for RAG embeddings if not exists
-                session.exec(
-                    text("""
-                    CREATE INDEX IF NOT EXISTS idx_rag_embedding_vector 
-                    ON rag_embedding USING ivfflat (embedding vector_cosine_ops) 
-                    WITH (lists=100)
-                    """)
-                )
-                session.commit()
-                logger.info("rag_vector_index_created")
-                
-        except Exception as e:
-            logger.warning("rag_initialization_error", error=str(e))
-            # Don't fail startup if RAG setup has issues
+
 
     async def create_user(self, email: str, password: str) -> User:
         """Create a new user.

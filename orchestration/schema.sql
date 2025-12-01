@@ -2,6 +2,10 @@
 -- Generated from SQLModel classes
 -- PostgreSQL compatible
 
+-- Create llmonl schema and set as default search path
+CREATE SCHEMA IF NOT EXISTS llmonl;
+SET search_path TO llmonl, public;
+
 -- Enable pgvector extension for vector embeddings
 CREATE EXTENSION IF NOT EXISTS vector;
 
