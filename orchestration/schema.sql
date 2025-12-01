@@ -1,9 +1,13 @@
 -- Database schema for the application
 -- Generated from SQLModel classes
+-- PostgreSQL compatible
+
+-- Enable pgvector extension for vector embeddings
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Create user table
-CREATE TABLE IF NOT EXISTS user (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS "user" (
+    id SERIAL PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     hashed_password TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -14,8 +18,7 @@ CREATE TABLE IF NOT EXISTS session (
     id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
     name TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create thread table
@@ -47,7 +50,7 @@ CREATE TABLE IF NOT EXISTS rag_embedding (
     rag_type TEXT NOT NULL,
     chunk_index INTEGER NOT NULL,
     content TEXT NOT NULL,
-    embedding public.vector NULL,
+    embedding vector(1536),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -64,5 +67,6 @@ CREATE INDEX IF NOT EXISTS idx_rag_embedding_rag_group ON rag_embedding(rag_grou
 CREATE INDEX IF NOT EXISTS idx_rag_embedding_rag_type ON rag_embedding(rag_type);
 
 -- Create vector index for fast similarity search (requires pgvector extension)
--- CREATE EXTENSION IF NOT EXISTS vector;
-CREATE INDEX IF NOT EXISTS idx_rag_embedding_vector ON rag_embedding USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- Note: ivfflat index requires at least some data in the table to work properly
+-- Run this after inserting initial data:
+-- CREATE INDEX IF NOT EXISTS idx_rag_embedding_vector ON rag_embedding USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);

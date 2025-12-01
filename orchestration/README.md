@@ -1,8 +1,8 @@
-# FastAPI LangGraph Agent Template
+# LLM Orchestration
 
 A production-ready FastAPI template for building AI agent applications with LangGraph integration. This template provides a robust foundation for building scalable, secure, and maintainable AI agent services.
 
-## 🌟 Features
+## Features
 
 - **Production-Ready Architecture**
 
@@ -55,7 +55,7 @@ A production-ready FastAPI template for building AI agent applications with Lang
   - RAG key-based isolation for bot-specific knowledge
   - Batch embedding processing with rate limit protection
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -180,7 +180,7 @@ The Docker setup includes:
   - Database performance
   - System resource usage
 
-## 📊 Model Evaluation
+## Model Evaluation
 
 The project includes a robust evaluation framework for measuring and tracking model performance over time. The evaluator automatically fetches traces from Langfuse, applies evaluation metrics, and generates detailed reports.
 
@@ -244,7 +244,7 @@ Each report includes:
 - Per-metric performance metrics
 - Detailed trace-level information for debugging
 
-## 🔧 Configuration
+## Configuration
 
 The application uses a flexible configuration system with environment-specific settings:
 
@@ -293,7 +293,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 RATE_LIMIT_ENABLED=true
 ```
 
-## 🧠 Long-Term Memory
+## Long-Term Memory
 
 The application includes a sophisticated long-term memory system powered by mem0ai and pgvector:
 
@@ -312,7 +312,7 @@ The application includes a sophisticated long-term memory system powered by mem0
 3. **Memory Search**: Semantic search finds related memories across conversations
 4. **Memory Updates**: Existing memories can be updated as new information becomes available
 
-## 🤖 LLM Service
+## LLM Service
 
 The LLM service provides robust, production-ready language model interactions with automatic retry logic and multiple model support.
 
@@ -341,7 +341,7 @@ The LLM service provides robust, production-ready language model interactions wi
 - **Wait Strategy**: Exponential backoff (1s, 2s, 4s)
 - **Logging**: All retry attempts are logged with context
 
-## 📚 Multi-Bot RAG System
+## Multi-Bot RAG System
 
 Support for multiple chatbots with isolated knowledge bases using RAG (Retrieval-Augmented Generation).
 
@@ -384,36 +384,6 @@ Support for multiple chatbots with isolated knowledge bases using RAG (Retrieval
    - Search returns most similar chunks by cosine distance
    - Results include similarity scores (0-1)
    - Content is truncated to 500 characters in response
-
-### Database Schema
-
-```sql
--- Documents table
-CREATE TABLE document (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER REFERENCES "user"(id),
-    rag_key VARCHAR(255) NOT NULL,  -- Chatbot identifier
-    filename VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    doc_metadata VARCHAR(500),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX idx_document_user_rag ON document(user_id, rag_key);
-
--- RAG embeddings table
-CREATE TABLE rag_embedding (
-    id INTEGER PRIMARY KEY,
-    doc_id INTEGER REFERENCES document(id) ON DELETE CASCADE,
-    rag_key VARCHAR(255) NOT NULL,
-    chunk_index INTEGER NOT NULL,
-    content TEXT NOT NULL,
-    embedding vector(1536) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX idx_rag_embedding_rag_key ON rag_embedding(rag_key);
-CREATE INDEX idx_rag_embedding_vector ON rag_embedding 
-    USING ivfflat(embedding vector_cosine_ops) WITH (lists=100);
-```
 
 ### Usage Examples
 
@@ -486,7 +456,7 @@ The test script demonstrates:
 - Semantic search across different RAGs
 - RAG key isolation verification
 
-## 📝 Advanced Logging
+## Advanced Logging
 
 The application uses structlog for structured, contextual logging with automatic request tracking.
 
@@ -514,7 +484,7 @@ Every request automatically gets:
 - **Context Binding**: Always include relevant IDs and context
 - **Appropriate Levels**: debug, info, warning, error, exception
 
-## ⚡ Performance Optimizations
+## Performance Optimizations
 
 ### uvloop Integration
 
@@ -572,7 +542,7 @@ The application uses uvloop for enhanced async performance (automatically enable
 
 For detailed API documentation, visit `/docs` (Swagger UI) or `/redoc` (ReDoc) when running the application.
 
-## 📚 Project Structure
+## Project Structure
 
 ```
 whatsapp-food-order/
@@ -632,24 +602,6 @@ whatsapp-food-order/
 └── README.md                        # This file
 ```
 
-## 🛡️ Security
+## Security
 
 For security concerns, please review our [Security Policy](SECURITY.md).
-
-## 📄 License
-
-This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please ensure:
-
-1. Code follows the project's coding standards
-2. All tests pass
-3. New features include appropriate tests
-4. Documentation is updated
-5. Commit messages follow conventional commits format
-
-## 📞 Support
-
-For issues, questions, or contributions, please open an issue on the project repository

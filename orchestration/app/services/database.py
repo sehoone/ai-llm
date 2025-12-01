@@ -56,7 +56,7 @@ class DatabaseService:
                 pool_timeout=30,  # Connection timeout (seconds)
                 pool_recycle=1800,  # Recycle connections after 30 minutes
             )
-            logger.info("database_engine_created", environment=settings.ENVIRONMENT.value)
+            
             # 테이블이 존재 하지 않으면 생성. SQLModel.metadata.create_all은 import된 모든 모델을 기준으로 테이블을 생성함.
             SQLModel.metadata.create_all(self.engine)
             
