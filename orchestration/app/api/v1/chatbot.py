@@ -205,11 +205,11 @@ async def chat_stream(
                     ):
                         full_response += chunk
                         response = StreamResponse(content=chunk, done=False)
-                        yield f"data: {json.dumps(response.model_dump())}\n\n"
+                        yield f"data: {json.dumps(response.model_dump(), ensure_ascii=False)}\n\n"
 
                 # Send final message indicating completion
                 final_response = StreamResponse(content="", done=True)
-                yield f"data: {json.dumps(final_response.model_dump())}\n\n"
+                yield f"data: {json.dumps(final_response.model_dump(), ensure_ascii=False)}\n\n"
 
             except Exception as e:
                 logger.error(
@@ -219,7 +219,7 @@ async def chat_stream(
                     exc_info=True,
                 )
                 error_response = StreamResponse(content=str(e), done=True)
-                yield f"data: {json.dumps(error_response.model_dump())}\n\n"
+                yield f"data: {json.dumps(error_response.model_dump(), ensure_ascii=False)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
