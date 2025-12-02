@@ -236,3 +236,6 @@ logger.info(
     log_format=settings.LOG_FORMAT,
     debug=settings.DEBUG,
 )
+logging.getLogger("openai").setLevel(logging.INFO)
+logging.getLogger("httpx").setLevel(logging.INFO)
+logging.getLogger("httpcore").setLevel(logging.INFO)

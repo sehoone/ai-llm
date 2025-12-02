@@ -57,11 +57,16 @@ _langfuse_enabled = (
 )
 
 
-def _get_langfuse_callbacks(**kwargs):
-    """Get Langfuse callbacks if enabled, otherwise return empty list."""
+def _get_langfuse_callbacks():
+    """Get Langfuse callbacks if enabled, otherwise return empty list.
+
+    Note: User ID, session ID, environment, and other metadata should be passed
+    through the LangChain config's 'metadata' field, not to the CallbackHandler.
+    """
     if _langfuse_enabled:
         from langfuse.langchain import CallbackHandler
-        return [CallbackHandler(**kwargs)]
+
+        return [CallbackHandler()]
     return []
 
 
@@ -164,7 +169,7 @@ class LangGraphAgent:
         try:
             memory = await self._long_term_memory()
             results = await memory.search(user_id=str(user_id), query=query)
-            print(results)
+            # print(results)
             return "\n".join([f"* {result['memory']}" for result in results["results"]])
         except Exception as e:
             logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
@@ -395,9 +400,7 @@ class LangGraphAgent:
         """
         config = {
             "configurable": {"thread_id": session_id},
-            "callbacks": _get_langfuse_callbacks(
-                environment=settings.ENVIRONMENT.value, debug=False, user_id=user_id, session_id=session_id
-            ),
+            "callbacks": _get_langfuse_callbacks(),
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
