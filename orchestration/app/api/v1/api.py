@@ -16,7 +16,7 @@ api_router = APIRouter()
 # Include routers
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
-api_router.include_router(rag_router, tags=["rag"])
+api_router.include_router(rag_router, prefix="/rag", tags=["rag"])
 
 
 @api_router.get("/health")

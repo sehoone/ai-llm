@@ -153,7 +153,7 @@ async def get_current_session(
         )
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse, summary="사용자 등록", description="사용자 등록")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["register"][0])
 async def register_user(request: Request, user_data: UserCreate):
     """Register a new user.
@@ -189,7 +189,7 @@ async def register_user(request: Request, user_data: UserCreate):
         raise HTTPException(status_code=422, detail=str(ve))
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, summary="사용자 로그인", description="사용자 로그인")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["login"][0])
 async def login(
     request: Request, username: str = Form(...), password: str = Form(...), grant_type: str = Form(default="password")
@@ -236,7 +236,7 @@ async def login(
         raise HTTPException(status_code=422, detail=str(ve))
 
 
-@router.post("/session", response_model=SessionResponse)
+@router.post("/session", response_model=SessionResponse, summary="세션 생성", description="새로운 채팅 세션 생성")
 async def create_session(user: User = Depends(get_current_user)):
     """Create a new chat session for the authenticated user.
 
@@ -270,7 +270,7 @@ async def create_session(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=422, detail=str(ve))
 
 
-@router.patch("/session/{session_id}/name", response_model=SessionResponse)
+@router.patch("/session/{session_id}/name", response_model=SessionResponse, summary="세션 이름 업데이트", description="세션의 이름을 업데이트합니다.")
 async def update_session_name(
     session_id: str, name: str = Form(...), current_session: Session = Depends(get_current_session)
 ):
@@ -306,7 +306,7 @@ async def update_session_name(
         raise HTTPException(status_code=422, detail=str(ve))
 
 
-@router.delete("/session/{session_id}")
+@router.delete("/session/{session_id}", summary="세션 삭제", description="인증된 사용자의 세션을 삭제합니다.")
 async def delete_session(session_id: str, current_session: Session = Depends(get_current_session)):
     """Delete a session for the authenticated user.
 
@@ -335,7 +335,7 @@ async def delete_session(session_id: str, current_session: Session = Depends(get
         raise HTTPException(status_code=422, detail=str(ve))
 
 
-@router.get("/sessions", response_model=List[SessionResponse])
+@router.get("/sessions", response_model=List[SessionResponse], summary="사용자 세션 목록 조회", description="인증된 사용자의 모든 세션을 조회합니다.")
 async def get_user_sessions(user: User = Depends(get_current_user)):
     """Get all session IDs for the authenticated user.
 

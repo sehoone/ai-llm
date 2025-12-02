@@ -42,7 +42,7 @@ router = APIRouter()
 agent = LangGraphAgent()
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, summary="채팅 요청", description="LangGraph를 사용하여 채팅 요청을 처리합니다.")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat"][0])
 async def chat(
     request: Request,
@@ -79,7 +79,7 @@ async def chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/chat/upload", response_model=ChatResponse)
+@router.post("/chat/upload", response_model=ChatResponse, summary="파일 첨부 채팅 요청", description="LangGraph를 사용하여 파일 첨부 채팅 요청을 처리합니다.")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat"][0])
 async def chat_with_files(
     request: Request,
@@ -161,7 +161,7 @@ async def chat_with_files(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/chat/stream")
+@router.post("/chat/stream", response_model=None, summary="스트리밍 채팅 요청", description="LangGraph를 사용하여 스트리밍 채팅 요청을 처리합니다.")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat_stream"][0])
 async def chat_stream(
     request: Request,
@@ -233,7 +233,7 @@ async def chat_stream(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/messages", response_model=ChatResponse)
+@router.get("/messages", response_model=ChatResponse, summary="세션 메시지 조회", description="인증된 사용자의 세션에 대한 모든 메시지를 조회합니다.")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def get_session_messages(
     request: Request,
@@ -259,7 +259,7 @@ async def get_session_messages(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/messages")
+@router.delete("/messages", summary="세션 메시지 삭제", description="인증된 사용자의 세션에 대한 모든 메시지를 삭제합니다.")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def clear_chat_history(
     request: Request,

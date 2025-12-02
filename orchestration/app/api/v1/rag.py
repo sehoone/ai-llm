@@ -26,10 +26,10 @@ from app.services.document import document_service
 from app.services.rag import rag_service
 from app.utils.sanitization import sanitize_string
 
-router = APIRouter(prefix="/rag", tags=["rag"])
+router = APIRouter()
 
 
-@router.post("/upload", response_model=DocumentResponse)
+@router.post("/upload", response_model=DocumentResponse, summary="문서 업로드", description="RAG를 위한 문서를 업로드합니다.")
 @limiter.limit("10 per hour")
 async def upload_document(
     request: Request,
@@ -126,7 +126,7 @@ async def upload_document(
         raise HTTPException(status_code=500, detail="Failed to upload document")
 
 
-@router.get("/documents", response_model=List[DocumentResponse])
+@router.get("/documents", response_model=List[DocumentResponse], summary="사용자 문서 목록 조회", description="인증된 사용자의 모든 문서를 조회합니다.")
 @limiter.limit("30 per minute")
 async def get_user_documents(
     request: Request,
@@ -162,7 +162,7 @@ async def get_user_documents(
         raise HTTPException(status_code=500, detail="Failed to retrieve documents")
 
 
-@router.delete("/documents/{doc_id}")
+@router.delete("/documents/{doc_id}", summary="문서 삭제", description="인증된 사용자의 문서를 삭제합니다.")
 @limiter.limit("30 per minute")
 async def delete_document(
     request: Request,
@@ -202,7 +202,7 @@ async def delete_document(
         raise HTTPException(status_code=500, detail="Failed to delete document")
 
 
-@router.post("/search", response_model=RAGSearchResponse)
+@router.post("/search", response_model=RAGSearchResponse, summary="RAG 문서 검색", description="RAG 문서들을 의미론적 유사도로 검색합니다.")
 @limiter.limit("30 per minute")
 async def search_rag(
     request: Request,
@@ -272,7 +272,7 @@ async def search_rag(
         raise HTTPException(status_code=500, detail="Failed to search documents")
 
 
-@router.post("/search-group", response_model=RAGSearchResponse)
+@router.post("/search-group", response_model=RAGSearchResponse, summary="RAG 그룹 문서 검색", description="RAG 그룹에 속한 여러 RAG 문서들을 의미론적 유사도로 검색합니다.")
 @limiter.limit("30 per minute")
 async def search_rag_group(
     request: Request,
