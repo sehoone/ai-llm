@@ -32,7 +32,7 @@ def create_access_token(thread_id: str, expires_delta: Optional[timedelta] = Non
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(days=settings.JWT_ACCESS_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode = {
         "sub": thread_id,

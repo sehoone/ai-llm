@@ -36,6 +36,7 @@ class TokenResponse(BaseModel):
     """
 
     access_token: str = Field(..., description="The JWT access token")
+    refresh_token: str = Field(..., description="The refresh token")
     token_type: str = Field(default="bearer", description="The type of token")
     expires_at: datetime = Field(..., description="When the token expires")
 

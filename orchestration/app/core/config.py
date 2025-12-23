@@ -161,7 +161,8 @@ class Settings:
         # JWT Configuration
         self.JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
         self.JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-        self.JWT_ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_DAYS", "30"))
+        self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10"))
+        self.JWT_REFRESH_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_MINUTES", "30"))
 
         # Logging Configuration
         self.LOG_DIR = Path(os.getenv("LOG_DIR", "logs"))
@@ -206,7 +207,7 @@ class Settings:
         self.EVALUATION_BASE_URL = os.getenv("EVALUATION_BASE_URL", "https://api.openai.com/v1")
         self.EVALUATION_API_KEY = os.getenv("EVALUATION_API_KEY", self.OPENAI_API_KEY)
         self.EVALUATION_SLEEP_TIME = int(os.getenv("EVALUATION_SLEEP_TIME", "10"))
-
+        self.MULTIPART_DEBUG = os.getenv("MULTIPART_DEBUG", "0")
         # Apply environment-specific settings
         self.apply_environment_settings()
 
@@ -214,8 +215,8 @@ class Settings:
         """Apply environment-specific settings based on the current environment."""
         env_settings = {
             Environment.DEVELOPMENT: {
-                "DEBUG": True,
-                "LOG_LEVEL": "DEBUG",
+                "DEBUG": False,
+                "LOG_LEVEL": "WARNING",
                 "LOG_FORMAT": "console",
                 "RATE_LIMIT_DEFAULT": ["1000 per day", "200 per hour"],
             },

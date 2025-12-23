@@ -5,6 +5,7 @@ and token verification.
 """
 
 import uuid
+from datetime import timedelta
 from typing import List
 
 from fastapi import (
@@ -229,8 +230,15 @@ async def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        token = create_access_token(str(user.id))
-        return TokenResponse(access_token=token.access_token, token_type="bearer", expires_at=token.expires_at)
+        token = create_access_token(str(user.id), timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES))
+        refresh_token = create_access_token(str(user.id), timedelta(minutes=settings.JWT_REFRESH_TOKEN_EXPIRE_MINUTES))
+
+        return TokenResponse(
+            access_token=token.access_token,
+            refresh_token=refresh_token.access_token,
+            token_type="bearer",
+            expires_at=token.expires_at,
+        )
     except ValueError as ve:
         logger.error("login_validation_failed", error=str(ve), exc_info=True)
         raise HTTPException(status_code=422, detail=str(ve))
@@ -270,7 +278,12 @@ async def create_session(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=422, detail=str(ve))
 
 
-@router.patch("/session/{session_id}/name", response_model=SessionResponse, summary="세션 이름 업데이트", description="세션의 이름을 업데이트합니다.")
+@router.patch(
+    "/session/{session_id}/name",
+    response_model=SessionResponse,
+    summary="세션 이름 업데이트",
+    description="세션의 이름을 업데이트합니다.",
+)
 async def update_session_name(
     session_id: str, name: str = Form(...), current_session: Session = Depends(get_current_session)
 ):
@@ -335,7 +348,12 @@ async def delete_session(session_id: str, current_session: Session = Depends(get
         raise HTTPException(status_code=422, detail=str(ve))
 
 
-@router.get("/sessions", response_model=List[SessionResponse], summary="사용자 세션 목록 조회", description="인증된 사용자의 모든 세션을 조회합니다.")
+@router.get(
+    "/sessions",
+    response_model=List[SessionResponse],
+    summary="사용자 세션 목록 조회",
+    description="인증된 사용자의 모든 세션을 조회합니다.",
+)
 async def get_user_sessions(user: User = Depends(get_current_user)):
     """Get all session IDs for the authenticated user.
 
