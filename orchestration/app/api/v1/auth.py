@@ -32,6 +32,7 @@ from app.schemas.auth import (
     SessionResponse,
     TokenResponse,
     UserCreate,
+    UserLogin,
     UserResponse,
 )
 from app.services.database import DatabaseService
@@ -192,9 +193,7 @@ async def register_user(request: Request, user_data: UserCreate):
 
 @router.post("/login", response_model=TokenResponse, summary="사용자 로그인", description="사용자 로그인")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["login"][0])
-async def login(
-    request: Request, username: str = Form(...), password: str = Form(...), grant_type: str = Form(default="password")
-):
+async def login(request: Request, user_data: UserLogin):
     """Login a user.
 
     Args:
@@ -210,10 +209,11 @@ async def login(
         HTTPException: If credentials are invalid
     """
     try:
+        print(user_data)
         # Sanitize inputs
-        username = sanitize_string(username)
-        password = sanitize_string(password)
-        grant_type = sanitize_string(grant_type)
+        username = sanitize_string(user_data.email)
+        password = sanitize_string(user_data.password.get_secret_value())
+        grant_type = sanitize_string(user_data.grant_type)
 
         # Verify grant type
         if grant_type != "password":
