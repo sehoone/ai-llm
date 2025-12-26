@@ -546,43 +546,38 @@ For detailed API documentation, visit `/docs` (Swagger UI) or `/redoc` (ReDoc) w
 
 ```
 whatsapp-food-order/
-├── app/
-│   ├── api/
-│   │   └── v1/
-│   │       ├── auth.py              # Authentication endpoints
-│   │       ├── chatbot.py           # Chat endpoints
-│   │       ├── rag.py               # RAG endpoints
-│   │       └── api.py               # API router aggregation
-│   ├── core/
-│   │   ├── config.py                # Configuration management
-│   │   ├── logging.py               # Logging setup
-│   │   ├── metrics.py               # Prometheus metrics
-│   │   ├── middleware.py            # Custom middleware
-│   │   ├── limiter.py               # Rate limiting
-│   │   ├── langgraph/
-│   │   │   ├── graph.py             # LangGraph agent
-│   │   │   └── tools.py             # Agent tools
-│   │   └── prompts/
-│   │       ├── __init__.py          # Prompt loader
-│   │       └── system.md            # System prompts
-│   ├── models/
-│   │   ├── user.py                  # User model
-│   │   ├── session.py               # Session model
-│   │   ├── document.py              # Document model for RAG
-│   │   └── thread.py                # Thread model
-│   ├── schemas/
-│   │   ├── auth.py                  # Auth schemas
-│   │   ├── chat.py                  # Chat schemas
-│   │   ├── rag.py                   # RAG schemas
-│   │   └── graph.py                 # Graph state schemas
-│   ├── services/
-│   │   ├── database.py              # Database service
-│   │   ├── llm.py                   # LLM service with retries
-│   │   ├── rag.py                   # RAG service with embeddings
-│   │   └── document.py              # Document management service
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   └── graph.py                 # Graph utility functions
+├── src
+│   ├── auth
+│   │   ├── router.py
+│   │   ├── schemas.py  # pydantic models
+│   │   ├── models.py  # db models
+│   │   ├── dependencies.py
+│   │   ├── config.py  # local configs
+│   │   ├── constants.py
+│   │   ├── exceptions.py
+│   │   ├── service.py
+│   │   └── utils.py
+│   ├── aws
+│   │   ├── client.py  # client model for external service communication
+│   │   ├── schemas.py
+│   │   ├── config.py
+│   │   ├── constants.py
+│   │   ├── exceptions.py
+│   │   └── utils.py
+│   └── posts
+│   │   ├── router.py
+│   │   ├── schemas.py
+│   │   ├── models.py
+│   │   ├── dependencies.py
+│   │   ├── constants.py
+│   │   ├── exceptions.py
+│   │   ├── service.py
+│   │   └── utils.py
+│   ├── config.py  # global configs
+│   ├── models.py  # global models
+│   ├── exceptions.py  # global exceptions
+│   ├── pagination.py  # global module e.g. pagination
+│   ├── database.py  # db connection related stuff
 │   └── main.py                      # Application entry point
 ├── evals/
 │   ├── evaluator.py                 # Evaluation logic
