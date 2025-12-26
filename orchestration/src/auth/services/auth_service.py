@@ -15,7 +15,7 @@ from jose import (
 
 from src.common.config import settings
 from src.common.logging import logger
-from src.auth.schemas.auth import Token
+from src.auth.schemas.auth_schema import Token
 from src.common.services.sanitization import sanitize_string
 
 

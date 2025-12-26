@@ -12,18 +12,18 @@ from fastapi import (
     UploadFile,
 )
 
-from src.auth.api.auth import get_current_user
+from src.auth.api.auth_api import get_current_user
 from src.common.config import settings
 from src.common.limiter import limiter
 from src.common.logging import logger
-from src.user.models.user import User
-from src.rag.schemas.rag import (
+from src.user.models.user_model import User
+from src.rag.schemas.rag_schema import (
     DocumentResponse,
     RAGSearchResponse,
     RAGSearchResult,
 )
-from src.rag.services.document import document_service
-from src.rag.services.rag import rag_service
+from src.rag.services.document_service import document_service
+from src.rag.services.rag_service import rag_service
 from src.common.services.sanitization import sanitize_string
 
 router = APIRouter()

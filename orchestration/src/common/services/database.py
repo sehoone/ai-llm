@@ -21,10 +21,10 @@ from src.common.config import (
     settings,
 )
 from src.common.logging import logger
-from src.rag.models.document import Document
-from src.chatbot.models.session import Session as ChatSession
-from src.user.models.user import User
-from src.rag.models.rag_embedding import RAGEmbedding
+from src.rag.models.document_model import Document
+from src.chatbot.models.session_model import Session as ChatSession
+from src.user.models.user_model import User
+from src.rag.models.rag_embedding_model import RAGEmbedding
 
 
 class DatabaseService:

@@ -9,7 +9,7 @@ from sqlmodel import (
 )
 
 from src.common.logging import logger
-from src.rag.models.document import Document
+from src.rag.models.document_model import Document
 from src.common.services.database import database_service
 
 

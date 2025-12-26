@@ -26,9 +26,9 @@ from src.common.logging import (
     bind_context,
     logger,
 )
-from src.chatbot.models.session import Session
-from src.user.models.user import User
-from src.auth.schemas.auth import (
+from src.chatbot.models.session_model import Session
+from src.user.models.user_model import User
+from src.auth.schemas.auth_schema import (
     SessionResponse,
     TokenResponse,
     UserCreate,
@@ -36,7 +36,7 @@ from src.auth.schemas.auth import (
     UserResponse,
 )
 from src.common.services.database import DatabaseService
-from src.auth.services.auth import (
+from src.auth.services.auth_service import (
     create_access_token,
     verify_token,
 )

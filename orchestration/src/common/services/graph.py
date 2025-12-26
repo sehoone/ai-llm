@@ -8,7 +8,7 @@ from langchain_core.messages import trim_messages as _trim_messages
 
 from src.common.config import settings
 from src.common.logging import logger
-from src.chatbot.schemas.chat import Message
+from src.chatbot.schemas.chat_schema import Message
 
 
 def dump_messages(messages: Union[list[Message], list[dict]]) -> list[dict]:

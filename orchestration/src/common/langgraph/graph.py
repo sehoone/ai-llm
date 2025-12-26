@@ -39,7 +39,7 @@ from src.common.logging import logger
 from src.common.metrics import llm_inference_duration_seconds
 from src.common.prompts import load_system_prompt
 from src.common.schemas.graph import GraphState
-from src.chatbot.schemas.chat import Message
+from src.chatbot.schemas.chat_schema import Message
 from src.common.services.llm import llm_service
 from src.common.services.graph import (
     dump_messages,

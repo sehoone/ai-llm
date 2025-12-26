@@ -19,14 +19,14 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 
-from src.auth.api.auth import get_current_session
+from src.auth.api.auth_api import get_current_session
 from src.common.config import settings
 from src.common.langgraph.graph import LangGraphAgent
 from src.common.limiter import limiter
 from src.common.logging import logger
 from src.common.metrics import llm_stream_duration_seconds
-from src.chatbot.models.session import Session
-from src.chatbot.schemas.chat import (
+from src.chatbot.models.session_model import Session
+from src.chatbot.schemas.chat_schema import (
     ALL_SUPPORTED_TYPES,
     ChatRequest,
     ChatResponse,

@@ -13,7 +13,7 @@ from src.common.config import settings
 from src.common.logging import logger
 from src.common.services.database import database_service
 from src.common.services.llm import llm_service
-from src.chatbot.schemas.chat import Message
+from src.chatbot.schemas.chat_schema import Message
 
 
 class RAGService:
