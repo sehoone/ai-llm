@@ -19,13 +19,15 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 
-from src.auth.api.auth_api import get_current_session
+from src.auth.api.auth_api import get_current_user
 from src.common.config import settings
 from src.common.langgraph.graph import LangGraphAgent
 from src.common.limiter import limiter
 from src.common.logging import logger
 from src.common.metrics import llm_stream_duration_seconds
 from src.chatbot.models.session_model import Session
+from src.user.models.user_model import User
+from src.common.services.database import database_service
 from src.chatbot.schemas.chat_schema import (
     ALL_SUPPORTED_TYPES,
     ChatRequest,
@@ -47,14 +49,14 @@ agent = LangGraphAgent()
 async def chat(
     request: Request,
     chat_request: ChatRequest,
-    session: Session = Depends(get_current_session),
+    user: User = Depends(get_current_user),
 ):
     """Process a chat request using LangGraph.
 
     Args:
         request: The FastAPI request object for rate limiting.
-        chat_request: The chat request containing messages.
-        session: The current session from the auth token.
+        chat_request: The chat request containing messages and session_id.
+        user: The authenticated user.
 
     Returns:
         ChatResponse: The processed chat response.
@@ -63,6 +65,13 @@ async def chat(
         HTTPException: If there's an error processing the request.
     """
     try:
+        # Verify session ownership
+        session = await database_service.get_session(chat_request.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+
         logger.info(
             "chat_request_received",
             session_id=session.id,
@@ -75,7 +84,7 @@ async def chat(
 
         return ChatResponse(messages=result)
     except Exception as e:
-        logger.error("chat_request_failed", session_id=session.id, error=str(e), exc_info=True)
+        logger.error("chat_request_failed", session_id=chat_request.session_id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -83,9 +92,10 @@ async def chat(
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat"][0])
 async def chat_with_files(
     request: Request,
+    session_id: str = Form(..., description="The session ID"),
     message: str = Form(..., description="The user message"),
     files: Optional[List[UploadFile]] = File(default=None, description="Optional file attachments"),
-    session: Session = Depends(get_current_session),
+    user: User = Depends(get_current_user),
 ):
     """Process a chat request with file attachments using LangGraph.
 
@@ -94,9 +104,10 @@ async def chat_with_files(
 
     Args:
         request: The FastAPI request object for rate limiting.
+        session_id: The session ID.
         message: The user's text message.
         files: Optional list of file attachments.
-        session: The current session from the auth token.
+        user: The authenticated user.
 
     Returns:
         ChatResponse: The processed chat response.
@@ -105,6 +116,13 @@ async def chat_with_files(
         HTTPException: If there's an error processing the request.
     """
     try:
+        # Verify session ownership
+        session = await database_service.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+
         file_attachments = []
         
         if files:
@@ -166,14 +184,14 @@ async def chat_with_files(
 async def chat_stream(
     request: Request,
     chat_request: ChatRequest,
-    session: Session = Depends(get_current_session),
+    user: User = Depends(get_current_user),
 ):
     """Process a chat request using LangGraph with streaming response.
 
     Args:
         request: The FastAPI request object for rate limiting.
-        chat_request: The chat request containing messages.
-        session: The current session from the auth token.
+        chat_request: The chat request containing messages and session_id.
+        user: The authenticated user.
 
     Returns:
         StreamingResponse: A streaming response of the chat completion.
@@ -182,6 +200,13 @@ async def chat_stream(
         HTTPException: If there's an error processing the request.
     """
     try:
+        # Verify session ownership
+        session = await database_service.get_session(chat_request.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+
         logger.info(
             "stream_chat_request_received",
             session_id=session.id,
@@ -226,7 +251,7 @@ async def chat_stream(
     except Exception as e:
         logger.error(
             "stream_chat_request_failed",
-            session_id=session.id,
+            session_id=chat_request.session_id,
             error=str(e),
             exc_info=True,
         )
@@ -237,13 +262,15 @@ async def chat_stream(
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def get_session_messages(
     request: Request,
-    session: Session = Depends(get_current_session),
+    session_id: str,
+    user: User = Depends(get_current_user),
 ):
     """Get all messages for a session.
 
     Args:
         request: The FastAPI request object for rate limiting.
-        session: The current session from the auth token.
+        session_id: The session ID.
+        user: The authenticated user.
 
     Returns:
         ChatResponse: All messages in the session.
@@ -252,10 +279,17 @@ async def get_session_messages(
         HTTPException: If there's an error retrieving the messages.
     """
     try:
+        # Verify session ownership
+        session = await database_service.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+
         messages = await agent.get_chat_history(session.id)
         return ChatResponse(messages=messages)
     except Exception as e:
-        logger.error("get_messages_failed", session_id=session.id, error=str(e), exc_info=True)
+        logger.error("get_messages_failed", session_id=session_id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -263,20 +297,29 @@ async def get_session_messages(
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def clear_chat_history(
     request: Request,
-    session: Session = Depends(get_current_session),
+    session_id: str,
+    user: User = Depends(get_current_user),
 ):
     """Clear all messages for a session.
 
     Args:
         request: The FastAPI request object for rate limiting.
-        session: The current session from the auth token.
+        session_id: The session ID.
+        user: The authenticated user.
 
     Returns:
         dict: A message indicating the chat history was cleared.
     """
     try:
+        # Verify session ownership
+        session = await database_service.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+
         await agent.clear_chat_history(session.id)
         return {"message": "Chat history cleared successfully"}
     except Exception as e:
-        logger.error("clear_chat_history_failed", session_id=session.id, error=str(e), exc_info=True)
+        logger.error("clear_chat_history_failed", session_id=session_id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

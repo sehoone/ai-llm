@@ -109,9 +109,11 @@ class ChatRequest(BaseModel):
     """Request model for chat endpoint.
 
     Attributes:
+        session_id: The ID of the session.
         messages: List of messages in the conversation.
     """
 
+    session_id: str = Field(..., description="The ID of the session")
     messages: List[Message] = Field(
         ...,
         description="List of messages in the conversation",
