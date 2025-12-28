@@ -1,0 +1,3 @@
+{
+  "/(authenticated)/settings/notifications/page": "app/(authenticated)/settings/notifications/page.js"
+}

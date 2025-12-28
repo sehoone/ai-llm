@@ -1,0 +1,3 @@
+{
+  "/clerk/sign-in/[[...sign-in]]/page": "app/clerk/sign-in/[[...sign-in]]/page.js"
+}

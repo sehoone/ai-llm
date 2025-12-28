@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(authenticated)/layout,_N_T_/(authenticated)/users/layout,_N_T_/(authenticated)/users/page,_N_T_/users"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KGF1dGhlbnRpY2F0ZWQp/users/__PAGE__",
+    "/!KGF1dGhlbnRpY2F0ZWQp/users",
+    "/!KGF1dGhlbnRpY2F0ZWQp",
+    "/_index",
+    "/_head"
+  ]
+}

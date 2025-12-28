@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(authenticated)/layout,_N_T_/(authenticated)/settings/layout,_N_T_/(authenticated)/settings/appearance/layout,_N_T_/(authenticated)/settings/appearance/page,_N_T_/settings/appearance"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KGF1dGhlbnRpY2F0ZWQp/settings/appearance/__PAGE__",
+    "/!KGF1dGhlbnRpY2F0ZWQp/settings/appearance",
+    "/!KGF1dGhlbnRpY2F0ZWQp/settings",
+    "/!KGF1dGhlbnRpY2F0ZWQp",
+    "/_index",
+    "/_head"
+  ]
+}
