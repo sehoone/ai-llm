@@ -1,8 +1,11 @@
 'use client'
 
-import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
-import { LayoutProvider } from '@/context/layout-provider'
+import {
+  LayoutProvider,
+  type Collapsible,
+  type Variant,
+} from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
@@ -10,13 +13,23 @@ import { SkipToMain } from '@/components/skip-to-main'
 
 type AuthenticatedLayoutProps = {
   children: React.ReactNode
+  defaultOpen?: boolean
+  defaultCollapsible?: Collapsible
+  defaultVariant?: Variant
 }
 
-export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
-  const defaultOpen = getCookie('sidebar_state') !== 'false'
+export function AuthenticatedLayout({
+  children,
+  defaultOpen = true,
+  defaultCollapsible = 'icon',
+  defaultVariant = 'inset',
+}: AuthenticatedLayoutProps) {
   return (
     <SearchProvider>
-      <LayoutProvider>
+      <LayoutProvider
+        defaultCollapsible={defaultCollapsible}
+        defaultVariant={defaultVariant}
+      >
         <SidebarProvider defaultOpen={defaultOpen}>
           <SkipToMain />
           <AppSidebar />

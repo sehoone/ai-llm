@@ -31,18 +31,18 @@ const LayoutContext = createContext<LayoutContextType | null>(null)
 
 type LayoutProviderProps = {
   children: React.ReactNode
+  defaultCollapsible?: Collapsible
+  defaultVariant?: Variant
 }
 
-export function LayoutProvider({ children }: LayoutProviderProps) {
-  const [collapsible, _setCollapsible] = useState<Collapsible>(() => {
-    const saved = getCookie(LAYOUT_COLLAPSIBLE_COOKIE_NAME)
-    return (saved as Collapsible) || DEFAULT_COLLAPSIBLE
-  })
+export function LayoutProvider({
+  children,
+  defaultCollapsible = DEFAULT_COLLAPSIBLE,
+  defaultVariant = DEFAULT_VARIANT,
+}: LayoutProviderProps) {
+  const [collapsible, _setCollapsible] = useState<Collapsible>(defaultCollapsible)
 
-  const [variant, _setVariant] = useState<Variant>(() => {
-    const saved = getCookie(LAYOUT_VARIANT_COOKIE_NAME)
-    return (saved as Variant) || DEFAULT_VARIANT
-  })
+  const [variant, _setVariant] = useState<Variant>(defaultVariant)
 
   const setCollapsible = (newCollapsible: Collapsible) => {
     _setCollapsible(newCollapsible)

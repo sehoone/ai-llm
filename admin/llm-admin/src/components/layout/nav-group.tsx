@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
@@ -66,15 +66,22 @@ function NavBadge({ children }: { children: ReactNode }) {
 }
 
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
-  const { setOpenMobile } = useSidebar()
+  const { setOpenMobile, isMobile } = useSidebar()
+  const isActive = useMemo(() => checkIsActive(href, item), [href, item])
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
-        isActive={checkIsActive(href, item)}
+        isActive={isActive}
         tooltip={item.title}
       >
-        <Link href={item.url} onClick={() => setOpenMobile(false)}>
+        <Link
+          href={item.url}
+          onClick={(e) => {
+            if (isActive) e.preventDefault()
+            if (isMobile) setOpenMobile(false)
+          }}
+        >
           {item.icon && <item.icon />}
           <span>{item.title}</span>
           {item.badge && <NavBadge>{item.badge}</NavBadge>}
@@ -91,11 +98,13 @@ function SidebarMenuCollapsible({
   item: NavCollapsible
   href: string
 }) {
-  const { setOpenMobile } = useSidebar()
+  const { setOpenMobile, isMobile } = useSidebar()
+  const isChildActive = useMemo(() => checkIsActive(href, item, true), [href, item])
+  
   return (
     <Collapsible
       asChild
-      defaultOpen={checkIsActive(href, item, true)}
+      defaultOpen={isChildActive}
       className='group/collapsible'
     >
       <SidebarMenuItem>
@@ -115,7 +124,13 @@ function SidebarMenuCollapsible({
                   asChild
                   isActive={checkIsActive(href, subItem)}
                 >
-                  <Link href={subItem.url} onClick={() => setOpenMobile(false)}>
+                  <Link
+                    href={subItem.url}
+                    onClick={(e) => {
+                      if (checkIsActive(href, subItem)) e.preventDefault()
+                      if (isMobile) setOpenMobile(false)
+                    }}
+                  >
                     {subItem.icon && <subItem.icon />}
                     <span>{subItem.title}</span>
                     {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
@@ -137,13 +152,14 @@ function SidebarMenuCollapsedDropdown({
   item: NavCollapsible
   href: string
 }) {
+  const isActive = useMemo(() => checkIsActive(href, item), [href, item])
   return (
     <SidebarMenuItem>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <SidebarMenuButton
             tooltip={item.title}
-            isActive={checkIsActive(href, item)}
+            isActive={isActive}
           >
             {item.icon && <item.icon />}
             <span>{item.title}</span>
@@ -183,6 +199,7 @@ function checkIsActive(href: string, item: NavItem, mainNav = false) {
     !!item?.items?.filter((i) => i.url === href).length || // if child nav is active
     (mainNav &&
       href.split('/')[1] !== '' &&
-      href.split('/')[1] === item?.url?.split('/')[1])
+      !!item.url &&
+      href.split('/')[1] === item.url.split('/')[1])
   )
 }
