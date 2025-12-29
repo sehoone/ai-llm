@@ -29,6 +29,7 @@ from src.common.logging import (
 from src.chatbot.models.session_model import Session
 from src.user.models.user_model import User
 from src.auth.schemas.auth_schema import (
+    RefreshTokenRequest,
     SessionResponse,
     TokenResponse,
     UserCreate,
@@ -191,6 +192,56 @@ async def login(request: Request, user_data: UserLogin):
         )
     except ValueError as ve:
         logger.error("login_validation_failed", error=str(ve), exc_info=True)
+        raise HTTPException(status_code=422, detail=str(ve))
+
+
+@router.post("/refresh", response_model=TokenResponse, summary="토큰 갱신", description="Refresh Token을 사용하여 Access Token 갱신")
+@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["login"][0])
+async def refresh_token(request: Request, token_data: RefreshTokenRequest):
+    """Refresh access token.
+
+    Args:
+        request: The FastAPI request object for rate limiting.
+        token_data: The refresh token data.
+
+    Returns:
+        TokenResponse: New access token information.
+
+    Raises:
+        HTTPException: If the refresh token is invalid.
+    """
+    try:
+        # Verify refresh token
+        user_id = verify_token(token_data.refresh_token)
+        if user_id is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid refresh token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Verify user exists
+        user_id_int = int(user_id)
+        user = await db_service.get_user(user_id_int)
+        if user is None:
+            raise HTTPException(
+                status_code=401,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Create new tokens
+        token = create_access_token(str(user.id), timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES))
+        refresh_token = create_access_token(str(user.id), timedelta(minutes=settings.JWT_REFRESH_TOKEN_EXPIRE_MINUTES))
+
+        return TokenResponse(
+            access_token=token.access_token,
+            refresh_token=refresh_token.access_token,
+            token_type="bearer",
+            expires_at=token.expires_at,
+        )
+    except ValueError as ve:
+        logger.error("token_refresh_validation_failed", error=str(ve), exc_info=True)
         raise HTTPException(status_code=422, detail=str(ve))
 
 

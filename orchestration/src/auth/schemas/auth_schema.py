@@ -42,6 +42,16 @@ class TokenResponse(BaseModel):
     expires_at: datetime = Field(..., description="When the token expires")
 
 
+class RefreshTokenRequest(BaseModel):
+    """Request model for token refresh.
+
+    Attributes:
+        refresh_token: The refresh token to use for generating a new access token.
+    """
+
+    refresh_token: str = Field(..., description="The refresh token")
+
+
 class UserCreate(BaseModel):
     """Request model for user registration.
 
