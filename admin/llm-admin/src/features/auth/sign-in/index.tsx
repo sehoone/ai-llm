@@ -23,13 +23,13 @@ export function SignIn() {
           <CardTitle className='text-lg tracking-tight'>Sign in</CardTitle>
           <CardDescription>
             Enter your email and password below to <br />
-            log into your account
+            log into your account1
           </CardDescription>
         </CardHeader>
         <CardContent>
           <UserAuthForm redirectTo={redirect || undefined} />
         </CardContent>
-        <CardFooter>
+        {/* <CardFooter>
           <p className='px-8 text-center text-sm text-muted-foreground'>
             By clicking sign in, you agree to our{' '}
             <a
@@ -47,7 +47,7 @@ export function SignIn() {
             </a>
             .
           </p>
-        </CardFooter>
+        </CardFooter> */}
       </Card>
     </AuthLayout>
   )
