@@ -33,9 +33,10 @@ export function ProfileDropdown() {
         <DropdownMenuContent className='w-56' align='end' forceMount>
           <DropdownMenuLabel className='font-normal'>
             <div className='flex flex-col gap-1.5'>
-              <p className='text-sm leading-none font-medium'>satnaing</p>
+              {/* TODO 로그인정보 */}
+              <p className='text-sm leading-none font-medium'>sehoon</p>
               <p className='text-xs leading-none text-muted-foreground'>
-                satnaingdev@gmail.com
+                sehoone@github.com
               </p>
             </div>
           </DropdownMenuLabel>
@@ -47,19 +48,19 @@ export function ProfileDropdown() {
                 <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
+            {/* <DropdownMenuItem asChild>
               <Link href='/settings'>
                 Billing
                 <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
+            </DropdownMenuItem> */}
+            {/* <DropdownMenuItem asChild>
               <Link href='/settings'>
                 Settings
                 <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem>New Team</DropdownMenuItem>
+            </DropdownMenuItem> */}
+            {/* <DropdownMenuItem>New Team</DropdownMenuItem> */}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>

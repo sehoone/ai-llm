@@ -27,26 +27,26 @@ import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
   user: {
-    name: 'satnaing',
-    email: 'satnaingdev@gmail.com',
+    name: 'sehoon',
+    email: 'sehoone@github.com',
     avatar: '',
   },
   teams: [
     {
-      name: 'Shadcn Admin',
+      name: 'AI ADMIN',
       logo: Command,
-      plan: 'Vite + ShadcnUI',
-    },
-    {
-      name: 'Acme Inc',
-      logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
-    },
-    {
-      name: 'Acme Corp.',
-      logo: AudioWaveform,
-      plan: 'Startup',
-    },
+      plan: 'Feature Preview Site',
+    }
+    // {
+    //   name: 'Acme Inc',
+    //   logo: GalleryVerticalEnd,
+    //   plan: 'Enterprise',
+    // },
+    // {
+    //   name: 'Acme Corp.',
+    //   logo: AudioWaveform,
+    //   plan: 'Startup',
+    // },
   ],
   navGroups: [
     {
