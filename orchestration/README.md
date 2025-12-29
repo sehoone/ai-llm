@@ -121,13 +121,13 @@ make [dev|staging|prod] # e.g. make dev
 **On Windows (PowerShell):**
 ```powershell
 # Development
-$env:APP_ENV='development'; uv run uvicorn app.main:app --reload --port 8000
+$env:APP_ENV='development'; uv run uvicorn src.main:app --reload --port 8000
 
 # Staging
-$env:APP_ENV='staging'; uv run uvicorn app.main:app --reload --port 8000
+$env:APP_ENV='staging'; uv run uvicorn src.main:app --reload --port 8000
 
 # Production
-$env:APP_ENV='production'; uv run uvicorn app.main:app --port 8000
+$env:APP_ENV='production'; uv run uvicorn src.main:app --port 8000
 ```
 
 3. Go to Swagger UI:
