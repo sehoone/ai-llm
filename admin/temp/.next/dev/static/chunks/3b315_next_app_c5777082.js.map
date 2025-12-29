@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":["file:///D:/dev/vscodeWorkspace/ai-llm-1/admin/shadcn-admin/node_modules/.pnpm/next%4016.1.1_%40babel%2Bcore%407.2_22c0655afa2f747410ac51e5803b767b/node_modules/next/app.js"],"sourcesContent":["module.exports = require('./dist/pages/_app')\n"],"names":[],"mappings":"AAAA,OAAO,OAAO","ignoreList":[0]}}]
-}

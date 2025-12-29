@@ -1,9 +1,0 @@
-{
-  "/(auth)/sign-in/page": "app/(auth)/sign-in/page.js",
-  "/(authenticated)/apps/page": "app/(authenticated)/apps/page.js",
-  "/(authenticated)/chats/page": "app/(authenticated)/chats/page.js",
-  "/(authenticated)/page": "app/(authenticated)/page.js",
-  "/(authenticated)/tasks/page": "app/(authenticated)/tasks/page.js",
-  "/(authenticated)/users/page": "app/(authenticated)/users/page.js",
-  "/_not-found/page": "app/_not-found/page.js"
-}
