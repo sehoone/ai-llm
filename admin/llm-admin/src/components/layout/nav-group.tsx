@@ -78,7 +78,6 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         <Link
           href={item.url}
           onClick={(e) => {
-            if (isActive) e.preventDefault()
             if (isMobile) setOpenMobile(false)
           }}
         >

@@ -98,7 +98,7 @@ export function useTableUrlState(
         }
     })
     return obj
-  }, [searchParams])
+  }, [searchParams.toString()])
 
   const updateUrl = useCallback((updater: (prev: SearchRecord) => SearchRecord, replace = false) => {
       const newSearch = updater(search)
@@ -113,14 +113,24 @@ export function useTableUrlState(
           }
       })
       
+      // Sort params to ensure consistent order for comparison
+      params.sort()
+      
       const queryString = params.toString()
       const url = `${pathname}${queryString ? `?${queryString}` : ''}`
-      if (replace) {
-          router.replace(url)
-      } else {
-          router.push(url)
+
+      // Check if URL actually changed by comparing sorted query strings
+      const currentParams = new URLSearchParams(searchParams.toString())
+      currentParams.sort()
+      
+      if (params.toString() !== currentParams.toString()) {
+        if (replace) {
+            router.replace(url)
+        } else {
+            router.push(url)
+        }
       }
-  }, [search, pathname, router])
+  }, [search, pathname, router, searchParams])
 
   // Build initial column filters from the current search params
   const initialColumnFilters: ColumnFiltersState = useMemo(() => {
@@ -156,16 +166,31 @@ export function useTableUrlState(
   const pagination: PaginationState = useMemo(() => {
     const rawPage = (search as SearchRecord)[pageKey]
     const rawPageSize = (search as SearchRecord)[pageSizeKey]
-    const pageNum = typeof rawPage === 'number' ? rawPage : defaultPage
-    const pageSizeNum =
-      typeof rawPageSize === 'number' ? rawPageSize : defaultPageSize
+    
+    let pageNum = defaultPage
+    if (typeof rawPage === 'number') {
+        pageNum = rawPage
+    } else if (typeof rawPage === 'string') {
+        const parsed = Number(rawPage)
+        if (!isNaN(parsed)) pageNum = parsed
+    }
+
+    let pageSizeNum = defaultPageSize
+    if (typeof rawPageSize === 'number') {
+        pageSizeNum = rawPageSize
+    } else if (typeof rawPageSize === 'string') {
+        const parsed = Number(rawPageSize)
+        if (!isNaN(parsed)) pageSizeNum = parsed
+    }
+    
     return { pageIndex: Math.max(0, pageNum - 1), pageSize: pageSizeNum }
   }, [search, pageKey, pageSizeKey, defaultPage, defaultPageSize])
 
-  const onPaginationChange: OnChangeFn<PaginationState> = (updater) => {
+  const onPaginationChange: OnChangeFn<PaginationState> = useCallback((updater) => {
     const next = typeof updater === 'function' ? updater(pagination) : updater
     const nextPage = next.pageIndex + 1
     const nextPageSize = next.pageSize
+    
     updateUrl(
       (prev) => ({
         ...prev,
@@ -174,7 +199,7 @@ export function useTableUrlState(
           nextPageSize === defaultPageSize ? undefined : nextPageSize,
       })
     )
-  }
+  }, [pagination, pageKey, pageSizeKey, defaultPage, defaultPageSize, updateUrl])
 
   const [globalFilter, setGlobalFilter] = useState<string | undefined>(() => {
     if (!globalFilterEnabled) return undefined
@@ -182,7 +207,7 @@ export function useTableUrlState(
     return typeof raw === 'string' ? raw : ''
   })
 
-  const onGlobalFilterChange: OnChangeFn<string> | undefined =
+  const onGlobalFilterChange: OnChangeFn<string> | undefined = useMemo(() =>
     globalFilterEnabled
       ? (updater) => {
           const next =
@@ -199,9 +224,9 @@ export function useTableUrlState(
             })
           )
         }
-      : undefined
+      : undefined, [globalFilterEnabled, globalFilter, trimGlobal, updateUrl, pageKey, globalFilterKey])
 
-  const onColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (updater) => {
+  const onColumnFiltersChange: OnChangeFn<ColumnFiltersState> = useCallback((updater) => {
     const next =
       typeof updater === 'function' ? updater(columnFilters) : updater
     setColumnFilters(next)
@@ -231,9 +256,9 @@ export function useTableUrlState(
         ...patch,
       })
     )
-  }
+  }, [columnFilters, columnFiltersCfg, updateUrl, pageKey])
 
-  const ensurePageInRange = (
+  const ensurePageInRange = useCallback((
     pageCount: number,
     opts: { resetTo?: 'first' | 'last' } = { resetTo: 'first' }
   ) => {
@@ -248,7 +273,7 @@ export function useTableUrlState(
         true // replace
       )
     }
-  }
+  }, [search, pageKey, defaultPage, updateUrl])
 
   return {
     globalFilter: globalFilterEnabled ? (globalFilter ?? '') : undefined,

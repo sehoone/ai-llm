@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   type SortingState,
   type VisibilityState,
@@ -45,6 +45,15 @@ export function TasksTable({ data }: DataTableProps) {
   // const [pagination, onPaginationChange] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
 
   // Synced with URL states (updated to match route search schema defaults)
+  const tableUrlStateParams = useMemo(() => ({
+    pagination: { defaultPage: 1, defaultPageSize: 10 },
+    globalFilter: { enabled: true, key: 'filter' },
+    columnFilters: [
+      { columnId: 'status', searchKey: 'status', type: 'array' } as const,
+      { columnId: 'priority', searchKey: 'priority', type: 'array' } as const,
+    ],
+  }), [])
+
   const {
     globalFilter,
     onGlobalFilterChange,
@@ -53,14 +62,7 @@ export function TasksTable({ data }: DataTableProps) {
     pagination,
     onPaginationChange,
     ensurePageInRange,
-  } = useTableUrlState({
-    pagination: { defaultPage: 1, defaultPageSize: 10 },
-    globalFilter: { enabled: true, key: 'filter' },
-    columnFilters: [
-      { columnId: 'status', searchKey: 'status', type: 'array' },
-      { columnId: 'priority', searchKey: 'priority', type: 'array' },
-    ],
-  })
+  } = useTableUrlState(tableUrlStateParams)
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -94,13 +96,13 @@ export function TasksTable({ data }: DataTableProps) {
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
+    autoResetPageIndex: false, // Disable auto-reset to prevent page reset on data updates
   })
 
   const pageCount = table.getPageCount()
   useEffect(() => {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
-
   return (
     <div
       className={cn(
