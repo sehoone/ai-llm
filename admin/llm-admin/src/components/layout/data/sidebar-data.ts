@@ -18,9 +18,9 @@ import {
   Users,
   MessagesSquare,
   ShieldCheck,
-  AudioWaveform,
+  // AudioWaveform,
   Command,
-  GalleryVerticalEnd,
+  // GalleryVerticalEnd,
 } from 'lucide-react'
 import { ClerkLogo } from '@/assets/clerk-logo'
 import { type SidebarData } from '../types'

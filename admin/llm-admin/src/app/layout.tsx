@@ -1,8 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 import '@/styles/index.css'
 import { Providers } from './providers'
+import type { Metadata } from 'next'
 
-export const metadata = {
-  title: 'Shadcn Admin',
+export const metadata: Metadata = {
+  title: 'AI Admin',
   description: 'Admin dashboard built with Shadcn UI',
 }
 

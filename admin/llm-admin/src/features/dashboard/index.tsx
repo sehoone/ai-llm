@@ -12,7 +12,6 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { TopNav } from '@/components/layout/top-nav'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Analytics } from './components/analytics'
 import { Overview } from './components/overview'
@@ -25,7 +24,7 @@ export function Dashboard() {
       <Header>
         <TopNav links={topNav} />
         <div className='ms-auto flex items-center space-x-4'>
-          <Search />
+          {/* <Search /> */}
           <ThemeSwitch />
           <ConfigDrawer />
           <ProfileDropdown />
