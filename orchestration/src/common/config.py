@@ -154,6 +154,13 @@ class Settings:
         self.MAX_TOKENS = int(os.getenv("MAX_TOKENS", "2000"))
         self.MAX_LLM_CALL_RETRIES = int(os.getenv("MAX_LLM_CALL_RETRIES", "3"))
 
+        # Voice/Audio Configuration
+        self.OPENAI_TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "tts-1")
+        self.OPENAI_TTS_VOICE = os.getenv("OPENAI_TTS_VOICE", "alloy")
+        self.OPENAI_STT_MODEL = os.getenv("OPENAI_STT_MODEL", "whisper-1")
+        self.AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "")
+        self.AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "")
+
         # Long term memory Configuration
         self.LONG_TERM_MEMORY_MODEL = os.getenv("LONG_TERM_MEMORY_MODEL", "gpt-4o-mini")
         self.LONG_TERM_MEMORY_EMBEDDER_MODEL = os.getenv("LONG_TERM_MEMORY_EMBEDDER_MODEL", "text-embedding-3-small")
@@ -161,7 +168,7 @@ class Settings:
         # JWT Configuration
         self.JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
         self.JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-        self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10"))
+        self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "2"))
         self.JWT_REFRESH_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_MINUTES", "30"))
 
         # Logging Configuration
