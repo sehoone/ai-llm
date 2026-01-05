@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
 const ACCESS_TOKEN = 'access_token'
 const REFRESH_TOKEN = 'refresh_token'
@@ -24,8 +25,8 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()((set) => {
-  const initToken = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN) || '' : ''
-  const initRefreshToken = typeof window !== 'undefined' ? localStorage.getItem(REFRESH_TOKEN) || '' : ''
+  const initToken = typeof window !== 'undefined' ? getCookie(ACCESS_TOKEN) || '' : ''
+  const initRefreshToken = typeof window !== 'undefined' ? getCookie(REFRESH_TOKEN) || '' : ''
 
   return {
     auth: {
@@ -37,29 +38,29 @@ export const useAuthStore = create<AuthState>()((set) => {
       setAccessToken: (accessToken) =>
         set((state) => {
           if (typeof window !== 'undefined') {
-            localStorage.setItem(ACCESS_TOKEN, accessToken)
+            setCookie(ACCESS_TOKEN, accessToken)
           }
           return { ...state, auth: { ...state.auth, accessToken } }
         }),
       setRefreshToken: (refreshToken) =>
         set((state) => {
           if (typeof window !== 'undefined') {
-            localStorage.setItem(REFRESH_TOKEN, refreshToken)
+            setCookie(REFRESH_TOKEN, refreshToken)
           }
           return { ...state, auth: { ...state.auth, refreshToken } }
         }),
       resetAccessToken: () =>
         set((state) => {
           if (typeof window !== 'undefined') {
-            localStorage.removeItem(ACCESS_TOKEN)
+            removeCookie(ACCESS_TOKEN)
           }
           return { ...state, auth: { ...state.auth, accessToken: '' } }
         }),
       reset: () =>
         set((state) => {
           if (typeof window !== 'undefined') {
-            localStorage.removeItem(ACCESS_TOKEN)
-            localStorage.removeItem(REFRESH_TOKEN)
+            removeCookie(ACCESS_TOKEN)
+            removeCookie(REFRESH_TOKEN)
           }
           return {
             ...state,
