@@ -20,11 +20,11 @@ export function SignIn() {
     <AuthLayout>
       <Card className='gap-4'>
         <CardHeader>
-          <CardTitle className='text-lg tracking-tight'>Sign in</CardTitle>
-          <CardDescription>
-            Enter your email and password below to <br />
-            log into your account1
-          </CardDescription>
+          <CardTitle className='text-lg tracking-tight'>관리자 로그인</CardTitle>
+          {/* <CardDescription>
+            이메일과 비밀번호를 입력하세요. <br />
+            
+          </CardDescription> */}
         </CardHeader>
         <CardContent>
           <UserAuthForm redirectTo={redirect || undefined} />
