@@ -18,6 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     defaultOptions: {
       queries: {
         retry: (failureCount, error) => {
+          // eslint-disable-next-line no-console
           if (process.env.NODE_ENV === 'development') console.log({ failureCount, error })
           if (failureCount >= 0 && process.env.NODE_ENV === 'development') return false
           if (failureCount > 3 && process.env.NODE_ENV === 'production') return false

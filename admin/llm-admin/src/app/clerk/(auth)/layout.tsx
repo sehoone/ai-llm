@@ -15,7 +15,7 @@ export default function ClerkAuthLayout({ children }: { children: React.ReactNod
           className='relative z-20 flex items-center text-lg font-medium'
         >
           <Logo className='me-2' />
-          Shadcn Admin
+          AI Admin
         </Link>
 
         <ClerkFullLogo className='relative m-auto size-96' />
