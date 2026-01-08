@@ -57,11 +57,11 @@ export const sidebarData: SidebarData = {
           url: '/',
           icon: LayoutDashboard,
         },
-        // {
-        //   title: 'AI Voice Evaluation',
-        //   url: '/',
-        //   icon: LayoutDashboard,
-        // },
+        {
+          title: 'AI Voice Evaluation',
+          url: '/evaluation',
+          icon: LayoutDashboard,
+        },
         // {
         //   title: 'Dashboard',
         //   url: '/',
