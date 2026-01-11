@@ -1,73 +1,181 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Fragment } from 'react/jsx-runtime'
-import { format } from 'date-fns'
 import {
   ArrowLeft,
-  MoreVertical,
   Edit,
-  Paperclip,
-  Phone,
-  ImagePlus,
+  MessagesSquare,
   Plus,
   Search as SearchIcon,
   Send,
-  Video,
-  MessagesSquare,
+  Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { NewChat } from './components/new-chat'
-import { type ChatUser, type Convo } from './data/chat-types'
-// Fake Data
-import { conversations } from './data/convo.json'
+import { ChatArea } from './components/ChatArea'
+import { chatService } from '@/api/chat'
+import { ChatSession, Message } from '@/types/chat-api'
+import { toast } from 'sonner'
 
 export function Chats() {
   const [search, setSearch] = useState('')
-  const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null)
-  const [mobileSelectedUser, setMobileSelectedUser] = useState<ChatUser | null>(
-    null
-  )
-  const [createConversationDialogOpened, setCreateConversationDialog] =
-    useState(false)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [mobileSelectedSessionId, setMobileSelectedSessionId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [inputMessage, setInputMessage] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
 
-  // Filtered data based on the search query
-  const filteredChatList = conversations.filter(({ fullName }) =>
-    fullName.toLowerCase().includes(search.trim().toLowerCase())
-  )
+  // Fetch sessions on mount
+  useEffect(() => {
+    loadSessions()
+  }, [])
 
-  const currentMessage = selectedUser?.messages.reduce(
-    (acc: Record<string, Convo[]>, obj) => {
-      const key = format(obj.timestamp, 'd MMM, yyyy')
+  // Fetch messages when session is selected
+  useEffect(() => {
+    if (selectedSessionId) {
+      loadMessages(selectedSessionId)
+    } else {
+      setMessages([])
+    }
+  }, [selectedSessionId])
 
-      // Create an array for the category if it doesn't exist
-      if (!acc[key]) {
-        acc[key] = []
+  const loadSessions = async () => {
+    try {
+      const data = await chatService.getSessions()
+      setSessions(data)
+    } catch (error) {
+      console.error('Failed to load sessions', error)
+      toast.error('Failed to load sessions')
+    }
+  }
+
+  const loadMessages = async (sessionId: string) => {
+    setIsLoading(true)
+    try {
+      const data = await chatService.getMessages(sessionId)
+      setMessages(data)
+    } catch (error) {
+      console.error('Failed to load messages', error)
+      toast.error('Failed to load messages')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCreateSession = async () => {
+    try {
+      const newSession = await chatService.createSession()
+      setSessions((prev) => [newSession, ...prev])
+      setSelectedSessionId(newSession.session_id)
+      setMobileSelectedSessionId(newSession.session_id)
+      setMessages([])
+    } catch (error) {
+      console.error('Failed to create session', error)
+      toast.error('Failed to create new chat')
+    }
+  }
+
+  const handleDeleteSession = async () => {
+    if (!sessionToDelete) return
+    try {
+      await chatService.deleteSession(sessionToDelete)
+      setSessions((prev) => prev.filter((s) => s.session_id !== sessionToDelete))
+      if (selectedSessionId === sessionToDelete) {
+        setSelectedSessionId(null)
+        setMobileSelectedSessionId(null)
       }
+      setDeleteDialogOpen(false)
+      setSessionToDelete(null)
+    } catch (error) {
+      console.error('Failed to delete session', error)
+      toast.error('Failed to delete session')
+    }
+  }
 
-      // Push the current object to the array
-      acc[key].push(obj)
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (!inputMessage.trim() || !selectedSessionId || isSending) return
 
-      return acc
-    },
-    {}
+    const userMessage: Message = {
+      role: 'user',
+      content: inputMessage,
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setInputMessage('')
+    setIsSending(true)
+
+    // Optimistic update for assistant message
+    const assistantMessageIndex = messages.length + 1
+    // We'll append a placeholder message for streaming
+    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+
+    let currentResponse = ''
+
+    try {
+      const messagesToSend = [userMessage]
+      await chatService.streamMessage(
+        selectedSessionId,
+        messagesToSend,
+        (chunk, done) => {
+           currentResponse += chunk
+           setMessages((prev) => {
+             const newMessages = [...prev]
+             // Update the last message (assistant placeholder)
+             if (newMessages.length > assistantMessageIndex) {
+                 // Ensure we are updating the assistant message we just added
+                 // Note: strict mode or rapid updates might cause issues with index relying on closure state without updater function
+                 // But using functional update (prev) helps.
+                 // We find the last message, which should be the assistant one
+                 newMessages[newMessages.length - 1] = {
+                    ...newMessages[newMessages.length - 1],
+                    content: currentResponse
+                 }
+             }
+             return newMessages
+           })
+        },
+        (error) => {
+            console.error(error)
+            toast.error('Failed to send message')
+        }
+      )
+    } catch (error) {
+      console.error('Failed to send message', error)
+      toast.error('Failed to send message')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const filteredSessions = sessions.filter((s) =>
+    (s.name || 'New Chat').toLowerCase().includes(search.trim().toLowerCase())
   )
-
-  const users = conversations.map(({ messages, ...user }) => user)
 
   return (
     <>
-      {/* ===== Top Heading ===== */}
       <Header>
         <Search />
         <div className='ms-auto flex items-center space-x-4'>
@@ -79,19 +187,19 @@ export function Chats() {
 
       <Main fixed>
         <section className='flex h-full gap-6'>
-          {/* Left Side */}
+          {/* Left Side - Session List */}
           <div className='flex w-full flex-col gap-2 sm:w-56 lg:w-72 2xl:w-80'>
             <div className='sticky top-0 z-10 -mx-4 bg-background px-4 pb-3 shadow-md sm:static sm:z-auto sm:mx-0 sm:p-0 sm:shadow-none'>
               <div className='flex items-center justify-between py-2'>
                 <div className='flex gap-2'>
-                  <h1 className='text-2xl font-bold'>Inbox</h1>
+                  <h1 className='text-2xl font-bold'>Chats</h1>
                   <MessagesSquare size={20} />
                 </div>
 
                 <Button
                   size='icon'
                   variant='ghost'
-                  onClick={() => setCreateConversationDialog(true)}
+                  onClick={handleCreateSession}
                   className='rounded-lg'
                 >
                   <Edit size={24} className='stroke-muted-foreground' />
@@ -116,155 +224,103 @@ export function Chats() {
               </label>
             </div>
 
-            <ScrollArea className='-mx-3 h-full overflow-scroll p-3'>
-              {filteredChatList.map((chatUsr) => {
-                const { id, profile, username, messages, fullName } = chatUsr
-                const lastConvo = messages[0]
-                const lastMsg =
-                  lastConvo.sender === 'You'
-                    ? `You: ${lastConvo.message}`
-                    : lastConvo.message
-                return (
-                  <Fragment key={id}>
-                    <button
+            <ScrollArea className='-mx-3 h-full overflow-y-auto p-3'>
+              {filteredSessions.map((session) => (
+                <Fragment key={session.session_id}>
+                  <div className='group flex items-center gap-2'>
+                     <button
                       type='button'
                       className={cn(
-                        'group hover:bg-accent hover:text-accent-foreground',
-                        `flex w-full rounded-md px-2 py-2 text-start text-sm`,
-                        selectedUser?.id === id && 'sm:bg-muted'
+                        'hover:bg-accent hover:text-accent-foreground',
+                        `flex flex-1 rounded-md px-2 py-2 text-start text-sm`,
+                        selectedSessionId === session.session_id && 'bg-muted'
                       )}
                       onClick={() => {
-                        setSelectedUser(chatUsr)
-                        setMobileSelectedUser(chatUsr)
+                        setSelectedSessionId(session.session_id)
+                        setMobileSelectedSessionId(session.session_id)
                       }}
                     >
-                      <div className='flex gap-2'>
-                        <Avatar>
-                          <AvatarImage src={profile} alt={username} />
-                          <AvatarFallback>{username}</AvatarFallback>
+                      <div className='flex gap-2 items-center'>
+                        <Avatar className='h-8 w-8'>
+                          <AvatarFallback>{(session.name || 'NC').substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
-                        <div>
-                          <span className='col-start-2 row-span-2 font-medium'>
-                            {fullName}
+                        <div className='overflow-hidden text-left'>
+                          <span className='font-medium truncate block'>
+                            {session.name || 'New Chat'}
                           </span>
-                          <span className='col-start-2 row-span-2 row-start-2 line-clamp-2 text-ellipsis text-muted-foreground group-hover:text-accent-foreground/90'>
-                            {lastMsg}
+                          <span className='text-xs text-muted-foreground truncate block'>
+                             {session.session_id.substring(0, 8)}...
                           </span>
                         </div>
                       </div>
                     </button>
-                    <Separator className='my-1' />
-                  </Fragment>
-                )
-              })}
+                     <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 h-8 w-8"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setSessionToDelete(session.session_id);
+                            setDeleteDialogOpen(true);
+                        }}
+                    >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                  <Separator className='my-1' />
+                </Fragment>
+              ))}
+              {filteredSessions.length === 0 && (
+                 <div className="text-center text-muted-foreground py-4 text-sm">
+                    No chats found
+                 </div>
+              )}
             </ScrollArea>
           </div>
 
-          {/* Right Side */}
-          {selectedUser ? (
+          {/* Right Side - Chat Area */}
+          {selectedSessionId ? (
             <div
               className={cn(
                 'absolute inset-0 start-full z-50 hidden w-full flex-1 flex-col border bg-background shadow-xs sm:static sm:z-auto sm:flex sm:rounded-md',
-                mobileSelectedUser && 'start-0 flex'
+                mobileSelectedSessionId && 'start-0 flex'
               )}
             >
-              {/* Top Part */}
+              {/* Header */}
               <div className='mb-1 flex flex-none justify-between bg-card p-4 shadow-lg sm:rounded-t-md'>
-                {/* Left */}
-                <div className='flex gap-3'>
+                <div className='flex gap-3 items-center'>
                   <Button
                     size='icon'
                     variant='ghost'
                     className='-ms-2 h-full sm:hidden'
-                    onClick={() => setMobileSelectedUser(null)}
+                    onClick={() => setMobileSelectedSessionId(null)}
                   >
                     <ArrowLeft className='rtl:rotate-180' />
                   </Button>
                   <div className='flex items-center gap-2 lg:gap-4'>
                     <Avatar className='size-9 lg:size-11'>
-                      <AvatarImage
-                        src={selectedUser.profile}
-                        alt={selectedUser.username}
-                      />
-                      <AvatarFallback>{selectedUser.username}</AvatarFallback>
+                       <AvatarFallback>AI</AvatarFallback>
                     </Avatar>
                     <div>
-                      <span className='col-start-2 row-span-2 text-sm font-medium lg:text-base'>
-                        {selectedUser.fullName}
-                      </span>
-                      <span className='col-start-2 row-span-2 row-start-2 line-clamp-1 block max-w-32 text-xs text-nowrap text-ellipsis text-muted-foreground lg:max-w-none lg:text-sm'>
-                        {selectedUser.title}
+                      <span className='text-sm font-medium lg:text-base'>
+                        {sessions.find(s => s.session_id === selectedSessionId)?.name || 'New Chat'}
                       </span>
                     </div>
                   </div>
-                </div>
-
-                {/* Right */}
-                <div className='-me-1 flex items-center gap-1 lg:gap-2'>
-                  <Button
-                    size='icon'
-                    variant='ghost'
-                    className='hidden size-8 rounded-full sm:inline-flex lg:size-10'
-                  >
-                    <Video size={22} className='stroke-muted-foreground' />
-                  </Button>
-                  <Button
-                    size='icon'
-                    variant='ghost'
-                    className='hidden size-8 rounded-full sm:inline-flex lg:size-10'
-                  >
-                    <Phone size={22} className='stroke-muted-foreground' />
-                  </Button>
-                  <Button
-                    size='icon'
-                    variant='ghost'
-                    className='h-10 rounded-md sm:h-8 sm:w-4 lg:h-10 lg:w-6'
-                  >
-                    <MoreVertical className='stroke-muted-foreground sm:size-5' />
-                  </Button>
                 </div>
               </div>
 
-              {/* Conversation */}
-              <div className='flex flex-1 flex-col gap-2 rounded-md px-4 pt-0 pb-4'>
-                <div className='flex size-full flex-1'>
-                  <div className='chat-text-container relative -me-4 flex flex-1 flex-col overflow-y-hidden'>
-                    <div className='chat-flex flex h-40 w-full grow flex-col-reverse justify-start gap-4 overflow-y-auto py-2 pe-4 pb-4'>
-                      {currentMessage &&
-                        Object.keys(currentMessage).map((key) => (
-                          <Fragment key={key}>
-                            {currentMessage[key].map((msg, index) => (
-                              <div
-                                key={`${msg.sender}-${msg.timestamp}-${index}`}
-                                className={cn(
-                                  'chat-box max-w-72 px-3 py-2 wrap-break-word shadow-lg',
-                                  msg.sender === 'You'
-                                    ? 'self-end rounded-[16px_16px_0_16px] bg-primary/90 text-primary-foreground/75'
-                                    : 'self-start rounded-[16px_16px_16px_0] bg-muted'
-                                )}
-                              >
-                                {msg.message}{' '}
-                                <span
-                                  className={cn(
-                                    'mt-1 block text-xs font-light text-foreground/75 italic',
-                                    msg.sender === 'You' &&
-                                      'text-end text-primary-foreground/85'
-                                  )}
-                                >
-                                  {format(msg.timestamp, 'h:mm a')}
-                                </span>
-                              </div>
-                            ))}
-                            <div className='text-center text-xs'>{key}</div>
-                          </Fragment>
-                        ))}
-                    </div>
-                  </div>
-                </div>
-                <form className='flex w-full flex-none gap-2'>
+              {/* Chat Content */}
+              <ChatArea messages={messages} isLoading={isSending && messages.length > 0 && messages[messages.length-1].role !== 'assistant'} />
+
+              {/* Input Area */}
+              <div className='p-4 bg-background border-t'>
+                <form
+                  className='flex w-full flex-none gap-2'
+                  onSubmit={handleSendMessage}
+                >
                   <div className='flex flex-1 items-center gap-2 rounded-md border border-input bg-card px-2 py-1 focus-within:ring-1 focus-within:ring-ring focus-within:outline-hidden lg:gap-4'>
-                    <div className='space-x-1'>
-                      <Button
+                    <Button
                         size='icon'
                         type='button'
                         variant='ghost'
@@ -272,47 +328,29 @@ export function Chats() {
                       >
                         <Plus size={20} className='stroke-muted-foreground' />
                       </Button>
-                      <Button
-                        size='icon'
-                        type='button'
-                        variant='ghost'
-                        className='hidden h-8 rounded-md lg:inline-flex'
-                      >
-                        <ImagePlus
-                          size={20}
-                          className='stroke-muted-foreground'
-                        />
-                      </Button>
-                      <Button
-                        size='icon'
-                        type='button'
-                        variant='ghost'
-                        className='hidden h-8 rounded-md lg:inline-flex'
-                      >
-                        <Paperclip
-                          size={20}
-                          className='stroke-muted-foreground'
-                        />
-                      </Button>
-                    </div>
                     <label className='flex-1'>
                       <span className='sr-only'>Chat Text Box</span>
                       <input
                         type='text'
-                        placeholder='Type your messages...'
+                        placeholder='Type your message...'
                         className='h-8 w-full bg-inherit focus-visible:outline-hidden'
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        disabled={isSending}
                       />
                     </label>
                     <Button
                       variant='ghost'
                       size='icon'
                       className='hidden sm:inline-flex'
+                      type="submit"
+                      disabled={isSending}
                     >
                       <Send size={20} />
                     </Button>
                   </div>
-                  <Button className='h-full sm:hidden'>
-                    <Send size={18} /> Send
+                  <Button className='h-full sm:hidden' type="submit" disabled={isSending}>
+                    <Send size={18} />
                   </Button>
                 </form>
               </div>
@@ -328,23 +366,35 @@ export function Chats() {
                   <MessagesSquare className='size-8' />
                 </div>
                 <div className='space-y-2 text-center'>
-                  <h1 className='text-xl font-semibold'>Your messages</h1>
+                  <h1 className='text-xl font-semibold'>Welcome to LLM Chat</h1>
                   <p className='text-sm text-muted-foreground'>
-                    Send a message to start a chat.
+                    Start a new conversation to begin.
                   </p>
                 </div>
-                <Button onClick={() => setCreateConversationDialog(true)}>
-                  Send message
+                <Button onClick={handleCreateSession}>
+                  Start New Chat
                 </Button>
               </div>
             </div>
           )}
         </section>
-        <NewChat
-          users={users}
-          onOpenChange={setCreateConversationDialog}
-          open={createConversationDialogOpened}
-        />
+
+        {/* Delete Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Delete Chat</DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to delete this chat? This action cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                    <Button variant="destructive" onClick={handleDeleteSession}>Delete</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
       </Main>
     </>
   )

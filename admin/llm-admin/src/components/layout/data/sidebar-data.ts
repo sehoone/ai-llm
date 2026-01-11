@@ -77,12 +77,11 @@ export const sidebarData: SidebarData = {
         //   url: '/apps',
         //   icon: Package,
         // },
-        // {
-        //   title: 'Chats',
-        //   url: '/chats',
-        //   badge: '3',
-        //   icon: MessagesSquare,
-        // },
+        {
+          title: 'Chats',
+          url: '/chats',
+          icon: MessagesSquare,
+        },
         // {
         //   title: 'Users',
         //   url: '/users',
