@@ -80,6 +80,26 @@ async def chat(
 
         result = await agent.get_response(chat_request.messages, session.id, user_id=session.user_id)
 
+        # Save interaction (user question + assistant answer)
+        if chat_request.messages:
+             last_user_msg = chat_request.messages[-1]
+             if last_user_msg.role == "user":
+                 # Find assistant response in result
+                 # result is expected to be list of Message objects or dicts
+                 # Assuming result contains the *new* messages from the agent execution
+                 assistant_content = ""
+                 for msg in result:
+                     if msg.get("role") == "assistant":
+                         assistant_content = msg.get("content", "")
+                         break
+                 
+                 if assistant_content:
+                     await database_service.save_chat_interaction(
+                         session.id, 
+                         last_user_msg.content, 
+                         assistant_content
+                     )
+
         logger.info("chat_request_processed", session_id=session.id)
 
         return ChatResponse(messages=result)
@@ -232,6 +252,16 @@ async def chat_stream(
                         response = StreamResponse(content=chunk, done=False)
                         yield f"data: {json.dumps(response.model_dump(), ensure_ascii=False)}\n\n"
 
+                # Save interaction (user question + full assistant answer)
+                if chat_request.messages:
+                    last_user_msg = chat_request.messages[-1]
+                    if last_user_msg.role == "user" and full_response:
+                         await database_service.save_chat_interaction(
+                             session.id, 
+                             last_user_msg.content, 
+                             full_response
+                         )
+
                 # Send final message indicating completion
                 final_response = StreamResponse(content="", done=True)
                 yield f"data: {json.dumps(final_response.model_dump(), ensure_ascii=False)}\n\n"
@@ -286,7 +316,15 @@ async def get_session_messages(
         if session.user_id != user.id:
             raise HTTPException(status_code=403, detail="Cannot access other sessions")
 
-        messages = await agent.get_chat_history(session.id)
+        # Get messages from DB
+        db_messages = await database_service.get_chat_messages(session.id)
+        
+        # Convert Q/A pairs to flat list of messages
+        messages = []
+        for msg in db_messages:
+            messages.append(Message(role="user", content=msg.question))
+            messages.append(Message(role="assistant", content=msg.answer))
+        
         return ChatResponse(messages=messages)
     except Exception as e:
         logger.error("get_messages_failed", session_id=session_id, error=str(e), exc_info=True)

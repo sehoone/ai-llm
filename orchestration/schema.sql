@@ -74,3 +74,13 @@ CREATE INDEX IF NOT EXISTS idx_rag_embedding_rag_type ON rag_embedding(rag_type)
 -- Note: ivfflat index requires at least some data in the table to work properly
 -- Run this after inserting initial data:
 -- CREATE INDEX IF NOT EXISTS idx_rag_embedding_vector ON rag_embedding USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+CREATE TABLE chat_message (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message(session_id);

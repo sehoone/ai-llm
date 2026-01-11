@@ -25,6 +25,7 @@ from src.rag.models.document_model import Document
 from src.chatbot.models.session_model import Session as ChatSession
 from src.user.models.user_model import User
 from src.rag.models.rag_embedding_model import RAGEmbedding
+from src.chatbot.models.message_model import ChatMessage
 
 
 class DatabaseService:
@@ -228,6 +229,38 @@ class DatabaseService:
             session.refresh(chat_session)
             logger.info("session_name_updated", session_id=session_id, name=name)
             return chat_session
+
+    async def save_chat_interaction(self, session_id: str, question: str, answer: str) -> ChatMessage:
+        """Save a chat interaction (question and answer) to the database.
+
+        Args:
+            session_id: The ID of the session
+            question: The user's question
+            answer: The assistant's answer
+
+        Returns:
+            ChatMessage: The saved interaction
+        """
+        with Session(self.engine) as session:
+            message = ChatMessage(session_id=session_id, question=question, answer=answer)
+            session.add(message)
+            session.commit()
+            session.refresh(message)
+            return message
+
+    async def get_chat_messages(self, session_id: str) -> List[ChatMessage]:
+        """Get all messages for a session.
+
+        Args:
+            session_id: The ID of the session
+
+        Returns:
+            List[ChatMessage]: List of messages sorted by creation time
+        """
+        with Session(self.engine) as session:
+            statement = select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at)
+            messages = session.exec(statement).all()
+            return messages
 
     def get_session_maker(self):
         """Get a session maker for creating database sessions.
