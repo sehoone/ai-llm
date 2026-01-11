@@ -82,6 +82,11 @@ export const sidebarData: SidebarData = {
           url: '/chats',
           icon: MessagesSquare,
         },
+        {
+          title: 'Chat History',
+          url: '/chat-history',
+          icon: ListTodo, // Using ListTodo as a placeholder icon
+        },
         // {
         //   title: 'Users',
         //   url: '/users',

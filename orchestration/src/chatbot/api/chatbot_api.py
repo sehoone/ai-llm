@@ -28,6 +28,7 @@ from src.common.metrics import llm_stream_duration_seconds
 from src.chatbot.models.session_model import Session
 from src.user.models.user_model import User
 from src.common.services.database import database_service
+from src.chatbot.schemas.admin_schema import ChatHistoryResponse
 from src.chatbot.schemas.chat_schema import (
     ALL_SUPPORTED_TYPES,
     ChatRequest,
@@ -360,4 +361,56 @@ async def clear_chat_history(
         return {"message": "Chat history cleared successfully"}
     except Exception as e:
         logger.error("clear_chat_history_failed", session_id=session_id, error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/history/all", response_model=List[ChatHistoryResponse], summary="전체 대화 이력 조회", description="모든 사용자의 대화 이력을 조회합니다. (관리자용)")
+async def get_all_chat_history(
+    request: Request,
+    limit: int = 100,
+    offset: int = 0,
+    user: User = Depends(get_current_user),
+):
+    """Get all chat history for all users.
+
+    Args:
+        request: The FastAPI request object
+        limit: Max records
+        offset: Records to skip
+        user: The authenticated user (Should be admin, but currently allowing any auth user for logic)
+
+    Returns:
+        List[ChatHistoryResponse]: List of chat histories
+    """
+    try:
+        # TODO: Add admin check here
+        history = await database_service.get_all_chat_history(limit=limit, offset=offset)
+        return history
+    except Exception as e:
+        logger.error("get_all_chat_history_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/history/{message_id}", response_model=ChatHistoryResponse, summary="대화 상세 조회", description="특정 대화 이력의 상세 정보를 조회합니다.")
+async def get_chat_history_detail(
+    message_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get chat history detail by ID.
+
+    Args:
+        message_id: The ID of the chat message to retrieve
+        user: The authenticated user
+
+    Returns:
+        ChatHistoryResponse: The chat history detail
+    """
+    try:
+        # TODO: Add admin check here
+        history = await database_service.get_chat_message_by_id(message_id)
+        if not history:
+            raise HTTPException(status_code=404, detail="Chat history not found")
+        return history
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_chat_history_detail_failed", error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

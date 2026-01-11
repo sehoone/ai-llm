@@ -1,5 +1,6 @@
 import api from './axios'
 import type {
+  ChatHistoryResponse,
   ChatRequest,
   ChatResponse,
   ChatSession,
@@ -11,6 +12,19 @@ const AUTH_BASE = '/api/v1/auth'
 const CHATBOT_BASE = '/api/v1/chatbot'
 
 export const chatService = {
+  // Admin Operations
+  getAllChatHistory: async (limit = 100, offset = 0): Promise<ChatHistoryResponse[]> => {
+    const response = await api.get<ChatHistoryResponse[]>(`${CHATBOT_BASE}/history/all`, {
+      params: { limit, offset }
+    })
+    return response.data
+  },
+
+  getChatHistoryDetail: async (messageId: number): Promise<ChatHistoryResponse> => {
+    const response = await api.get<ChatHistoryResponse>(`${CHATBOT_BASE}/history/${messageId}`)
+    return response.data
+  },
+
   // Session Management
   getSessions: async (): Promise<ChatSession[]> => {
     const response = await api.get<ChatSession[]>(`${AUTH_BASE}/sessions`)

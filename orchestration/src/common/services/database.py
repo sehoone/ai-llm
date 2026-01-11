@@ -262,6 +262,76 @@ class DatabaseService:
             messages = session.exec(statement).all()
             return messages
 
+    async def get_all_chat_history(self, limit: int = 100, offset: int = 0) -> List[dict]:
+        """Get all chat history with user details.
+
+        Args:
+            limit: Maximum number of records to return
+            offset: Number of records to skip
+
+        Returns:
+            List[dict]: List of chat history records with user info
+        """
+        with Session(self.engine) as session:
+            # Join ChatMessage, Session, and User
+            statement = (
+                select(ChatMessage, ChatSession, User)
+                .join(ChatSession, ChatMessage.session_id == ChatSession.id)
+                .join(User, ChatSession.user_id == User.id)
+                .order_by(ChatMessage.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            
+            results = session.exec(statement).all()
+            
+            history = []
+            for message, chat_session, user in results:
+                history.append({
+                    "id": message.id,
+                    "session_id": message.session_id,
+                    "user_email": user.email,
+                    "question": message.question,
+                    "answer": message.answer,
+                    "created_at": message.created_at,
+                    "session_name": chat_session.name
+                })
+            
+            return history
+
+    async def get_chat_message_by_id(self, message_id: int) -> Optional[dict]:
+        """Get a specific chat message by ID with user info.
+
+        Args:
+            message_id: The ID of the message
+
+        Returns:
+            Optional[dict]: The chat history record if found
+        """
+        with Session(self.engine) as session:
+            statement = (
+                select(ChatMessage, ChatSession, User)
+                .join(ChatSession, ChatMessage.session_id == ChatSession.id)
+                .join(User, ChatSession.user_id == User.id)
+                .where(ChatMessage.id == message_id)
+            )
+            
+            result = session.exec(statement).first()
+            
+            if not result:
+                return None
+                
+            message, chat_session, user = result
+            return {
+                "id": message.id,
+                "session_id": message.session_id,
+                "user_email": user.email,
+                "question": message.question,
+                "answer": message.answer,
+                "created_at": message.created_at,
+                "session_name": chat_session.name
+            }
+
     def get_session_maker(self):
         """Get a session maker for creating database sessions.
 
