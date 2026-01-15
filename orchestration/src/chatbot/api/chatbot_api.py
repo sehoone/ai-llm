@@ -79,7 +79,12 @@ async def chat(
             message_count=len(chat_request.messages),
         )
 
-        result = await agent.get_response(chat_request.messages, session.id, user_id=session.user_id)
+        result = await agent.get_response(
+            chat_request.messages, 
+            session.id, 
+            user_id=session.user_id,
+            is_deep_thinking=chat_request.is_deep_thinking
+        )
 
         # Save interaction (user question + assistant answer)
         if chat_request.messages:
@@ -115,6 +120,7 @@ async def chat_with_files(
     request: Request,
     session_id: str = Form(..., description="The session ID"),
     message: str = Form(..., description="The user message"),
+    is_deep_thinking: bool = Form(False, description="Whether to enable deep thinking mode"),
     files: Optional[List[UploadFile]] = File(default=None, description="Optional file attachments"),
     user: User = Depends(get_current_user),
 ):
@@ -188,7 +194,12 @@ async def chat_with_files(
             files=file_attachments if file_attachments else None
         )
 
-        result = await agent.get_response([user_message], session.id, user_id=session.user_id)
+        result = await agent.get_response(
+            [user_message], 
+            session.id, 
+            user_id=session.user_id,
+            is_deep_thinking=is_deep_thinking
+        )
 
         logger.info("chat_with_files_request_processed", session_id=session.id)
 
@@ -247,7 +258,10 @@ async def chat_stream(
                 full_response = ""
                 with llm_stream_duration_seconds.labels(model=agent.llm_service.get_llm().get_name()).time():
                     async for chunk in agent.get_stream_response(
-                        chat_request.messages, session.id, user_id=session.user_id
+                        chat_request.messages, 
+                        session.id, 
+                        user_id=session.user_id,
+                        is_deep_thinking=chat_request.is_deep_thinking
                     ):
                         full_response += chunk
                         response = StreamResponse(content=chunk, done=False)

@@ -114,6 +114,7 @@ class ChatRequest(BaseModel):
     """
 
     session_id: str = Field(..., description="The ID of the session")
+    is_deep_thinking: bool = Field(default=False, description="Whether to enable deep thinking mode")
     messages: List[Message] = Field(
         ...,
         description="List of messages in the conversation",

@@ -14,6 +14,7 @@ export interface Message {
 export interface ChatRequest {
   session_id: string
   messages: Message[]
+  is_deep_thinking?: boolean
 }
 
 export interface ChatResponse {

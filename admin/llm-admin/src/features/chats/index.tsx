@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Fragment } from 'react/jsx-runtime'
 import {
   ArrowLeft,
+  BrainCircuit,
   Edit,
   MessagesSquare,
   Plus,
@@ -44,6 +45,7 @@ export function Chats() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [inputMessage, setInputMessage] = useState('')
+  const [isDeepThinking, setIsDeepThinking] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
 
@@ -160,7 +162,8 @@ export function Chats() {
         (error) => {
             console.error(error)
             toast.error('Failed to send message')
-        }
+        },
+        isDeepThinking
       )
     } catch (error) {
       console.error('Failed to send message', error)
@@ -327,6 +330,16 @@ export function Chats() {
                         className='h-8 rounded-md'
                       >
                         <Plus size={20} className='stroke-muted-foreground' />
+                      </Button>
+                    <Button
+                        size='icon'
+                        type='button'
+                        variant={isDeepThinking ? 'secondary' : 'ghost'}
+                        className={cn('h-8 rounded-md', isDeepThinking && 'bg-blue-100 dark:bg-blue-900')}
+                        onClick={() => setIsDeepThinking(!isDeepThinking)}
+                        title="심층사고 모드"
+                      >
+                        <BrainCircuit size={20} className={cn('stroke-muted-foreground', isDeepThinking && 'stroke-blue-600 dark:stroke-blue-400')} />
                       </Button>
                     <label className='flex-1'>
                       <span className='sr-only'>Chat Text Box</span>

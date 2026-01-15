@@ -65,9 +65,10 @@ export const chatService = {
 
   sendMessage: async (
     sessionId: string,
-    messages: Message[]
+    messages: Message[],
+    isDeepThinking?: boolean
   ): Promise<Message[]> => {
-    const request: ChatRequest = { session_id: sessionId, messages }
+    const request: ChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking }
     const response = await api.post<ChatResponse>(
       `${CHATBOT_BASE}/chat`,
       request
@@ -87,9 +88,10 @@ export const chatService = {
     sessionId: string,
     messages: Message[],
     onChunk: (content: string, done: boolean) => void,
-    onError: (error: any) => void
+    onError: (error: any) => void,
+    isDeepThinking?: boolean
   ) => {
-    const request: ChatRequest = { session_id: sessionId, messages }
+    const request: ChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking }
     
     // Using fetch for streaming as it's easier to handle ReadableStream
     const token = api.defaults.headers.common['Authorization'] || 
@@ -123,25 +125,56 @@ export const chatService = {
 
       if (!reader) throw new Error('No reader available')
 
+      let buffer = '' // Buffer to hold incomplete lines
+
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n\n')
+        // Decode with stream: true to handle multi-byte characters split across chunks
+        buffer += decoder.decode(value, { stream: true })
+        
+        // Split by the SSE delimiter
+        const lines = buffer.split('\n\n')
+        
+        // The last element is potentially incomplete, so keep it in the buffer
+        buffer = lines.pop() || ''
         
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.replace('data: ', '')
+          const trimmedLine = line.trim()
+          if (trimmedLine.startsWith('data: ')) {
+            const dataStr = trimmedLine.replace('data: ', '')
             try {
+              if (dataStr === '[DONE]') {
+                 // Handle specific DONE signal if used, though strict JSON is expected here based on current code
+                 continue; 
+              }
               const data = JSON.parse(dataStr)
               onChunk(data.content, data.done)
             } catch (e) {
-              console.error('Error parsing stream chunk', e)
+              console.error('Error parsing stream chunk', e, 'chunk:', dataStr)
             }
           }
         }
       }
+      
+      // Process any remaining buffer (though standard SSE ends with \n\n usually)
+      if (buffer.trim()) {
+         const lines = buffer.split('\n\n')
+         for (const line of lines) {
+             const trimmedLine = line.trim()
+              if (trimmedLine.startsWith('data: ')) {
+                const dataStr = trimmedLine.replace('data: ', '')
+                try {
+                  const data = JSON.parse(dataStr)
+                  onChunk(data.content, data.done)
+                } catch (e) {
+                  // Ignore incomplete JSON at the very end if it's garbled
+                }
+              }
+         }
+      }
+
     } catch (e) {
       onError(e)
     }

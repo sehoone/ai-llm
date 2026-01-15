@@ -17,6 +17,7 @@ from langchain_core.messages import (
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import (
     END,
+    START,
     StateGraph,
 )
 from langgraph.graph.state import (
@@ -246,6 +247,9 @@ class LangGraphAgent:
             # Process response to handle structured content blocks
             response_message = process_llm_response(response_message)
 
+            if state.is_deep_thinking:
+                response_message.content = f"[Deep Thinking - Answer]\n{response_message.content}"
+
             logger.info(
                 "llm_response_generated",
                 session_id=config["configurable"]["thread_id"],
@@ -291,6 +295,107 @@ class LangGraphAgent:
             )
         return Command(update={"messages": outputs}, goto="chat")
 
+    async def _think(self, state: GraphState, config: RunnableConfig) -> Command:
+        """Analyze the user's request and plan the response.
+
+        Args:
+            state (GraphState): The current state of the conversation.
+
+        Returns:
+            Command: Command object with thinking output.
+        """
+        current_llm = self.llm_service.get_llm()
+        THINKING_PROMPT = """You are an expert AI strategist designed to ensure high-quality responses.
+Your task is NOT to answer the user's question directly, but to ANALYZE the request and PLAN the best possible response.
+
+**Guidelines:**
+1.  **Deconstruct**: Break down the user's request into core components and implicit intent.
+2.  **Context Expansion**: What background knowledge or context is necessary to give a "Deep" answer?
+3.  **Strategy**: Outline a logical structure for the final response (e.g., Introduction -> Core Concept -> Examples -> deep usage -> Conclusion).
+4.  **Tone & Style**: Determine the appropriate tone (academic, practical, simple, etc.).
+
+**Output Style:**
+- Use **Internal Monologue** (e.g., "The user is asking about X. I must ensure to cover Y and Z...").
+- **DO NOT** address the user directly (No "Here is the plan for you").
+- **DO NOT** generate the final answer text. Only the plan.
+"""
+        messages = prepare_messages(state.messages, current_llm, THINKING_PROMPT)
+
+        try:
+            response = await self.llm_service.call(messages)
+            content = str(response.content)
+            
+            # Robustly remove any existing tag using regex to prevent duplication/formatting issues
+            import re
+            # Matches [Deep Thinking - Analysis] optionally surrounded by Markdown bold/italics etc, and followed by whitespace
+            content = re.sub(r'^[\s\*]*\[Deep Thinking - [^\]]+\][\s\*]*', '', content, flags=re.IGNORECASE | re.MULTILINE)
+            
+            response.content = f"[Deep Thinking - Analysis]\n{content}\n\n"
+            return Command(update={"messages": [response]}, goto="verify")
+        except Exception as e:
+            logger.error(
+                "think_step_failed",
+                session_id=config["configurable"]["thread_id"],
+                error=str(e)
+            )
+            # Fallback to chat if thinking fails
+            return Command(goto="chat")
+
+    async def _verify(self, state: GraphState, config: RunnableConfig) -> Command:
+        """Verify the analysis and plan.
+
+        Args:
+            state (GraphState): The current state of the conversation.
+
+        Returns:
+            Command: Command object with verification output.
+        """
+        current_llm = self.llm_service.get_llm()
+        VERIFY_PROMPT = """You are a Critical Reviewer.
+Review the analysis and plan provided in the previous turn.
+
+**Guidelines:**
+1.  **Critique**: identify any logical gaps, missing edge cases, or potential inaccuracies in the plan.
+2.  **Enhancement**: Suggest 1-2 specific ways to make the final answer more insightful or comprehensive.
+3.  **Safety**: Ensure no safety guidelines are violated.
+
+**Output Style:**
+- Concise and constructive.
+- **DO NOT** generate the final answer.
+- Focus on *improving* the execution of the plan.
+"""
+        messages = prepare_messages(state.messages, current_llm, VERIFY_PROMPT)
+
+        try:
+            response = await self.llm_service.call(messages)
+            content = str(response.content)
+            
+            import re
+            content = re.sub(r'^[\s\*]*\[Deep Thinking - [^\]]+\][\s\*]*', '', content, flags=re.IGNORECASE | re.MULTILINE)
+
+            response.content = f"[Deep Thinking - Verification]\n{content}\n\n"
+            return Command(update={"messages": [response]}, goto="chat")
+        except Exception as e:
+            logger.error(
+                "verify_step_failed",
+                session_id=config["configurable"]["thread_id"],
+                error=str(e)
+            )
+            return Command(goto="chat")
+
+    def _route_start(self, state: GraphState) -> str:
+        """Route the start of the graph based on deep thinking mode.
+
+        Args:
+           state (GraphState): The current state.
+
+        Returns:
+            str: The name of the next node.
+        """
+        if state.is_deep_thinking:
+            return "think"
+        return "chat"
+
     async def create_graph(self) -> Optional[CompiledStateGraph]:
         """Create and configure the LangGraph workflow.
 
@@ -302,7 +407,15 @@ class LangGraphAgent:
                 graph_builder = StateGraph(GraphState)
                 graph_builder.add_node("chat", self._chat, ends=["tool_call", END])
                 graph_builder.add_node("tool_call", self._tool_call, ends=["chat"])
-                graph_builder.set_entry_point("chat")
+                
+                # Deep thinking nodes
+                graph_builder.add_node("think", self._think, ends=["verify", "chat"])
+                graph_builder.add_node("verify", self._verify, ends=["chat"])
+
+                # Conditional entry point
+                graph_builder.add_conditional_edges(START, self._route_start)
+                
+                # graph_builder.set_entry_point("chat") # Removed in favor of conditional edges
                 graph_builder.set_finish_point("chat")
 
                 # Get connection pool (may be None in production if DB unavailable)
@@ -341,6 +454,7 @@ class LangGraphAgent:
         messages: list[Message],
         session_id: str,
         user_id: Optional[str] = None,
+        is_deep_thinking: bool = False,
     ) -> list[dict]:
         """Get a response from the LLM.
 
@@ -348,6 +462,7 @@ class LangGraphAgent:
             messages (list[Message]): The messages to send to the LLM.
             session_id (str): The session ID for Langfuse tracking.
             user_id (Optional[str]): The user ID for Langfuse tracking.
+            is_deep_thinking (bool): Whether to enable deep thinking mode.
 
         Returns:
             list[dict]: The response from the LLM.
@@ -369,7 +484,11 @@ class LangGraphAgent:
         ) or "No relevant memory found."
         try:
             response = await self._graph.ainvoke(
-                input={"messages": dump_messages(messages), "long_term_memory": relevant_memory},
+                input={
+                    "messages": dump_messages(messages),
+                    "long_term_memory": relevant_memory,
+                    "is_deep_thinking": is_deep_thinking,
+                },
                 config=config,
             )
             # Run memory update in background without blocking the response
@@ -384,7 +503,11 @@ class LangGraphAgent:
             raise  # Re-raise to let caller handle the error
 
     async def get_stream_response(
-        self, messages: list[Message], session_id: str, user_id: Optional[str] = None
+        self, 
+        messages: list[Message], 
+        session_id: str, 
+        user_id: Optional[str] = None,
+        is_deep_thinking: bool = False
     ) -> AsyncGenerator[str, None]:
         """Get a stream response from the LLM.
 
@@ -392,6 +515,7 @@ class LangGraphAgent:
             messages (list[Message]): The messages to send to the LLM.
             session_id (str): The session ID for the conversation.
             user_id (Optional[str]): The user ID for the conversation.
+            is_deep_thinking (bool): Whether to enable deep thinking mode.
 
         Yields:
             str: Tokens of the LLM response.
@@ -414,12 +538,33 @@ class LangGraphAgent:
         ) or "No relevant memory found."
 
         try:
-            async for token, _ in self._graph.astream(
-                {"messages": dump_messages(messages), "long_term_memory": relevant_memory},
+            think_tag_sent = False
+            verify_tag_sent = False
+            answer_tag_sent = False
+
+            async for token, metadata in self._graph.astream(
+                {
+                    "messages": dump_messages(messages), 
+                    "long_term_memory": relevant_memory,
+                    "is_deep_thinking": is_deep_thinking,
+                },
                 config,
                 stream_mode="messages",
             ):
                 try:
+                    node_name = metadata.get("langgraph_node")
+                    
+                    if is_deep_thinking:
+                        if node_name == "think" and not think_tag_sent:
+                            yield "[Deep Thinking - Analysis]\n"
+                            think_tag_sent = True
+                        elif node_name == "verify" and not verify_tag_sent:
+                            yield "[Deep Thinking - Verification]\n"
+                            verify_tag_sent = True
+                        elif node_name == "chat" and not answer_tag_sent:
+                            yield "[Deep Thinking - Answer]\n"
+                            answer_tag_sent = True
+                    
                     yield token.content
                 except Exception as token_error:
                     logger.error("Error processing token", error=str(token_error), session_id=session_id)
