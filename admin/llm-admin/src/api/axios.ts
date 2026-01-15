@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
+import { toast } from 'sonner';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || '/api', // Default to /api if not set
@@ -60,6 +61,14 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed, logout
         useAuthStore.getState().auth.reset();
+        
+        // Show notification and redirect
+        toast.error('인증 정보가 만료되었습니다. 다시 로그인해주세요.');
+        
+        if (typeof window !== 'undefined') {
+          window.location.href = '/sign-in';
+        }
+
         return Promise.reject(refreshError);
       }
     }
