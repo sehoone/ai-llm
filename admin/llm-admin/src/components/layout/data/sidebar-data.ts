@@ -18,6 +18,8 @@ import {
   Users,
   MessagesSquare,
   ShieldCheck,
+  Search,
+  Upload,
   // AudioWaveform,
   Command,
   // GalleryVerticalEnd,
@@ -81,6 +83,16 @@ export const sidebarData: SidebarData = {
           title: 'Chats',
           url: '/chats',
           icon: MessagesSquare,
+        },
+        {
+          title: 'Natural Language Search',
+          url: '/natural-search',
+          icon: Search,
+        },
+        {
+          title: 'RAG Upload',
+          url: '/rag-upload',
+          icon: Upload,
         },
         {
           title: 'Chat History',

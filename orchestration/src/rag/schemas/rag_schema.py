@@ -30,3 +30,12 @@ class RAGSearchResponse(BaseModel):
 
     query: str
     results: List[RAGSearchResult]
+
+
+class NaturalLanguageSearchResponse(BaseModel):
+    """Response model for natural language search."""
+
+    query: str
+    summary: str
+    results: List[RAGSearchResult]
+

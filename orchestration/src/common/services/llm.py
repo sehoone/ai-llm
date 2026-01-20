@@ -342,6 +342,38 @@ class LLMService:
             f"failed to get response from llm after trying {models_tried} models. last error: {str(last_error)}"
         )
 
+    async def astream(
+        self,
+        messages: List[BaseMessage],
+        model_name: Optional[str] = None,
+        **model_kwargs,
+    ):
+        """Stream response from the LLM.
+
+        Args:
+            messages: List of messages to send to the LLM
+            model_name: Optional specific model to use
+            **model_kwargs: Optional kwargs
+        
+        Yields:
+             Chunks of the response
+        """
+        # If user specifies a model, get it from registry
+        if model_name:
+            try:
+                self._llm = LLMRegistry.get(model_name, **model_kwargs)
+            except ValueError:
+                # Fallback to default if not found, or handle as needed
+                pass
+
+        if self._llm is None:
+             # Initialize with default
+             default_name = LLMRegistry.LLMS[0]["name"]
+             self._llm = LLMRegistry.get(default_name)
+
+        async for chunk in self._llm.astream(messages, **model_kwargs):
+            yield chunk
+
     def get_llm(self) -> Optional[BaseChatModel]:
         """Get the current LLM instance.
 

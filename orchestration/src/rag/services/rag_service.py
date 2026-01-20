@@ -1,8 +1,10 @@
 """RAG service for semantic search using pgvector."""
 
 import asyncio
+import json
 from typing import List, Optional
 
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import OpenAIEmbeddings
 from sqlmodel import (
     Session,
@@ -472,6 +474,156 @@ Context from documents:
             augmented_prompt += "\n"
 
         return augmented_prompt
+
+    async def natural_language_search(
+        self,
+        query: str,
+        rag_type: str,
+        rag_key: Optional[str] = None,
+        rag_group: Optional[str] = None,
+        user_id: Optional[int] = None,
+        limit: int = 5
+    ) -> dict:
+        """Search and summarize results using LLM.
+
+        Args:
+            query: The search query
+            rag_type: 'user_isolated' or 'chatbot_shared'
+            rag_key: Optional RAG key
+            rag_group: Optional RAG group
+            user_id: User ID
+            limit: Limit results
+
+        Returns:
+            dict: Contains 'summary' and 'results'
+        """
+        # 1. Search
+        if rag_group:
+            results = await self.search_rag_group(rag_group, rag_type, user_id, query, limit)
+        elif rag_key:
+            results = await self.search_rag(rag_key, rag_type, user_id, query, limit)
+        else:
+            return {"summary": "No RAG key or group provided.", "results": []}
+
+        # 2. Prepare Context
+        context_str = ""
+        if results:
+            context_parts = []
+            for i, res in enumerate(results):
+                context_parts.append(f"Source {i+1} ({res.get('filename', 'Unknown')}):\n{res.get('content', '')}")
+            context_str = "\n\n".join(context_parts)
+
+        # 3. Call LLM
+        system_prompt = (
+            "You are a helpful assistant serving as a search engine summarizer. "
+            "Given the user query and the following retrieved document excerpts, provide a concise and accurate summary answer. "
+            "If context is provided, prioritize it for your answer and cite sources by [Source X]. "
+            "If no context is provided or the information is not in the context, answer based on your general knowledge "
+            "but indicate that the answer is not from the retrieved documents."
+        )
+        
+        user_message = f"Query: {query}\n\nContext:\n{context_str if context_str else 'No relevant documents found.'}"
+
+        try:
+            response = await self.llm_service.call(
+                messages=[
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_message)
+                ],
+                model_name="gpt-5-mini" # Use fast model as requested
+            )
+            summary = str(response.content)
+        except Exception as e:
+            logger.error("llm_summary_failed", error=str(e))
+            summary = "Failed to generate summary."
+
+        return {
+            "summary": summary,
+            "results": results
+        }
+
+    async def stream_natural_language_search(
+        self,
+        query: str,
+        rag_type: str,
+        rag_key: Optional[str] = None,
+        rag_group: Optional[str] = None,
+        user_id: Optional[int] = None,
+        limit: int = 5
+    ):
+        """Stream search results and LLM summary.
+        
+        Yields:
+             JSON strings containing 'type' and 'data'
+        """
+        # 1. Search
+        if rag_group:
+            results = await self.search_rag_group(rag_group, rag_type, user_id, query, limit)
+        elif rag_key:
+            results = await self.search_rag(rag_key, rag_type, user_id, query, limit)
+        else:
+            yield json.dumps({"type": "error", "data": "No RAG key or group provided."})
+            return
+
+        # Prepare context (moved logic here to reuse)
+        context_str = ""
+        context_parts = []
+        if results:
+            for i, res in enumerate(results):
+                context_parts.append(f"Source {i+1} ({res.get('filename', 'Unknown')}):\n{res.get('content', '')}")
+            context_str = "\n\n".join(context_parts)
+        
+        # 2. Yield Sources immediately
+        # Truncate content for the response to avoid huge payloads, similar to non-streaming
+        safe_results = [
+            {
+                "doc_id": r["doc_id"],
+                "filename": r.get("filename", ""),
+                "content": r.get("content", "")[:500],
+                "similarity": r.get("similarity", 0.0),
+            }
+            for r in results
+        ]
+        yield json.dumps({"type": "sources", "data": safe_results})
+
+        # 3. Call LLM Streaming
+        system_prompt = (
+            "You are a helpful assistant serving as a search engine summarizer. "
+            "Given the user query and the following retrieved document excerpts, provide a concise and accurate summary answer. "
+            "If context is provided, prioritize it for your answer and cite sources by [Source X]. "
+            "If no context is provided or the information is not in the context, answer based on your general knowledge "
+            "but indicate that the answer is not from the retrieved documents."
+        )
+        
+        user_message = f"Query: {query}\n\nContext:\n{context_str if context_str else 'No relevant documents found.'}"
+
+        try:
+            async for chunk in self.llm_service.astream(
+                messages=[
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_message)
+                ],
+                model_name="gpt-5-mini" 
+            ):
+                content = chunk.content
+                # Handle list content (e.g. from reasoning models or multimodal)
+                if isinstance(content, list):
+                    text_content = ""
+                    for block in content:
+                        if isinstance(block, dict):
+                            if block.get("type") == "text":
+                                text_content += block.get("text", "")
+                            # Ignore 'reasoning' type or others for the summary output
+                        elif isinstance(block, str):
+                            text_content += block
+                    content = text_content
+
+                if content:
+                    yield json.dumps({"type": "chunk", "data": str(content)})
+            
+        except Exception as e:
+            logger.error("llm_stream_summary_failed", error=str(e))
+            yield json.dumps({"type": "error", "data": "Failed to generate summary."})
 
 
 # Create singleton instance

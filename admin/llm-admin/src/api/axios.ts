@@ -23,6 +23,26 @@ api.interceptors.request.use(
   }
 );
 
+interface FailedRequest {
+  resolve: (value: unknown) => void;
+  reject: (reason?: any) => void;
+}
+
+let isRefreshing = false;
+let failedQueue: FailedRequest[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+
+  failedQueue = [];
+};
+
 // Add a response interceptor to handle 401 errors
 api.interceptors.response.use(
   (response) => response,
@@ -31,13 +51,27 @@ api.interceptors.response.use(
 
     // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise(function (resolve, reject) {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
-        const { refreshToken, setAccessToken, setRefreshToken, reset } = useAuthStore.getState().auth;
+        const { refreshToken, setAccessToken, setRefreshToken } = useAuthStore.getState().auth;
 
         if (!refreshToken) {
-          return Promise.reject(error);
+            throw new Error('No refresh token available');
         }
 
         // Call refresh endpoint
@@ -53,23 +87,30 @@ api.interceptors.response.use(
           setRefreshToken(refresh_token);
         }
 
+        // Process queued requests with the new token
+        processQueue(null, access_token);
+
         // Update the header for the original request
         originalRequest.headers.Authorization = `Bearer ${access_token}`;
 
         // Retry the original request
         return api(originalRequest);
       } catch (refreshError) {
+        // Process queued requests with error
+        processQueue(refreshError, null);
+        
         // Refresh failed, logout
         useAuthStore.getState().auth.reset();
         
         // Show notification and redirect
-        toast.error('인증 정보가 만료되었습니다. 다시 로그인해주세요.');
-        
         if (typeof window !== 'undefined') {
-          window.location.href = '/sign-in';
+            toast.error('인증 정보가 만료되었습니다. 다시 로그인해주세요.');
+            window.location.href = '/sign-in';
         }
 
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 

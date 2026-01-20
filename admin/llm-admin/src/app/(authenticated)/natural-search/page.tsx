@@ -1,0 +1,234 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { ragApi, type NaturalLanguageSearchResponse, type RAGSearchResult } from '@/api/rag'
+import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
+
+export default function NaturalSearchPage() {
+  const [loading, setLoading] = useState(false)
+  const [searching, setSearching] = useState(false) // State for spinner
+  const [summary, setSummary] = useState('')
+  const [results, setResults] = useState<RAGSearchResult[]>([])
+  const [hasStarted, setHasStarted] = useState(false)
+  
+  const [ragKey, setRagKey] = useState('default')
+  const [availableKeys, setAvailableKeys] = useState<string[]>([])
+  // const [openCombobox, setOpenCombobox] = useState(false)
+
+  const [ragGroup, setRagGroup] = useState('')
+  const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('user_isolated')
+  const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    // Fetch unique rag keys for the user (only for user_isolated for now or based on type)
+    const fetchKeys = async () => {
+        try {
+            // This is a bit inefficient as it fetches all docs, but works for limited data
+            // Ideal: dedicated endpoint for keys
+            const docs = await ragApi.getDocuments(undefined, ragType)
+            // Extract keys from result. Assuming API returns documents list
+            // Note: The structure of document response might need check if it has rag_key field visible
+            // The current DocumentResponse has: id, filename, user_id, size, created_at.
+            // It does NOT have rag_key exposed.
+            // I should update DocumentResponse in rag.ts if I want to source keys from it, 
+            // or just rely on manual input + maybe a hint if possible.
+            // Since backend DocumentResponse doesn't include rag_key, I cannot populate this list easily without backend change.
+            // For now, I will skip populating the dropdown dynamically to avoid backend refactoring 
+            // and just keep the text input, or assuming the user knows the keys.
+            // Wait, I can update the backend schema easily if needed.
+            // Let's assume for now user inputs text, as making backend changes for `getDocuments` wasn't part of plan yet.
+        } catch (e) {
+            console.error(e)
+        }
+    }
+    // fetchKeys()
+  }, [ragType])
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!query.trim()) return
+
+    setLoading(true)
+    setSearching(true)
+    setHasStarted(true)
+    setSummary('')
+    setResults([])
+
+    try {
+      const accessToken = useAuthStore.getState().auth.accessToken;
+      const formData = new FormData()
+      formData.append('rag_type', ragType)
+      formData.append('query', query)
+      if (ragKey) formData.append('rag_key', ragKey)
+      if (ragGroup) formData.append('rag_group', ragGroup)
+      formData.append('limit', '5')
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/rag/natural-language-search`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) throw new Error('Search failed')
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No reader')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      setSearching(false) // Data started coming
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        buffer += chunk
+        
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep last incomplete line
+
+        for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+                const json = JSON.parse(line)
+                if (json.type === 'sources') {
+                    setResults(json.data)
+                } else if (json.type === 'chunk') {
+                    setSummary(prev => prev + json.data)
+                } else if (json.type === 'error') {
+                    toast.error(json.data)
+                }
+            } catch (e) {
+                console.error('Error parsing line:', line, e)
+            }
+        }
+      }
+
+    } catch (error) {
+      console.error(error)
+      toast.error('Search failed')
+    } finally {
+      setLoading(false)
+      setSearching(false)
+    }
+  }
+
+  return (
+    <div className='flex flex-col gap-4 p-4 md:p-8'>
+      <div className='flex items-center justify-between space-y-2'>
+        <h2 className='text-3xl font-bold tracking-tight'>Natural Language Search</h2>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Search Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+             <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium">RAG Type</label>
+                <select 
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={ragType} 
+                    onChange={(e) => setRagType(e.target.value as any)}
+                >
+                    <option value="user_isolated">User Isolated</option>
+                    <option value="chatbot_shared">Chatbot Shared</option>
+                    <option value="natural_search">Natural Search</option>
+                </select>
+            </div>
+            <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium">RAG Key</label>
+                <Input value={ragKey} onChange={e => setRagKey(e.target.value)} placeholder="e.g. default" />
+            </div>
+             <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium">RAG Group</label>
+                <Input value={ragGroup} onChange={e => setRagGroup(e.target.value)} placeholder="Optional" />
+            </div>
+        </CardContent>
+      </Card>
+
+      <div className="relative">
+        <form onSubmit={handleSearch} className="flex w-full items-center space-x-2">
+            <Input 
+                className="flex-1 text-lg h-12" 
+                placeholder="Ask anything..." 
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+            />
+            <Button type="submit" size="lg" disabled={loading} className="h-12 w-24">
+                {searching ? 'Search...' : <Search className="h-5 w-5" />}
+            </Button>
+        </form>
+      </div>
+
+      {searching && (
+        <div className="space-y-4 pt-4">
+             <div className="space-y-2">
+                <Skeleton className="h-4 w-[250px]" />
+                <Skeleton className="h-4 w-[200px]" />
+             </div>
+             <Skeleton className="h-[125px] w-full rounded-xl" />
+        </div>
+      )}
+
+      {hasStarted && !searching && (
+        <div className="grid gap-6 md:grid-cols-3 pt-4">
+            {/* Main Result Area */}
+            <div className="md:col-span-2 space-y-6">
+                <Card className="bg-muted/50 border-primary/20">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                             ✨ AI Summary
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="leading-relaxed whitespace-pre-wrap">{summary}</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Source Documents Area */}
+            <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Sources</h3>
+                {results.map((result, idx) => (
+                    <Card key={idx} className="overflow-hidden">
+                        <CardHeader className="p-4 pb-2">
+                            <CardTitle className="text-sm font-medium truncate" title={result.filename}>
+                                {result.filename || `Document ${result.doc_id}`}
+                            </CardTitle>
+                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="secondary" className="text-xs">{Math.round(result.similarity * 100)}% Match</Badge>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-2">
+                            <p className="text-xs text-muted-foreground line-clamp-3">
+                                {result.content}
+                            </p>
+                        </CardContent>
+                    </Card>
+                ))}
+                 {results.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No sources found.</p>
+                )}
+            </div>
+        </div>
+      )}
+    </div>
+  )
+}

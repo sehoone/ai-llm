@@ -1,5 +1,6 @@
 """RAG API endpoints for document upload and semantic search."""
 
+import io
 from typing import List
 
 from fastapi import (
@@ -11,6 +12,7 @@ from fastapi import (
     Request,
     UploadFile,
 )
+from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
 from src.common.config import settings
@@ -19,6 +21,7 @@ from src.common.logging import logger
 from src.user.models.user_model import User
 from src.rag.schemas.rag_schema import (
     DocumentResponse,
+    NaturalLanguageSearchResponse,
     RAGSearchResponse,
     RAGSearchResult,
 )
@@ -47,7 +50,7 @@ async def upload_document(
         file: The file to upload
         rag_key: The RAG key identifying which chatbot/RAG this belongs to
         rag_group: The RAG group for batch searches (e.g., 'support_bots')
-        rag_type: Type of RAG - 'user_isolated' (per-user) or 'chatbot_shared' (global)
+        rag_type: Type of RAG - 'user_isolated' (per-user) or 'chatbot_shared' (global) or 'natural_search' (knowledge base)
         tags: Optional tags for the document
         user: The authenticated user
 
@@ -61,8 +64,8 @@ async def upload_document(
         logger.info("document_upload_received", filename=file.filename, user_id=user.id, rag_key=rag_key, rag_group=rag_group, rag_type=rag_type)
         
         # Validate rag_type
-        if rag_type not in ["user_isolated", "chatbot_shared"]:
-            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated' or 'chatbot_shared'")
+        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
+            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
         
         # Validate file
         if not file.filename:
@@ -75,10 +78,38 @@ async def upload_document(
             raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
 
         # Decode content
+        file_ext = file.filename.split(".")[-1].lower()
         try:
-            file_content = content.decode("utf-8")
+            if file_ext == "pdf":
+                try:
+                    import pypdf
+                    reader = pypdf.PdfReader(io.BytesIO(content))
+                    file_content = "\n".join([page.extract_text() for page in reader.pages])
+                except ImportError:
+                    logger.error("pypdf_not_installed")
+                    raise HTTPException(status_code=500, detail="PDF support is not fully configured (pypdf missing).")
+                except Exception as e:
+                    logger.error("pdf_parsing_failed", error=str(e))
+                    raise HTTPException(status_code=400, detail="Failed to parse PDF file.")
+            
+            elif file_ext in ["docx", "doc"]:
+                try:
+                    import docx
+                    doc = docx.Document(io.BytesIO(content))
+                    file_content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                except ImportError:
+                     logger.error("python_docx_not_installed")
+                     raise HTTPException(status_code=500, detail="Word support is not fully configured (python-docx missing).")
+                except Exception as e:
+                    logger.error("docx_parsing_failed", error=str(e))
+                    raise HTTPException(status_code=400, detail="Failed to parse Word file.")
+            
+            else:
+                # Default to text
+                file_content = content.decode("utf-8")
+
         except UnicodeDecodeError:
-            raise HTTPException(status_code=400, detail="File must be UTF-8 encoded text")
+            raise HTTPException(status_code=400, detail="File must be UTF-8 encoded text or supported binary format")
 
         # Sanitize inputs
         filename = sanitize_string(file.filename)
@@ -217,7 +248,7 @@ async def search_rag(
     Args:
         request: The FastAPI request object for rate limiting.
         rag_key: The RAG key identifying which chatbot/RAG to search
-        rag_type: Type of RAG - 'user_isolated' or 'chatbot_shared'
+        rag_type: Type of RAG - 'user_isolated' or 'chatbot_shared' or 'natural_search'
         query: The search query
         limit: Maximum number of results (default 5, max 20)
         user: The authenticated user
@@ -230,8 +261,8 @@ async def search_rag(
     """
     try:
         # Validate rag_type
-        if rag_type not in ["user_isolated", "chatbot_shared"]:
-            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated' or 'chatbot_shared'")
+        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
+            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
         
         # Validate inputs
         query = sanitize_string(query)
@@ -300,8 +331,8 @@ async def search_rag_group(
     """
     try:
         # Validate rag_type
-        if rag_type not in ["user_isolated", "chatbot_shared"]:
-            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated' or 'chatbot_shared'")
+        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
+            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
         
         # Validate inputs
         query = sanitize_string(query)
@@ -340,3 +371,53 @@ async def search_rag_group(
     except Exception as e:
         logger.error("rag_group_search_failed", rag_group=rag_group, query=query, user_id=user.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to search RAG group")
+
+
+@router.post("/natural-language-search", summary="자연어 검색 (Streaming)", description="RAG 검색 후 LLM을 통해 요약된 답변을 스트리밍으로 제공합니다.")
+@limiter.limit("20 per minute")
+async def natural_language_search(
+    request: Request,
+    rag_type: str = Form(...),
+    query: str = Form(...),
+    rag_key: str = Form(None),
+    rag_group: str = Form(None),
+    limit: int = Form(default=5),
+    user: User = Depends(get_current_user),
+):
+    """Perform natural language search with LLM summary (Streaming)."""
+    try:
+        # Validate rag_type
+        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
+            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
+        
+        if not rag_key and not rag_group:
+             raise HTTPException(status_code=400, detail="Either rag_key or rag_group must be provided")
+
+        # Validate inputs
+        query = sanitize_string(query)
+        if not query:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+        limit = min(max(1, limit), 20)
+
+        logger.info("natural_language_search_started", query=query, user_id=user.id)
+
+        async def generate():
+            async for chunk in rag_service.stream_natural_language_search(
+                query=query,
+                rag_type=rag_type,
+                rag_key=rag_key,
+                rag_group=rag_group,
+                user_id=user.id if rag_type == "user_isolated" else None,
+                limit=limit
+            ):
+                yield f"{chunk}\n"
+
+        return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("natural_language_search_failed", query=query, user_id=user.id, error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to perform natural language search")
+
