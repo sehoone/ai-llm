@@ -98,8 +98,11 @@ function SidebarMenuCollapsible({
   href: string
 }) {
   const { setOpenMobile, isMobile } = useSidebar()
-  const isChildActive = useMemo(() => checkIsActive(href, item, true), [href, item])
-  
+  const isChildActive = useMemo(
+    () => checkIsActive(href, item, true),
+    [href, item]
+  )
+
   return (
     <Collapsible
       asChild
@@ -115,7 +118,10 @@ function SidebarMenuCollapsible({
             <ChevronRight className='ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 rtl:rotate-180' />
           </SidebarMenuButton>
         </CollapsibleTrigger>
-        <CollapsibleContent className='CollapsibleContent'>
+        <CollapsibleContent
+          className='CollapsibleContent'
+          id={`sidebar-${item.title.replace(/\s+/g, '-').toLowerCase()}`}
+        >
           <SidebarMenuSub>
             {item.items.map((subItem) => (
               <SidebarMenuSubItem key={subItem.title}>
