@@ -3,6 +3,7 @@ import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
 const ACCESS_TOKEN = 'access_token'
 const REFRESH_TOKEN = 'refresh_token'
+const EXPIRES_AT = 'expires_at'
 
 interface AuthUser {
   accountNo: string
@@ -17,8 +18,10 @@ interface AuthState {
     setUser: (user: AuthUser | null) => void
     accessToken: string
     refreshToken: string
+    expiresAt: string | null
     setAccessToken: (accessToken: string) => void
     setRefreshToken: (refreshToken: string) => void
+    setExpiresAt: (expiresAt: string) => void
     resetAccessToken: () => void
     reset: () => void
   }
@@ -27,6 +30,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set) => {
   const initToken = typeof window !== 'undefined' ? getCookie(ACCESS_TOKEN) || '' : ''
   const initRefreshToken = typeof window !== 'undefined' ? getCookie(REFRESH_TOKEN) || '' : ''
+  const initExpiresAt = typeof window !== 'undefined' ? getCookie(EXPIRES_AT) || '' : ''
 
   return {
     auth: {
@@ -35,6 +39,7 @@ export const useAuthStore = create<AuthState>()((set) => {
         set((state) => ({ ...state, auth: { ...state.auth, user } })),
       accessToken: initToken,
       refreshToken: initRefreshToken,
+      expiresAt: initExpiresAt,
       setAccessToken: (accessToken) =>
         set((state) => {
           if (typeof window !== 'undefined') {
@@ -49,6 +54,13 @@ export const useAuthStore = create<AuthState>()((set) => {
           }
           return { ...state, auth: { ...state.auth, refreshToken } }
         }),
+      setExpiresAt: (expiresAt) =>
+        set((state) => {
+          if (typeof window !== 'undefined') {
+            setCookie(EXPIRES_AT, expiresAt)
+          }
+          return { ...state, auth: { ...state.auth, expiresAt } }
+        }),
       resetAccessToken: () =>
         set((state) => {
           if (typeof window !== 'undefined') {
@@ -61,10 +73,11 @@ export const useAuthStore = create<AuthState>()((set) => {
           if (typeof window !== 'undefined') {
             removeCookie(ACCESS_TOKEN)
             removeCookie(REFRESH_TOKEN)
+            removeCookie(EXPIRES_AT)
           }
           return {
             ...state,
-            auth: { ...state.auth, user: null, accessToken: '', refreshToken: '' },
+            auth: { ...state.auth, user: null, accessToken: '', refreshToken: '', expiresAt: null },
           }
         }),
     },

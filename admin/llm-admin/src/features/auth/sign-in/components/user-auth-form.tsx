@@ -75,6 +75,7 @@ export function UserAuthForm({
         auth.setUser(user)
         auth.setAccessToken(response.access_token)
         auth.setRefreshToken(response.refresh_token)
+        auth.setExpiresAt(response.expires_at)
 
         // Redirect to the stored location or default to dashboard
         const targetPath = redirectTo || '/'
