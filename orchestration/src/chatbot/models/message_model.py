@@ -18,8 +18,8 @@ class ChatMessage(SQLModel, table=True):
     Attributes:
         id: The primary key
         session_id: The session ID this message belongs to
-        role: The role of the message sender (user, assistant, tool, etc.)
-        content: The content of the message
+        question: The user's question
+        answer: The assistant's answer
         created_at: When the message was created
     """
 

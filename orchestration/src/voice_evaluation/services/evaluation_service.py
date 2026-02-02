@@ -1,3 +1,10 @@
+"""Evaluation service for voice conversation.
+
+This module provides services for evaluating voice conversations, including
+generating responses using LLM, assessing pronunciation, and evaluating
+language proficiency.
+"""
+
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
@@ -5,12 +12,15 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from typing import List, Dict, Any, TypedDict, Annotated, Optional
 import json
+import asyncio
+
 from src.common.config import settings
+from src.common.logging import logger
 from src.voice_evaluation.services.audio_service import AudioService
 
 class ConversationState(TypedDict):
-    """대화 상태를 정의하는 타입"""
-    messages: Annotated[List[Dict[str, str]], "대화 메시지 리스트"]
+    """Configuration for conversation state."""
+    messages: Annotated[List[Dict[str, str]], "List of conversation messages"]
     user_input: str
     assistant_response: str
     evaluation_result: Dict[str, Any]
@@ -19,7 +29,10 @@ class ConversationState(TypedDict):
 
 
 class EvaluationService:
+    """Service for evaluating English language proficiency."""
+
     def __init__(self):
+        """Initialize evaluation service."""
         self.llm = ChatOpenAI(
             model=settings.DEFAULT_LLM_MODEL,
             temperature=0.7,
@@ -31,7 +44,7 @@ class EvaluationService:
         self._setup_graph()
     
     def _setup_prompts(self):
-        """평가 프롬프트 설정"""
+        """Set up evaluation and conversation prompts."""
         self.evaluation_prompt = ChatPromptTemplate.from_messages([
             ("system", """당신은 영어 언어 능력 평가 전문가입니다. 사용자는 영어로 답을 합니다. 사용자의 대화 내용을 분석하여 다음 항목을 평가해주세요:
 
@@ -150,30 +163,30 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
         ])
     
     def _setup_graph(self):
-        """LangGraph 워크플로우 설정"""
-        # StateGraph 생성
+        """Configure LangGraph workflow."""
+        # Create StateGraph
         workflow = StateGraph(ConversationState)
         
-        # 노드 추가
+        # Add nodes
         workflow.add_node("generate_response", self._generate_response_node)
         workflow.add_node("assess_pronunciation", self._assess_pronunciation_node)
         workflow.add_node("evaluate", self._evaluate_node)
         
-        # 엣지 설정
+        # Configure edges
         workflow.set_entry_point("generate_response")
         workflow.add_edge("generate_response", "assess_pronunciation")
         workflow.add_edge("assess_pronunciation", "evaluate")
         workflow.add_edge("evaluate", END)
         
-        # 그래프 컴파일 (체크포인터로 메모리 지원)
+        # Compile graph (with memory checkpointer)
         self.graph = workflow.compile(checkpointer=self.memory)
     
     def _generate_response_node(self, state: ConversationState) -> ConversationState:
-        """대화 응답 생성 노드"""
+        """Node for generating conversation response."""
         user_input = state["user_input"]
         messages = state.get("messages", [])
         
-        # 메시지 히스토리를 LangChain 메시지 객체로 변환
+        # Convert message history to LangChain message objects
         chat_history = []
         for msg in messages:
             role = msg.get("role", "")
@@ -183,14 +196,14 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
             elif role == "assistant":
                 chat_history.append(AIMessage(content=content))
         
-        # 프롬프트 생성 및 LLM 호출
+        # Create prompt and invoke LLM
         chain = self.conversation_prompt | self.llm
         response = chain.invoke({
             "input": user_input,
             "chat_history": chat_history
         })
         
-        # 상태 업데이트
+        # Update state
         state["assistant_response"] = response.content
         state["messages"].append({"role": "user", "content": user_input})
         state["messages"].append({"role": "assistant", "content": response.content})
@@ -198,16 +211,15 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
         return state
     
     def _assess_pronunciation_node(self, state: ConversationState) -> ConversationState:
-        """발음 평가 노드 (Azure Speech Service 사용)"""
-        import asyncio
+        """Node for pronunciation assessment using Azure Speech Service."""
         
         audio_data = state.get("audio_data")
         user_input = state.get("user_input", "")
         
-        # 오디오 데이터가 있으면 발음 평가 수행
+        # Perform assessment if audio data is present
         if audio_data:
             try:
-                # 비동기 함수를 동기 방식으로 실행
+                # Run async function synchronously
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 pronunciation_result = loop.run_until_complete(
@@ -217,36 +229,37 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 
                 if pronunciation_result:
                     state["pronunciation_result"] = pronunciation_result
-                    print(f"[발음 평가 노드] 성공 - 발음 점수: {pronunciation_result.get('pronunciation_score', 0)}")
+                    logger.info(f"Assessment Node: Success - Score: {pronunciation_result.get('pronunciation_score', 0)}")
                 else:
                     state["pronunciation_result"] = None
-                    print("[발음 평가 노드] 평가 실패")
+                    logger.warning("Assessment Node: Assessment failed")
             except Exception as e:
-                print(f"[발음 평가 노드] 오류: {str(e)}")
+                logger.error(f"Assessment Node Error: {str(e)}", exc_info=True)
                 state["pronunciation_result"] = None
         else:
             state["pronunciation_result"] = None
-            print("[발음 평가 노드] 오디오 데이터 없음")
+            logger.info("Assessment Node: No audio data")
         
         return state
     
     def _evaluate_node(self, state: ConversationState) -> ConversationState:
-        """평가 노드 (텍스트 평가 + 발음 평가 통합)"""
+        """Node for evaluation (Text + Pronunciation)."""
         messages = state.get("messages", [])
         pronunciation_result = state.get("pronunciation_result")
+
         
-        # 대화 내용 텍스트로 변환
+        # Convert conversation to text
         conversation_text = ""
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             conversation_text += f"{role}: {content}\n"
         
-        # 평가 체인 생성 및 실행
+        # Create and invoke evaluation chain
         chain = self.evaluation_prompt | self.llm
         response = chain.invoke({"conversation_text": conversation_text})
         
-        # JSON 파싱
+        # Parse JSON
         content = response.content
         try:
             if isinstance(content, str):
@@ -270,15 +283,15 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
             else:
                 evaluation_data = content
             
-            # 발음 평가 결과를 통합
+            # Integrate assessment results
             if pronunciation_result:
-                # Azure 발음 점수를 평가에 반영
+                # Apply Azure pronunciation scores
                 pronunciation_score = pronunciation_result.get("pronunciation_score", 0)
                 accuracy_score = pronunciation_result.get("accuracy_score", 0)
                 fluency_score_azure = pronunciation_result.get("fluency_score", 0)
                 prosody_score = pronunciation_result.get("prosody_score", 0)
                 
-                # 기존 fluency_score와 Azure의 발음/유창성 점수를 통합 (가중 평균)
+                # Weighted average for fluency
                 original_fluency = evaluation_data.get("fluency_score", 75)
                 combined_fluency = (original_fluency * 0.4 + fluency_score_azure * 0.6)
                 
@@ -287,7 +300,7 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 evaluation_data["accuracy_score"] = accuracy_score
                 evaluation_data["prosody_score"] = prosody_score
                 
-                # 발음 평가 상세 정보 추가
+                # Add detailed pronunciation info
                 evaluation_data["pronunciation_details"] = {
                     "pronunciation_score": pronunciation_score,
                     "accuracy_score": accuracy_score,
@@ -298,7 +311,7 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                     "word_details": pronunciation_result.get("word_details", [])
                 }
                 
-                # 전체 점수 재계산 (발음 점수 포함)
+                # Recalculate overall score with pronunciation
                 overall_score = (
                     evaluation_data.get("grammar_score", 0) * 0.2 +
                     evaluation_data.get("vocabulary_score", 0) * 0.2 +
@@ -308,7 +321,7 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 )
                 evaluation_data["overall_score"] = round(overall_score, 1)
             
-            # 점수 정규화
+            # Normalize score
             overall_score = evaluation_data.get("overall_score", 0)
             overall_score = max(0, min(100, overall_score))
             
@@ -348,19 +361,27 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
         text: str, 
         conversation_history: List[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        """대화 내용 평가"""
-        # 대화 히스토리와 현재 텍스트 결합
+        """Evaluate conversation content.
+
+        Args:
+            text: The text to evaluate.
+            conversation_history: The history of the conversation.
+
+        Returns:
+            Dict[str, Any]: The evaluation results.
+        """
+        # Combine history and current text
         conversation_text = ""
         if conversation_history:
             for msg in conversation_history:
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
                 conversation_text += f"{role}: {content}\n"
-        # text가 있을 때만 추가
+        # Add text if present
         if text:
             conversation_text += f"user: {text}\n"
         
-        # 평가 체인 생성
+        # Create evaluation chain
         evaluation_chain = self.evaluation_prompt | self.llm
         
         try:
@@ -368,17 +389,17 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 "conversation_text": conversation_text
             })
             
-            # JSON 파싱 시도
+            # Try parsing JSON
             content = response.content
             if isinstance(content, str):
-                # JSON 부분 추출
+                # Extract JSON part
                 json_start = content.find("{")
                 json_end = content.rfind("}") + 1
                 if json_start >= 0 and json_end > json_start:
                     json_str = content[json_start:json_end]
                     evaluation_data = json.loads(json_str)
                 else:
-                    # JSON 형식이 아닌 경우 기본값 반환
+                    # Return default if not JSON
                     evaluation_data = {
                         "grammar_score": 75,
                         "vocabulary_score": 75,
@@ -393,7 +414,7 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
             else:
                 evaluation_data = content
             
-            # 점수 정규화
+            # Normalize score
             overall_score = evaluation_data.get("overall_score", 0)
             if overall_score > 100:
                 overall_score = 100
@@ -418,7 +439,7 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 }
             }
         except Exception as e:
-            # 에러 발생 시 기본 응답 반환
+            # Return error response
             return {
                 "score": 0.0,
                 "feedback": f"평가 중 오류가 발생했습니다: {str(e)}",
@@ -431,8 +452,16 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
         user_input: str, 
         conversation_history: List[Dict[str, str]] = None
     ) -> str:
-        """대화 응답 생성"""
-        # 메시지 히스토리를 LangChain 메시지 객체로 변환
+        """Generate conversation response.
+
+        Args:
+            user_input: The user's input text.
+            conversation_history: The conversation history.
+
+        Returns:
+            str: The generated response.
+        """
+        # Convert message history to LangChain message objects
         chat_history = []
         if conversation_history:
             for msg in conversation_history:
@@ -443,7 +472,8 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 elif role == "assistant":
                     chat_history.append(AIMessage(content=content))
         
-        # 대화 체인 생성
+        # Create conversation chain
+
         conversation_chain = self.conversation_prompt | self.llm
         
         try:

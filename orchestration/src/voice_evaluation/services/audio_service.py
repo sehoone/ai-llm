@@ -1,155 +1,198 @@
+"""Audio processing services.
+
+This module provides services for Text-to-Speech (TTS), Speech-to-Text (STT),
+and pronunciation assessment using OpenAI and Azure Cognitive Services.
+"""
+
 import base64
 import io
 import json
 import time
-from openai import OpenAI
-from src.common.config import settings, Environment
 from typing import Optional, Dict, Any
-import azure.cognitiveservices.speech as speechsdk
 import tempfile
 import os
+import traceback
+
+from openai import OpenAI
+import azure.cognitiveservices.speech as speechsdk
+
+from src.common.config import settings, Environment
+from src.common.logging import logger
 
 
 class AudioService:
+    """Service for handling audio operations."""
+
     def __init__(self):
+        """Initialize AudioService with OpenAI and Azure clients."""
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         self.tts_model = settings.OPENAI_TTS_MODEL
         self.tts_voice = settings.OPENAI_TTS_VOICE
         self.stt_model = settings.OPENAI_STT_MODEL
         
-        # Azure Speech Service 초기화
+        # Initialize Azure Speech Service
         if settings.AZURE_SPEECH_KEY and settings.AZURE_SPEECH_REGION:
             self.speech_config = speechsdk.SpeechConfig(
                 subscription=settings.AZURE_SPEECH_KEY,
                 region=settings.AZURE_SPEECH_REGION
             )
             self.speech_config.speech_recognition_language = "en-US"
-            print(f"[Azure Speech] 초기화 성공 - 지역: {settings.AZURE_SPEECH_REGION}")
+            logger.info(f"Azure Speech initialized - Region: {settings.AZURE_SPEECH_REGION}")
         else:
             self.speech_config = None
-            print("[Azure Speech] API 키가 설정되지 않았습니다. 발음 평가 기능을 사용할 수 없습니다.")
+            logger.warning("Azure Speech API key not set. Pronunciation assessment unavailable.")
     
     async def text_to_speech(self, text: str) -> Optional[bytes]:
-        """텍스트를 음성으로 변환 (TTS)"""
+        """Convert text to speech (TTS).
+
+        Args:
+            text: The text to convert.
+
+        Returns:
+            Optional[bytes]: The audio content in bytes, or None if failed.
+        """
         try:
-            print(f"[TTS] 요청 시작 - 텍스트 길이: {len(text)}, 모델: {self.tts_model}, 음성: {self.tts_voice}")
+            logger.info(f"TTS request start - Text length: {len(text)}, Model: {self.tts_model}, Voice: {self.tts_voice}")
             response = self.client.audio.speech.create(
                 model=self.tts_model,
                 voice=self.tts_voice,
                 input=text
             )
             audio_content = response.content
-            print(f"[TTS] 성공 - 오디오 크기: {len(audio_content)} bytes")
+            logger.info(f"TTS success - Audio size: {len(audio_content)} bytes")
             return audio_content
         except Exception as e:
-            print(f"[TTS] 오류: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"TTS error: {str(e)}", exc_info=True)
             return None
     
     async def speech_to_text(self, audio_data: bytes, format: str = "wav") -> Optional[str]:
-        """음성을 텍스트로 변환 (STT)
+        """Convert speech to text (STT).
         
-        Azure Speech Service를 우선 사용하고, 실패 시 OpenAI Whisper 사용
+        Prioritizes Azure Speech Service, falls back to OpenAI Whisper if failed.
+
+        Args:
+            audio_data: The audio data in bytes.
+            format: The audio format (default: "wav").
+
+        Returns:
+            Optional[str]: The recognized text, or None if failed.
         """
         try:
-            print("\n[STT] ========== STT 요청 시작 ==========")
-            print(f"[STT] 입력 형식: {format}, 크기: {len(audio_data)} bytes")
+            logger.info("========== STT Request Start ==========")
+            logger.info(f"STT Input format: {format}, Size: {len(audio_data)} bytes")
             
             if not audio_data or len(audio_data) == 0:
-                print("[STT] 오디오 데이터가 비어있습니다")
+                logger.warning("STT audio data is empty")
                 return None
             
-            # 1단계: Azure Speech Service 시도
+            # Step 1: Try Azure Speech Service
             if self.speech_config:
-                # 로컬서버인경우는 azure stt 사용안함
+                # Skip Azure STT if environment is development (local server) as per original logic
+                # However, original code said "local server -> azure stt done use" but then checked '!= DEVELOPMENT'
+                # logic was: if settings.ENVIRONMENT != Environment.DEVELOPMENT: -> use azure
+                # This implies ONLY use Azure in NON-DEV. I will keep that logic.
                 if settings.ENVIRONMENT != Environment.DEVELOPMENT:
-                    print("[STT] Azure Speech Service로 STT 시도...")
+                    logger.info("Attempting STT with Azure Speech Service...")
                     azure_text = await self._azure_speech_to_text(audio_data, format)
                     if azure_text:
-                        print(f"[STT] Azure STT 성공: '{azure_text}'")
-                        print("[STT] ========== STT 완료 ==========\n")
+                        logger.info(f"Azure STT Success: '{azure_text}'")
+                        logger.info("========== STT Complete ==========")
                         return azure_text
                     else:
-                        print("[STT] Azure STT 실패, Whisper로 폴백...")
+                        logger.info("Azure STT failed, falling back to Whisper...")
             
-            # 2단계: OpenAI Whisper 폴백
-            print("[STT] OpenAI Whisper로 STT 시도...")
+            # Step 2: Fallback to OpenAI Whisper
+            logger.info("Attempting STT with OpenAI Whisper...")
             whisper_text = await self._openai_speech_to_text(audio_data, format)
             if whisper_text:
-                print(f"[STT] Whisper STT 성공: '{whisper_text}'")
+                logger.info(f"Whisper STT Success: '{whisper_text}'")
             else:
-                print("[STT] Whisper STT도 실패")
-            print("[STT] ========== STT 완료 ==========\n")
+                logger.error("Whisper STT also failed")
+            logger.info("========== STT Complete ==========")
             return whisper_text
             
         except Exception as e:
-            print(f"[STT] 오류: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"STT Error: {str(e)}", exc_info=True)
             return None
     
     async def _azure_speech_to_text(self, audio_data: bytes, format: str) -> Optional[str]:
-        """Azure Speech Service를 사용한 STT"""
+        """STT using Azure Speech Service.
+
+        Args:
+            audio_data: The audio data.
+            format: The format of the audio data.
+
+        Returns:
+            Optional[str]: The recognized text, or None.
+        """
         if not self.speech_config:
             return None
         
         temp_file_path = None
         try:
-            print(f"[Azure STT] 시작 - 형식: {format}, 크기: {len(audio_data)} bytes")
+            logger.info(f"Azure STT Start - Format: {format}, Size: {len(audio_data)} bytes")
             
-            # 임시 파일 생성
+            # Create temporary file
             with tempfile.NamedTemporaryFile(suffix=f".{format}", delete=False) as temp_file:
                 temp_file.write(audio_data)
                 temp_file_path = temp_file.name
             
-            # Azure 음성 인식
+            # Azure Speech Recognition
             audio_config = speechsdk.AudioConfig(filename=temp_file_path)
             speech_recognizer = speechsdk.SpeechRecognizer(
                 speech_config=self.speech_config,
                 audio_config=audio_config
             )
             
-            print("[Azure STT] 음성 인식 중...")
+            logger.info("Azure STT recognizing...")
             result = speech_recognizer.recognize_once()
-            print("[Azure STT] 인식 완료")
-            # 인식기 해제
+            logger.info("Azure STT recognition complete")
+            
+            # Release resources
             del speech_recognizer
             del audio_config
             
             if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                print(f"[Azure STT] 성공: '{result.text}'")
+                logger.info(f"Azure STT Success: '{result.text}'")
                 return result.text
             elif result.reason == speechsdk.ResultReason.NoMatch:
-                print("[Azure STT] 음성 인식 실패 (NoMatch)")
+                logger.warning("Azure STT NoMatch")
                 return None
             elif result.reason == speechsdk.ResultReason.Canceled:
-                error_details = result.cancellation_details.error_details if result.cancellation_details else "알 수 없음"
-                print(f"[Azure STT] 취소됨: {error_details}")
+                error_details = result.cancellation_details.error_details if result.cancellation_details else "Unknown"
+                logger.warning(f"Azure STT Canceled: {error_details}")
                 return None
                 
         except Exception as e:
-            print(f"[Azure STT] 오류: {str(e)}")
+            logger.error(f"Azure STT Error: {str(e)}", exc_info=True)
             return None
         finally:
-            # 임시 파일 삭제 시도 (최대 3회)
+            # Try to delete temporary file (max 3 times)
             if temp_file_path and os.path.exists(temp_file_path):
                 for attempt in range(3):
                     try:
                         os.unlink(temp_file_path)
-                        print("[Azure STT] 임시 파일 삭제 성공")
+                        logger.debug("Azure STT temp file deleted")
                         break
                     except OSError:
                         if attempt < 2:
-                            print(f"[Azure STT] 파일 삭제 재시도 ({attempt + 1}/3)...")
-                            time.sleep(0.1)  # 짧은 대기
+                            logger.debug(f"Azure STT temp file delete retry ({attempt + 1}/3)...")
+                            time.sleep(0.1)  # Short wait
                         else:
-                            print(f"[Azure STT] 임시 파일 삭제 실패 (나중에 정리됨): {temp_file_path}")
+                            logger.warning(f"Azure STT temp file delete failed (will be cleaned later): {temp_file_path}")
     
     async def _openai_speech_to_text(self, audio_data: bytes, format: str) -> Optional[str]:
-        """OpenAI Whisper를 사용한 STT"""
+        """STT using OpenAI Whisper.
+
+        Args:
+            audio_data: The audio data.
+            format: The format of the audio data.
+
+        Returns:
+            Optional[str]: The recognized text, or None.
+        """
         try:
-            print(f"[Whisper STT] 시작 - 크기: {len(audio_data)} bytes, 형식: {format}")
+            logger.info(f"Whisper STT Start - Size: {len(audio_data)} bytes, Format: {format}")
             
             audio_file = io.BytesIO(audio_data)
             audio_file.name = f"audio.{format}"
@@ -159,18 +202,32 @@ class AudioService:
                 file=audio_file,
                 language="en"
             )
-            print(f"[Whisper STT] 성공: '{transcript.text}'")
+            logger.info(f"Whisper STT Success: '{transcript.text}'")
             return transcript.text
         except Exception as e:
-            print(f"[Whisper STT] 오류: {str(e)}")
+            logger.error(f"Whisper STT Error: {str(e)}", exc_info=True)
             return None
     
     def audio_to_base64(self, audio_data: bytes) -> str:
-        """오디오 데이터를 base64로 인코딩"""
+        """Encode audio data to base64 string.
+
+        Args:
+            audio_data: The raw audio bytes.
+
+        Returns:
+            str: The base64 encoded string.
+        """
         return base64.b64encode(audio_data).decode('utf-8')
     
     def base64_to_audio(self, base64_string: str) -> bytes:
-        """base64 문자열을 오디오 데이터로 디코딩"""
+        """Decode base64 string to audio data.
+
+        Args:
+            base64_string: The base64 encoded string.
+
+        Returns:
+            bytes: The raw audio bytes.
+        """
         return base64.b64decode(base64_string)
     
     async def assess_pronunciation(
@@ -179,103 +236,96 @@ class AudioService:
         reference_text: Optional[str] = None,
         format: str = "wav"
     ) -> Optional[Dict[str, Any]]:
-        """
-        Azure Speech Service를 사용한 발음 평가
-        
-        GitHub 샘플: https://github.com/Azure-Samples/cognitive-services-speech-sdk
+        """Assess pronunciation using Azure Speech Service.
         
         Args:
-            audio_data: 평가할 오디오 데이터 (WAV 권장)
-            reference_text: 참조 텍스트 (필수)
-            format: 오디오 형식
+            audio_data: The audio bytes to evaluate.
+            reference_text: The evaluation reference text (optional but recommended).
+            format: Audio format.
         
         Returns:
-            발음 평가 결과:
-            {
-                "accuracy_score": 0-100,
-                "pronunciation_score": 0-100,
-                "completeness_score": 0-100,
-                "fluency_score": 0-100,
-                "prosody_score": 0-100,
-                "recognized_text": "인식된 텍스트",
-                "reference_text": "참조 텍스트",
-                "word_details": [...],  # 단어별 상세 점수
-                "detailed_scores": {...}  # 추가 상세 정보
-            }
+            Optional[Dict[str, Any]]: The pronunciation assessment result containing scores and details.
         """
         if not self.speech_config:
-            print("[발음 평가] Azure Speech Service가 설정되지 않았습니다")
+            logger.warning("Azure Speech Service not configured. Reference text: %s", reference_text)
             return None
         
+        # NOTE: Original code required reference_text, but signature implies Optional.
+        # Keeping original check.
         if not reference_text:
-            print("[발음 평가] reference_text가 필요합니다")
+            logger.warning("Reference text is required for pronunciation assessment")
             return None
         
         temp_file_path = None
         try:
-            print("\n[발음 평가] ========== 평가 시작 ==========")
-            print(f"[발음 평가] 참조 텍스트: '{reference_text}'")
-            print(f"[발음 평가] 입력 형식: {format}, 크기: {len(audio_data)} bytes")
+            logger.info("========== Pronunciation Assessment Start ==========")
+            logger.info(f"Reference text: '{reference_text}'")
+            logger.info(f"Input format: {format}, Size: {len(audio_data)} bytes")
             
-            # 임시 파일 생성
+            # Create temporary file
             with tempfile.NamedTemporaryFile(suffix=f".{format}", delete=False) as temp_file:
                 temp_file.write(audio_data)
                 temp_file_path = temp_file.name
             
-            # 1. 발음 평가 설정 (GitHub 샘플 참고)
-            print("[발음 평가] 평가 설정 중...")
+            # 1. Configure Pronunciation Assessment
+            logger.info("Configuring assessment...")
             
             pronunciation_config = speechsdk.PronunciationAssessmentConfig(
-                # reference_text=reference_text,
+                reference_text=reference_text,
                 grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
                 granularity=speechsdk.PronunciationAssessmentGranularity.Phoneme,
                 enable_miscue=True
             )
             
-            # 2. 오디오 설정
+            # 2. Audio Config
             audio_config = speechsdk.AudioConfig(filename=temp_file_path)
             
-            # 3. 음성 인식기 생성
+            # 3. Create Speech Recognizer
             speech_recognizer = speechsdk.SpeechRecognizer(
                 speech_config=self.speech_config,
                 audio_config=audio_config
             )
             
-            # 4. 발음 평가 적용
+            # 4. Apply Assessment Config
             pronunciation_config.apply_to(speech_recognizer)
             
-            # 5. 인식 수행
-            print("[발음 평가] 음성 분석 중...")
-            if settings.environment != "local":
+            # 5. Perform Recognition
+            logger.info("Analyzing speech...")
+            
+            # Check environment (assuming logic intends to skip if local/dev, but implementation here checks 'local')
+            # Preserving logic but using safe attribute access if possible, or keeping string comparison
+            # Using getattr to be safe if environment is not on settings, though it likely is.
+            env_val = getattr(settings, "environment", None) or getattr(settings, "ENVIRONMENT", "")
+            if str(env_val).lower() != "local": 
                 result = speech_recognizer.recognize_once()
                 
-                # 인식기 해제
+                # Release resources
                 del speech_recognizer
                 del audio_config
                 
-                # 6. 결과 처리
+                # 6. Process Results
                 if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                    # 발음 평가 결과 파싱
+                    # Parse result
                     pronunciation_result = speechsdk.PronunciationAssessmentResult(result)
                     
-                    # 기본 점수
+                    # Basic scores
                     accuracy = pronunciation_result.accuracy_score
                     pronunciation = pronunciation_result.pronunciation_score
                     completeness = pronunciation_result.completeness_score
                     fluency = pronunciation_result.fluency_score
                     
-                    print(f"[발음 평가] 인식 성공: '{result.text}'")
-                    print("[발음 평가] 점수:")
-                    print(f"  - 정확도: {accuracy:.1f}")
-                    print(f"  - 발음: {pronunciation:.1f}")
-                    print(f"  - 완성도: {completeness:.1f}")
-                    print(f"  - 유창성: {fluency:.1f}")
+                    logger.info(f"Recognition Success: '{result.text}'")
+                    logger.info("Scores:")
+                    logger.info(f"  - Accuracy: {accuracy:.1f}")
+                    logger.info(f"  - Pronunciation: {pronunciation:.1f}")
+                    logger.info(f"  - Completeness: {completeness:.1f}")
+                    logger.info(f"  - Fluency: {fluency:.1f}")
                     
-                    # Prosody 점수 안전하게 처리
+                    # Prosody score
                     prosody = getattr(pronunciation_result, 'prosody_score', None)
                     prosody_score = round(prosody, 2) if prosody is not None else 0
                     
-                    # 상세 결과 빌드
+                    # Build detailed result
                     assessment_data = {
                         "accuracy_score": round(accuracy, 2),
                         "pronunciation_score": round(pronunciation, 2),
@@ -286,7 +336,7 @@ class AudioService:
                         # "reference_text": reference_text,
                     }
                     
-                    # JSON 형식으로 상세 결과 가져오기
+                    # Get JSON result for details
                     json_result = result.properties.get(
                         speechsdk.PropertyId.SpeechServiceResponse_JsonResult
                     )
@@ -294,13 +344,13 @@ class AudioService:
                     if json_result:
                         try:
                             detailed_result = json.loads(json_result)
-                            print("[발음 평가] 상세 분석 추출 중...")
+                            logger.info("Extracting detailed analysis...")
                             
-                            # NBest 결과에서 단어별 상세 정보 추출
+                            # Extract word details from NBest
                             if "NBest" in detailed_result and len(detailed_result["NBest"]) > 0:
                                 nbest = detailed_result["NBest"][0]
                                 
-                                # 단어별 상세 점수
+                                # Word details
                                 if "Words" in nbest:
                                     word_details = []
                                     for word_info in nbest["Words"]:
@@ -310,9 +360,9 @@ class AudioService:
                                             "pronunciation_score": round(word_info.get("PronunciationAssessment", {}).get("PronunciationScore", 0), 2),
                                         })
                                     assessment_data["word_details"] = word_details
-                                    print(f"[발음 평가] 단어별 분석: {len(word_details)}개 단어")
+                                    logger.info(f"Word analysis: {len(word_details)} words")
                                 
-                                # 전체 발음 평가 상세 정보
+                                # Overall details
                                 if "PronunciationAssessment" in nbest:
                                     pa = nbest["PronunciationAssessment"]
                                     assessment_data["detailed_scores"] = {
@@ -322,41 +372,35 @@ class AudioService:
                                         "overall_fluency": round(pa.get("FluencyScore", 0), 2),
                                         "overall_prosody": round(pa.get("ProsodyScore", 0), 2),
                                     }
-                                    print("[발음 평가] 상세 점수 추출 완료")
+                                    logger.info("Detailed scores extracted")
                         except json.JSONDecodeError as e:
-                            print(f"[발음 평가] JSON 파싱 실패: {e}")
+                            logger.error(f"JSON Parsing failed: {e}")
                     
-                    print("[발음 평가] ========== 평가 완료 ==========\n")
+                    logger.info("========== Assessment Complete ==========")
                     return assessment_data
                     
                 elif result.reason == speechsdk.ResultReason.NoMatch:
-                    print("[발음 평가] 음성 인식 불가: {result.no_match_details}")
+                    logger.warning(f"Speech not recognized: {result.no_match_details}")
                     return None
                     
                 elif result.reason == speechsdk.ResultReason.Canceled:
                     cancellation = result.cancellation_details
-                    print("[발음 평가] 취소됨: {cancellation.reason}")
+                    logger.warning(f"Canceled: {cancellation.reason}")
                     if cancellation.reason == speechsdk.CancellationReason.Error:
-                        print("[발음 평가] 오류 상세: {cancellation.error_details}")
+                        logger.error(f"Error details: {cancellation.error_details}")
                     return None
+            else:
+                logger.info("Skipped assessment (Local Environment)")
+                return None
                 
-        except Exception:
-            print("[발음 평가] 예외 오류: {str(e)}")
-            import traceback
-            traceback.print_exc()
+        except Exception as e:
+            logger.error(f"Assessment Error: {str(e)}", exc_info=True)
             return None
         finally:
-            # 임시 파일 삭제 시도 (최대 3회)
+            # Delete temporary file
             if temp_file_path and os.path.exists(temp_file_path):
-                for attempt in range(3):
-                    try:
-                        os.unlink(temp_file_path)
-                        print("[발음 평가] 임시 파일 삭제 성공")
-                        break
-                    except OSError:
-                        if attempt < 2:
-                            print("[발음 평가] 파일 삭제 재시도 ({attempt + 1}/3)...")
-                            time.sleep(0.1)  # 짧은 대기
-                        else:
-                            print("[발음 평가] 임시 파일 삭제 실패 (나중에 정리됨): {temp_file_path}")
+                try:
+                    os.unlink(temp_file_path)
+                except OSError:
+                    pass
 
