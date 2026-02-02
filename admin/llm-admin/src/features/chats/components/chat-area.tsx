@@ -3,8 +3,10 @@ import { Message } from '@/types/chat-api'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Bot, ChevronDown, ChevronRight, User, BrainCircuit, CheckCircle2, Loader2 } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { markdownComponents } from '@/components/markdown-components'
 
 interface ChatAreaProps {
   messages: Message[]
@@ -63,7 +65,7 @@ const DeepThinkingAccordion = ({ thoughts, isThinking }: { thoughts: { title: st
                              <span className="text-xs font-semibold text-foreground/80 first-letter:uppercase">{step.title}</span>
                         </div>
                         <div className="text-sm text-muted-foreground pl-5 whitespace-pre-wrap leading-relaxed opacity-90">
-                            <ReactMarkdown>{step.content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{step.content}</ReactMarkdown>
                         </div>
                     </div>
                 ))}
@@ -125,7 +127,7 @@ const AssistantMessage = ({ content }: { content: string }) => {
 
     // Fallback: If no thoughts and no answer logic triggered, just show content
     if (thoughts.length === 0 && !hasAnswerTag) {
-         return <ReactMarkdown>{content}</ReactMarkdown>;
+         return <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{content}</ReactMarkdown>;
     }
 
     return (
@@ -138,7 +140,7 @@ const AssistantMessage = ({ content }: { content: string }) => {
             )}
             {(answer || hasAnswerTag) && (
                 <div className="prose dark:prose-invert max-w-none animate-in fade-in duration-700 delay-150">
-                    <ReactMarkdown>{answer}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{answer}</ReactMarkdown>
                 </div>
             )}
         </div>
