@@ -142,3 +142,5 @@ class StreamResponse(BaseModel):
 
     content: str = Field(default="", description="The content of the current chunk")
     done: bool = Field(default=False, description="Whether the stream is complete")
+    type: Literal["content", "title"] = Field(default="content", description="The type of the stream event")
+    title: Optional[str] = Field(default=None, description="The session title (only for title events)")

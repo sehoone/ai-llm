@@ -40,6 +40,8 @@ from src.chatbot.schemas.chat_schema import (
     SUPPORTED_IMAGE_TYPES,
     SUPPORTED_TEXT_TYPES,
 )
+from src.chatbot.services.summary_service import chat_summary_service
+from src.chatbot.schemas.session_schema import ChatTitleUpdate
 
 router = APIRouter()
 agent = LangGraphAgent()
@@ -271,11 +273,29 @@ async def chat_stream(
                 if chat_request.messages:
                     last_user_msg = chat_request.messages[-1]
                     if last_user_msg.role == "user" and full_response:
+                         # Check if this is the first interaction to generate title
+                         existing_history = await database_service.get_chat_messages(session.id)
+                         is_first_interaction = len(existing_history) == 0
+
                          await database_service.save_chat_interaction(
                              session.id, 
                              last_user_msg.content, 
-                             full_response
+                             full_response,
+                             is_deep_thinking=chat_request.is_deep_thinking
                          )
+
+                         if is_first_interaction:
+                             try:
+                                 new_title = await chat_summary_service.generate_title(last_user_msg.content, full_response)
+                                 await database_service.update_session_name(session.id, new_title)
+                                 logger.info("session_title_updated", session_id=session.id, title=new_title)
+                                 
+                                 # Send title update event
+                                 title_event = StreamResponse(content="", done=False, type="title", title=new_title)
+                                 yield f"data: {json.dumps(title_event.model_dump(), ensure_ascii=False)}\n\n"
+                                 
+                             except Exception as e:
+                                 logger.error("title_generation_failed", error=str(e))
 
                 # Send final message indicating completion
                 final_response = StreamResponse(content="", done=True)

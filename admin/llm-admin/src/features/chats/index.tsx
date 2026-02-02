@@ -141,7 +141,16 @@ export function Chats() {
       await chatService.streamMessage(
         selectedSessionId,
         messagesToSend,
-        (chunk, done) => {
+        (chunk, done, title) => {
+           if (title) {
+             setSessions((prev) => 
+               prev.map(session => 
+                 session.session_id === selectedSessionId 
+                   ? { ...session, name: title } 
+                   : session
+               )
+             );
+           }
            currentResponse += chunk
            setMessages((prev) => {
              const newMessages = [...prev]

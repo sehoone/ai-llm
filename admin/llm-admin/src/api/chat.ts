@@ -87,7 +87,7 @@ export const chatService = {
   streamMessage: async (
     sessionId: string,
     messages: Message[],
-    onChunk: (content: string, done: boolean) => void,
+    onChunk: (content: string, done: boolean, title?: string) => void,
     onError: (error: any) => void,
     isDeepThinking?: boolean
   ) => {
@@ -150,7 +150,12 @@ export const chatService = {
                  continue; 
               }
               const data = JSON.parse(dataStr)
-              onChunk(data.content, data.done)
+              if (data.type === 'title' && data.title) {
+                // If it's a title update event
+                onChunk('', false, data.title)
+              } else {
+                onChunk(data.content, data.done)
+              }
             } catch (e) {
               console.error('Error parsing stream chunk', e, 'chunk:', dataStr)
             }

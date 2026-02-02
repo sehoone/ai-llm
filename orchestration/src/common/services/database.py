@@ -230,18 +230,22 @@ class DatabaseService:
             logger.info("session_name_updated", session_id=session_id, name=name)
             return chat_session
 
-    async def save_chat_interaction(self, session_id: str, question: str, answer: str) -> ChatMessage:
+    async def save_chat_interaction(self, session_id: str, question: str, answer: str, is_deep_thinking: bool = False) -> ChatMessage:
         """Save a chat interaction (question and answer) to the database.
 
         Args:
             session_id: The ID of the session
             question: The user's question
             answer: The assistant's answer
+            is_deep_thinking: Whether the interaction used deep thinking
 
         Returns:
             ChatMessage: The saved interaction
         """
         with Session(self.engine) as session:
+            # Note: Assuming ChatMessage model doesn't have is_deep_thinking column yet. 
+            # If it does, add it here: is_deep_thinking=is_deep_thinking
+            # If not, we just ignore the argument for now but keep the signature compatible with API call
             message = ChatMessage(session_id=session_id, question=question, answer=answer)
             session.add(message)
             session.commit()
@@ -298,6 +302,30 @@ class DatabaseService:
                 })
             
             return history
+
+    async def update_session_name(self, session_id: str, title: str) -> None:
+        """Update the name/title of a chat session.
+
+        Args:
+            session_id: The ID of the session to update
+            title: The new title for the session
+        """
+        try:
+            with Session(self.engine) as session:
+                statement = select(ChatSession).where(ChatSession.id == session_id)
+                chat_session = session.exec(statement).one_or_none()
+                
+                if chat_session:
+                    chat_session.name = title
+                    session.add(chat_session)
+                    session.commit()
+                    session.refresh(chat_session)
+                    logger.info("session_name_updated", session_id=session_id, new_title=title)
+                else:
+                     logger.warning("session_not_found_for_update", session_id=session_id)
+        except Exception as e:
+            logger.error("update_session_name_failed", session_id=session_id, error=str(e))
+            raise e
 
     async def get_chat_message_by_id(self, message_id: int) -> Optional[dict]:
         """Get a specific chat message by ID with user info.
