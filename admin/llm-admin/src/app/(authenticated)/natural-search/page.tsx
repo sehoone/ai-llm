@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { ragApi, type NaturalLanguageSearchResponse, type RAGSearchResult } from '@/api/rag'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { DEFAULT_LLM_MODEL, LLM_MODELS, type LlmModel } from '@/config/models'
 
 export default function NaturalSearchPage() {
   const [loading, setLoading] = useState(false)
@@ -30,6 +31,7 @@ export default function NaturalSearchPage() {
   const [ragGroup, setRagGroup] = useState('')
   const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('user_isolated')
   const [query, setQuery] = useState('')
+  const [model, setModel] = useState<LlmModel>(DEFAULT_LLM_MODEL)
 
   useEffect(() => {
     // Fetch unique rag keys for the user (only for user_isolated for now or based on type)
@@ -73,6 +75,7 @@ export default function NaturalSearchPage() {
       formData.append('query', query)
       if (ragKey) formData.append('rag_key', ragKey)
       if (ragGroup) formData.append('rag_group', ragGroup)
+      formData.append('model', model) // Add model parameter
       formData.append('limit', '5')
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/rag/natural-language-search`, {
@@ -139,7 +142,7 @@ export default function NaturalSearchPage() {
         <CardHeader>
           <CardTitle>Search Configuration</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
+        <CardContent className="grid gap-4 md:grid-cols-4">
              <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium">RAG Type</label>
                 <select 
@@ -150,6 +153,18 @@ export default function NaturalSearchPage() {
                     <option value="user_isolated">User Isolated</option>
                     <option value="chatbot_shared">Chatbot Shared</option>
                     <option value="natural_search">Natural Search</option>
+                </select>
+            </div>
+            <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium">Model</label>
+                <select 
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={model} 
+                    onChange={(e) => setModel(e.target.value as LlmModel)}
+                >
+                    {LLM_MODELS.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
                 </select>
             </div>
             <div className="flex flex-col gap-2">

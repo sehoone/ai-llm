@@ -382,6 +382,7 @@ async def natural_language_search(
     rag_key: str = Form(None),
     rag_group: str = Form(None),
     limit: int = Form(default=5),
+    model: str = Form(default="gpt-4o-mini"),
     user: User = Depends(get_current_user),
 ):
     """Perform natural language search with LLM summary (Streaming)."""
@@ -409,9 +410,11 @@ async def natural_language_search(
                 rag_key=rag_key,
                 rag_group=rag_group,
                 user_id=user.id if rag_type == "user_isolated" else None,
-                limit=limit
+                limit=limit,
+                model=model
             ):
                 yield f"{chunk}\n"
+
 
         return StreamingResponse(generate(), media_type="application/x-ndjson")
 

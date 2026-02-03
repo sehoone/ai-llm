@@ -549,7 +549,8 @@ Context from documents:
         rag_key: Optional[str] = None,
         rag_group: Optional[str] = None,
         user_id: Optional[int] = None,
-        limit: int = 5
+        limit: int = 5,
+        model: str = "gpt-4o-mini"
     ):
         """Stream search results and LLM summary.
         
@@ -603,7 +604,7 @@ Context from documents:
                     SystemMessage(content=system_prompt),
                     HumanMessage(content=user_message)
                 ],
-                model_name="gpt-5-mini" 
+                model_name=model 
             ):
                 content = chunk.content
                 # Handle list content (e.g. from reasoning models or multimodal)
