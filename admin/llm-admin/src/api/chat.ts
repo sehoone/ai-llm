@@ -27,13 +27,13 @@ export const chatService = {
 
   // Session Management
   getSessions: async (): Promise<ChatSession[]> => {
-    const response = await api.get<ChatSession[]>(`${AUTH_BASE}/sessions`)
+    const response = await api.get<ChatSession[]>(`${CHATBOT_BASE}/sessions`)
     return response.data
   },
 
   createSession: async (): Promise<CreateSessionResponse> => {
     const response = await api.post<CreateSessionResponse>(
-      `${AUTH_BASE}/session`
+      `${CHATBOT_BASE}/session`
     )
     return response.data
   },
@@ -45,14 +45,14 @@ export const chatService = {
     const formData = new FormData()
     formData.append('name', name)
     const response = await api.patch<CreateSessionResponse>(
-      `${AUTH_BASE}/session/${sessionId}/name`,
+      `${CHATBOT_BASE}/session/${sessionId}/name`,
       formData
     )
     return response.data
   },
 
   deleteSession: async (sessionId: string): Promise<void> => {
-    await api.delete(`${AUTH_BASE}/session/${sessionId}`)
+    await api.delete(`${CHATBOT_BASE}/session/${sessionId}`)
   },
 
   // Chat Operations

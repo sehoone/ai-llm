@@ -201,7 +201,7 @@ class DatabaseService:
             List[ChatSession]: List of user's sessions
         """
         with Session(self.engine) as session:
-            statement = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at)
+            statement = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at.desc())
             sessions = session.exec(statement).all()
             return sessions
 
