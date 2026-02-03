@@ -16,6 +16,13 @@ class DocumentResponse(BaseModel):
     created_at: datetime
 
 
+class DocumentDetailResponse(DocumentResponse):
+    """Response model for full document details."""
+    
+    content: str
+
+
+
 class RAGSearchResult(BaseModel):
     """Single RAG search result."""
 

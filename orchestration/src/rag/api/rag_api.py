@@ -20,6 +20,7 @@ from src.common.limiter import limiter
 from src.common.logging import logger
 from src.user.models.user_model import User
 from src.rag.schemas.rag_schema import (
+    DocumentDetailResponse,
     DocumentResponse,
     NaturalLanguageSearchResponse,
     RAGSearchResponse,
@@ -191,6 +192,43 @@ async def get_user_documents(
     except Exception as e:
         logger.error("get_documents_failed", user_id=user.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve documents")
+
+
+@router.get("/documents/{doc_id}", response_model=DocumentDetailResponse, summary="문서 상세 조회", description="문서의 상세 내용 및 전체 텍스트를 조회합니다.")
+@limiter.limit("60 per minute")
+async def get_document_detail(
+    request: Request,
+    doc_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get document details including content.
+
+    Args:
+        request: The FastAPI request object for rate limiting.
+        doc_id: The document ID
+        user: The authenticated user
+
+    Returns:
+        DocumentDetailResponse: Document details
+    """
+    try:
+        doc = await document_service.get_document(doc_id)
+        if not doc or doc.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        return DocumentDetailResponse(
+            id=doc.id,
+            filename=doc.filename,
+            user_id=doc.user_id,
+            size=len(doc.content),
+            created_at=doc.created_at,
+            content=doc.content
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_document_detail_failed", doc_id=doc_id, user_id=user.id, error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve document details")
 
 
 @router.delete("/documents/{doc_id}", summary="문서 삭제", description="인증된 사용자의 문서를 삭제합니다.")

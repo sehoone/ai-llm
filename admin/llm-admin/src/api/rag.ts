@@ -37,6 +37,10 @@ export interface DocumentResponse {
     created_at: string
 }
 
+export interface DocumentDetailResponse extends DocumentResponse {
+    content: string
+}
+
 export const ragApi = {
   uploadDocument: async (params: DocumentUploadParams) => {
     const formData = new FormData()
@@ -65,6 +69,15 @@ export const ragApi = {
       
       const response = await api.get<DocumentResponse[]>(`/api/v1/rag/documents?${params.toString()}`)
       return response.data
+  },
+
+  getDocument: async (id: number) => {
+    const response = await api.get<DocumentDetailResponse>(`/api/v1/rag/documents/${id}`)
+    return response.data
+  },
+
+  deleteDocument: async (id: number) => {
+    await api.delete(`/api/v1/rag/documents/${id}`)
   },
 
   naturalLanguageSearch: async (params: NaturalLanguageSearchParams) => {

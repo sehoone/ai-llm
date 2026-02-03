@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Search,
   Upload,
+  FileText,
   // AudioWaveform,
   Command,
   // GalleryVerticalEnd,
@@ -78,6 +79,11 @@ export const sidebarData: SidebarData = {
         {
           title: 'RAG',
           items: [
+            {
+              title: 'Documents',
+              url: '/rag-documents',
+              icon: FileText,
+            },
             {
               title: 'RAG Upload',
               url: '/rag-upload',
