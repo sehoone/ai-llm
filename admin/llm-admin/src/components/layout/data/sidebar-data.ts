@@ -60,15 +60,41 @@ export const sidebarData: SidebarData = {
           icon: LayoutDashboard,
         },
         {
+          title: 'Chatbot',
+          items: [
+            {
+              title: 'Chats',
+              url: '/chats',
+              icon: MessagesSquare,
+            },
+
+            {
+              title: 'Chat History',
+              url: '/chat-history',
+              icon: ListTodo, // Using ListTodo as a placeholder icon
+            },
+          ]
+        },
+        {
+          title: 'RAG',
+          items: [
+            {
+              title: 'RAG Upload',
+              url: '/rag-upload',
+              icon: Upload,
+            },
+            {
+              title: 'Natural Language Search',
+              url: '/natural-search',
+              icon: Search,
+            },
+          ]
+        },
+        {
           title: 'AI Voice Evaluation',
           url: '/evaluation',
           icon: LayoutDashboard,
         },
-        // {
-        //   title: 'Dashboard',
-        //   url: '/',
-        //   icon: LayoutDashboard,
-        // },
         // {
         //   title: 'Tasks',
         //   url: '/tasks',
@@ -79,26 +105,8 @@ export const sidebarData: SidebarData = {
         //   url: '/apps',
         //   icon: Package,
         // },
-        {
-          title: 'Chats',
-          url: '/chats',
-          icon: MessagesSquare,
-        },
-        {
-          title: 'Natural Language Search',
-          url: '/natural-search',
-          icon: Search,
-        },
-        {
-          title: 'RAG Upload',
-          url: '/rag-upload',
-          icon: Upload,
-        },
-        {
-          title: 'Chat History',
-          url: '/chat-history',
-          icon: ListTodo, // Using ListTodo as a placeholder icon
-        },
+
+
         // {
         //   title: 'Users',
         //   url: '/users',
