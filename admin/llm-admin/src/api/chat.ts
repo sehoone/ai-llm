@@ -92,94 +92,63 @@ export const chatService = {
     isDeepThinking?: boolean
   ) => {
     const request: ChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking }
-    
-    // Using fetch for streaming as it's easier to handle ReadableStream
-    const token = api.defaults.headers.common['Authorization'] || 
-                  (api.interceptors.request as any)?.handlers?.[0]?.fulfilled?.({headers:{}})?.headers?.Authorization;
-    
-    // We need to get the actual token from the store or interception if possible. 
-    // Since we can't easily access the interceptor's dynamic token here purely,
-    // we assume the component calling this might handle it, OR we import the store.
-    // Importing store here is fine as it's client-side.
-    
-    // Dynamic import to avoid issues if used on server (though this is client specific)
-    const { useAuthStore } = await import('@/stores/auth-store')
-    const accessToken = useAuthStore.getState().auth.accessToken
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}${CHATBOT_BASE}/chat/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
+      let buffer = ''
+      let processedIndex = 0
+
+      await api.post(`${CHATBOT_BASE}/chat/stream`, request, {
+        onDownloadProgress: (progressEvent) => {
+          const xhr = progressEvent.event?.target as any
+          if (!xhr) return
+
+          const responseText = xhr.responseText || ''
+          const newContent = responseText.substring(processedIndex)
+          processedIndex = responseText.length
+
+          buffer += newContent
+
+          const lines = buffer.split('\n\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            const trimmedLine = line.trim()
+            if (trimmedLine.startsWith('data: ')) {
+              const dataStr = trimmedLine.replace('data: ', '')
+              try {
+                if (dataStr === '[DONE]') {
+                  continue
+                }
+                const data = JSON.parse(dataStr)
+                if (data.type === 'title' && data.title) {
+                  onChunk('', false, data.title)
+                } else {
+                  onChunk(data.content, data.done)
+                }
+              } catch (e) {
+                console.error('Error parsing stream chunk', e, 'chunk:', dataStr)
+              }
+            }
+          }
         },
-        body: JSON.stringify(request),
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-
-      if (!reader) throw new Error('No reader available')
-
-      let buffer = '' // Buffer to hold incomplete lines
-
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-
-        // Decode with stream: true to handle multi-byte characters split across chunks
-        buffer += decoder.decode(value, { stream: true })
-        
-        // Split by the SSE delimiter
+      // Process any remaining buffer
+      if (buffer.trim()) {
         const lines = buffer.split('\n\n')
-        
-        // The last element is potentially incomplete, so keep it in the buffer
-        buffer = lines.pop() || ''
-        
         for (const line of lines) {
           const trimmedLine = line.trim()
           if (trimmedLine.startsWith('data: ')) {
             const dataStr = trimmedLine.replace('data: ', '')
             try {
-              if (dataStr === '[DONE]') {
-                 // Handle specific DONE signal if used, though strict JSON is expected here based on current code
-                 continue; 
-              }
               const data = JSON.parse(dataStr)
-              if (data.type === 'title' && data.title) {
-                // If it's a title update event
-                onChunk('', false, data.title)
-              } else {
-                onChunk(data.content, data.done)
-              }
+              onChunk(data.content, data.done)
             } catch (e) {
-              console.error('Error parsing stream chunk', e, 'chunk:', dataStr)
+              // Ignore incomplete JSON at the very end
             }
           }
         }
       }
-      
-      // Process any remaining buffer (though standard SSE ends with \n\n usually)
-      if (buffer.trim()) {
-         const lines = buffer.split('\n\n')
-         for (const line of lines) {
-             const trimmedLine = line.trim()
-              if (trimmedLine.startsWith('data: ')) {
-                const dataStr = trimmedLine.replace('data: ', '')
-                try {
-                  const data = JSON.parse(dataStr)
-                  onChunk(data.content, data.done)
-                } catch (e) {
-                  // Ignore incomplete JSON at the very end if it's garbled
-                }
-              }
-         }
-      }
-
     } catch (e) {
       onError(e)
     }

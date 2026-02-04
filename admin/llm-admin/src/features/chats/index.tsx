@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Fragment } from 'react/jsx-runtime'
 import {
   ArrowLeft,
@@ -11,6 +11,9 @@ import {
   Search as SearchIcon,
   Send,
   Trash2,
+  X,
+  FileText,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -33,7 +36,7 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ChatArea } from './components/chat-area'
 import { chatService } from '@/api/chat'
-import { ChatSession, Message } from '@/types/chat-api'
+import { ChatSession, Message, FileAttachment } from '@/types/chat-api'
 import { toast } from 'sonner'
 
 export function Chats() {
@@ -48,6 +51,9 @@ export function Chats() {
   const [isDeepThinking, setIsDeepThinking] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
+  
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch sessions on mount
   useEffect(() => {
@@ -116,17 +122,68 @@ export function Chats() {
     }
   }
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files)
+      setSelectedFiles(prev => [...prev, ...newFiles])
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => {
+         const result = reader.result as string
+         const base64 = result.split(',')[1]
+         resolve(base64)
+      }
+      reader.onerror = error => reject(error)
+    })
+  }
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    if (!inputMessage.trim() || !selectedSessionId || isSending) return
+    if ((!inputMessage.trim() && selectedFiles.length === 0) || !selectedSessionId || isSending) return
+
+    // Convert files to FileAttachment
+    const fileAttachments: FileAttachment[] = []
+    if (selectedFiles.length > 0) {
+      try {
+        for (const file of selectedFiles) {
+          const base64 = await convertFileToBase64(file)
+          fileAttachments.push({
+            filename: file.name,
+            content_type: file.type,
+            data: base64
+          })
+        }
+      } catch (error) {
+        console.error('Failed to process files', error)
+        toast.error('Failed to process files')
+        return
+      }
+    }
+
+    // Ensure content is not empty if files are present (backend requirement min_length=1)
+    const contentToSend = inputMessage.trim() || (fileAttachments.length > 0 ? "Attached file(s)" : "")
 
     const userMessage: Message = {
       role: 'user',
-      content: inputMessage,
+      content: contentToSend,
+      files: fileAttachments.length > 0 ? fileAttachments : undefined
     }
 
     setMessages((prev) => [...prev, userMessage])
     setInputMessage('')
+    setSelectedFiles([])
     setIsSending(true)
 
     // Optimistic update for assistant message
@@ -326,17 +383,45 @@ export function Chats() {
               <ChatArea messages={messages} isLoading={isSending && messages.length > 0 && messages[messages.length-1].role !== 'assistant'} />
 
               {/* Input Area */}
-              <div className='p-4 bg-background border-t'>
+              <div className='p-3 bg-background border-t'>
+                {/* File Previews */}
+                {selectedFiles.length > 0 && (
+                  <div className="flex gap-2 mb-2 overflow-x-auto p-1 custom-scrollbar">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="relative group flex items-center gap-2 bg-muted/50 border rounded-md p-2 pr-6 min-w-[150px] max-w-[200px] mt-1">
+                         <div className="flex-shrink-0 text-muted-foreground">
+                           {file.type.startsWith('image/') ? <ImageIcon size={16} /> : <FileText size={16} />}
+                         </div>
+                         <span className="text-xs truncate flex-1 block" title={file.name}>{file.name}</span>
+                         <button
+                           type="button"
+                           onClick={() => removeFile(index)}
+                           className="absolute -top-1.5 -right-1.5 bg-muted text-muted-foreground rounded-full p-0.5 shadow-sm hover:bg-black/90 transition-opacity"
+                         >
+                            <X size={12} />
+                         </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <form
                   className='flex w-full flex-none gap-2'
                   onSubmit={handleSendMessage}
                 >
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                  />
                   <div className='flex flex-1 items-center gap-2 rounded-md border border-input bg-card px-2 py-1 focus-within:ring-1 focus-within:ring-ring focus-within:outline-hidden lg:gap-4'>
                     <Button
                         size='icon'
                         type='button'
                         variant='ghost'
                         className='h-8 rounded-md'
+                        onClick={() => fileInputRef.current?.click()}
                       >
                         <Plus size={20} className='stroke-muted-foreground' />
                       </Button>

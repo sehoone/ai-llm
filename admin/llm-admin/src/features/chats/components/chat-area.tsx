@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, ChevronDown, ChevronRight, User, BrainCircuit, CheckCircle2, Loader2 } from 'lucide-react'
+import { Bot, ChevronDown, ChevronRight, User, BrainCircuit, CheckCircle2, Loader2, FileText, Image as ImageIcon } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { markdownComponents } from '@/components/markdown-components'
 
@@ -177,7 +177,19 @@ export function ChatArea({ messages, isLoading }: ChatAreaProps) {
             <div className='flex-1 space-y-2 overflow-hidden'>
               <div className='prose break-words dark:prose-invert max-w-none'>
                 {message.role === 'user' ? (
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <div className="space-y-2">
+                     <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                     {message.files && message.files.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            {message.files.map((file, i) => (
+                                <div key={i} className="flex items-center gap-2 p-2 bg-background border rounded-md text-sm text-muted-foreground w-fit max-w-full">
+                                    {file.content_type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
+                                    <span className="truncate max-w-[200px]" title={file.filename}>{file.filename}</span>
+                                </div>
+                            ))}
+                        </div>
+                     )}
+                  </div>
                 ) : (
                   <AssistantMessage content={message.content} />
                 )}
