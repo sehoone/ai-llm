@@ -32,6 +32,9 @@ export interface DocumentUploadParams {
 export interface DocumentResponse {
     id: number
     filename: string
+    rag_key: string
+    rag_group: string
+    rag_type: string
     user_id?: number
     size: number
     created_at: string

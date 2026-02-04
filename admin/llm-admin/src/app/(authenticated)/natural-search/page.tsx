@@ -143,18 +143,6 @@ export default function NaturalSearchPage() {
           <CardTitle>Search Configuration</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
-             <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium">RAG Type</label>
-                <select 
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={ragType} 
-                    onChange={(e) => setRagType(e.target.value as any)}
-                >
-                    <option value="user_isolated">User Isolated</option>
-                    <option value="chatbot_shared">Chatbot Shared</option>
-                    <option value="natural_search">Natural Search</option>
-                </select>
-            </div>
             <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium">Model</label>
                 <select 
@@ -165,6 +153,18 @@ export default function NaturalSearchPage() {
                     {LLM_MODELS.map(m => (
                       <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
+                </select>
+            </div>
+            <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium">RAG Type</label>
+                <select 
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={ragType} 
+                    onChange={(e) => setRagType(e.target.value as any)}
+                >
+                    <option value="user_isolated">User Isolated</option>
+                    <option value="chatbot_shared">Chatbot Shared</option>
+                    <option value="natural_search">Natural Search</option>
                 </select>
             </div>
             <div className="flex flex-col gap-2">

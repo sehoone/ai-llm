@@ -164,6 +164,9 @@ export default function RagDocumentsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Filename</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Key</TableHead>
+                    <TableHead>Group</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead>Created At</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -178,6 +181,9 @@ export default function RagDocumentsPage() {
                            {doc.filename}
                         </div>
                       </TableCell>
+                      <TableCell><Badge variant="outline">{doc.rag_type}</Badge></TableCell>
+                      <TableCell>{doc.rag_key}</TableCell>
+                      <TableCell>{doc.rag_group}</TableCell>
                       <TableCell>{formatFileSize(doc.size)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2 text-muted-foreground">

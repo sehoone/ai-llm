@@ -11,6 +11,9 @@ class DocumentResponse(BaseModel):
 
     id: int
     filename: str
+    rag_key: str
+    rag_group: str
+    rag_type: str
     user_id: Optional[int] = None
     size: int
     created_at: datetime

@@ -146,6 +146,9 @@ async def upload_document(
         return DocumentResponse(
             id=doc.id,
             filename=doc.filename,
+            rag_key=rag_key,
+            rag_group=rag_group,
+            rag_type=rag_type,
             user_id=doc.user_id,
             size=len(content),
             created_at=doc.created_at,
@@ -183,6 +186,9 @@ async def get_user_documents(
             DocumentResponse(
                 id=doc.id,
                 filename=doc.filename,
+                rag_key=doc.rag_key,
+                rag_group=doc.rag_group,
+                rag_type=doc.rag_type,
                 user_id=doc.user_id,
                 size=len(doc.content),
                 created_at=doc.created_at,
@@ -219,6 +225,9 @@ async def get_document_detail(
         return DocumentDetailResponse(
             id=doc.id,
             filename=doc.filename,
+            rag_key=doc.rag_key,
+            rag_group=doc.rag_group,
+            rag_type=doc.rag_type,
             user_id=doc.user_id,
             size=len(doc.content),
             created_at=doc.created_at,
