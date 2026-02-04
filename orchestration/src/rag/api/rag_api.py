@@ -439,7 +439,7 @@ async def natural_language_search(
             raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
         
         if not rag_key and not rag_group:
-             raise HTTPException(status_code=400, detail="Either rag_key or rag_group must be provided")
+             rag_group = "default"
 
         # Validate inputs
         query = sanitize_string(query)

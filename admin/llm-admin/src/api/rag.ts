@@ -19,6 +19,7 @@ export interface NaturalLanguageSearchParams {
   rag_key?: string
   rag_group?: string
   limit?: number
+  model?: string
 }
 
 export interface DocumentUploadParams {
@@ -90,6 +91,7 @@ export const ragApi = {
     if (params.rag_key) formData.append('rag_key', params.rag_key)
     if (params.rag_group) formData.append('rag_group', params.rag_group)
     if (params.limit) formData.append('limit', params.limit.toString())
+    if (params.model) formData.append('model', params.model)
 
     const response = await api.post<NaturalLanguageSearchResponse>(
       '/api/v1/rag/natural-language-search',
@@ -101,5 +103,54 @@ export const ragApi = {
       }
     )
     return response.data
+  },
+
+  naturalLanguageSearchStream: async (
+    params: NaturalLanguageSearchParams, 
+    onData: (data: any) => void,
+    onError: (error: any) => void
+  ) => {
+    const formData = new FormData()
+    formData.append('rag_type', params.rag_type)
+    formData.append('query', params.query)
+    if (params.rag_key) formData.append('rag_key', params.rag_key)
+    if (params.rag_group) formData.append('rag_group', params.rag_group)
+    if (params.limit) formData.append('limit', params.limit.toString())
+    if (params.model) formData.append('model', params.model)
+
+    let buffer = '';
+    let seenBytes = 0;
+
+    try {
+        await api.post('/api/v1/rag/natural-language-search', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+            responseType: 'text', // Important to get text instead of trying to parse JSON
+            onDownloadProgress: (progressEvent) => {
+                const xhr = progressEvent.event.target
+                const response = xhr.response
+                const newData = response.slice(seenBytes)
+                seenBytes = response.length;
+                
+                buffer += newData;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep the last partial line in buffer
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const json = JSON.parse(line);
+                        onData(json);
+                    } catch (e) {
+                         console.error('Error parsing JSON line from stream', e);
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        onError(error);
+        throw error;
+    }
   },
 }

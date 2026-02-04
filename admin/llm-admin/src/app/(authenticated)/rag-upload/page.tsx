@@ -18,7 +18,7 @@ export default function RagUploadPage() {
   
   const [ragKey, setRagKey] = useState('') 
   const [ragGroup, setRagGroup] = useState('')
-  const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('user_isolated')
+  const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('natural_search')
   const [tags, setTags] = useState('')
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,9 +92,9 @@ export default function RagUploadPage() {
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value="natural_search">Natural Search (Knowledge Base)</SelectItem>
                                     <SelectItem value="user_isolated">User Isolated (Private)</SelectItem>
                                     <SelectItem value="chatbot_shared">Chatbot Shared (Global)</SelectItem>
-                                    <SelectItem value="natural_search">Natural Search (Knowledge Base)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

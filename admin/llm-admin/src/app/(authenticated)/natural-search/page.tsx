@@ -24,12 +24,12 @@ export default function NaturalSearchPage() {
   const [results, setResults] = useState<RAGSearchResult[]>([])
   const [hasStarted, setHasStarted] = useState(false)
   
-  const [ragKey, setRagKey] = useState('default')
+  const [ragKey, setRagKey] = useState('')
   const [availableKeys, setAvailableKeys] = useState<string[]>([])
   // const [openCombobox, setOpenCombobox] = useState(false)
 
   const [ragGroup, setRagGroup] = useState('')
-  const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('user_isolated')
+  const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('natural_search')
   const [query, setQuery] = useState('')
   const [model, setModel] = useState<LlmModel>(DEFAULT_LLM_MODEL)
 
@@ -68,60 +68,34 @@ export default function NaturalSearchPage() {
     setSummary('')
     setResults([])
 
+    setResults([])
+
     try {
-      const accessToken = useAuthStore.getState().auth.accessToken;
-      const formData = new FormData()
-      formData.append('rag_type', ragType)
-      formData.append('query', query)
-      if (ragKey) formData.append('rag_key', ragKey)
-      if (ragGroup) formData.append('rag_group', ragGroup)
-      formData.append('model', model) // Add model parameter
-      formData.append('limit', '5')
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/rag/natural-language-search`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-        },
-        body: formData,
-      })
-
-      if (!response.ok) throw new Error('Search failed')
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('No reader')
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      setSearching(false) // Data started coming
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        buffer += chunk
-        
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || '' // Keep last incomplete line
-
-        for (const line of lines) {
-            if (!line.trim()) continue
-            try {
-                const json = JSON.parse(line)
+        await ragApi.naturalLanguageSearchStream(
+            {
+                rag_type: ragType,
+                query: query,
+                rag_key: ragKey,
+                rag_group: ragGroup,
+                limit: 5,
+                model: model
+            },
+            (json) => {
                 if (json.type === 'sources') {
                     setResults(json.data)
+                    setSearching(false) // Data started coming
                 } else if (json.type === 'chunk') {
                     setSummary(prev => prev + json.data)
+                    setSearching(false)
                 } else if (json.type === 'error') {
                     toast.error(json.data)
                 }
-            } catch (e) {
-                console.error('Error parsing line:', line, e)
+            },
+            (error) => {
+                console.error("Stream error", error);
+                throw error;
             }
-        }
-      }
+        )
 
     } catch (error) {
       console.error(error)
@@ -162,14 +136,15 @@ export default function NaturalSearchPage() {
                     value={ragType} 
                     onChange={(e) => setRagType(e.target.value as any)}
                 >
+                    <option value="natural_search">Natural Search</option>
                     <option value="user_isolated">User Isolated</option>
                     <option value="chatbot_shared">Chatbot Shared</option>
-                    <option value="natural_search">Natural Search</option>
+                    
                 </select>
             </div>
             <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium">RAG Key</label>
-                <Input value={ragKey} onChange={e => setRagKey(e.target.value)} placeholder="e.g. default" />
+                <Input value={ragKey} onChange={e => setRagKey(e.target.value)} placeholder="ex. default" />
             </div>
              <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium">RAG Group</label>
