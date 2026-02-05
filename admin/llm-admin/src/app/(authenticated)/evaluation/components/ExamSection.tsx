@@ -2,7 +2,7 @@
 
 import ConversationChat from '@/components/chat/ConversationChat';
 import VoiceInput from '@/components/voice/VoiceInput';
-import { ConversationMessage } from '@/types/conversation';
+import { type ConversationMessage } from '@/types/conversation';
 
 type RecognitionControls = {
   pause: () => void;
@@ -33,7 +33,6 @@ export default function ExamSection({
   examCompleted,
   isExamStarted,
   isAIPlaying,
-  handlePlayAudio,
   handleSpeechResult,
   handleAudioData,
   handleStartExam,

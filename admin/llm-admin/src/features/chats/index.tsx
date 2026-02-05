@@ -36,8 +36,9 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ChatArea } from './components/chat-area'
 import { chatService } from '@/api/chat'
-import { ChatSession, Message, FileAttachment } from '@/types/chat-api'
+import { type ChatSession, type Message, type FileAttachment } from '@/types/chat-api'
 import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
 
 export function Chats() {
   const [search, setSearch] = useState('')
@@ -45,7 +46,7 @@ export function Chats() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [mobileSelectedSessionId, setMobileSelectedSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [inputMessage, setInputMessage] = useState('')
   const [isDeepThinking, setIsDeepThinking] = useState(false)
@@ -74,7 +75,7 @@ export function Chats() {
       const data = await chatService.getSessions()
       setSessions(data)
     } catch (error) {
-      console.error('Failed to load sessions', error)
+      logger.error('Failed to load sessions', error)
       toast.error('Failed to load sessions')
     }
   }
@@ -85,7 +86,7 @@ export function Chats() {
       const data = await chatService.getMessages(sessionId)
       setMessages(data)
     } catch (error) {
-      console.error('Failed to load messages', error)
+      logger.error('Failed to load messages', error)
       toast.error('Failed to load messages')
     } finally {
       setIsLoading(false)
@@ -100,7 +101,7 @@ export function Chats() {
       setMobileSelectedSessionId(newSession.session_id)
       setMessages([])
     } catch (error) {
-      console.error('Failed to create session', error)
+      logger.error('Failed to create session', error)
       toast.error('Failed to create new chat')
     }
   }
@@ -117,7 +118,7 @@ export function Chats() {
       setDeleteDialogOpen(false)
       setSessionToDelete(null)
     } catch (error) {
-      console.error('Failed to delete session', error)
+      logger.error('Failed to delete session', error)
       toast.error('Failed to delete session')
     }
   }
@@ -166,7 +167,7 @@ export function Chats() {
           })
         }
       } catch (error) {
-        console.error('Failed to process files', error)
+        logger.error('Failed to process files', error)
         toast.error('Failed to process files')
         return
       }
@@ -198,6 +199,7 @@ export function Chats() {
       await chatService.streamMessage(
         selectedSessionId,
         messagesToSend,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         (chunk, done, title) => {
            if (title) {
              setSessions((prev) => 
@@ -226,13 +228,13 @@ export function Chats() {
            })
         },
         (error) => {
-            console.error(error)
+            logger.error(error)
             toast.error('Failed to send message')
         },
         isDeepThinking
       )
     } catch (error) {
-      console.error('Failed to send message', error)
+      logger.error('Failed to send message', error)
       toast.error('Failed to send message')
     } finally {
       setIsSending(false)

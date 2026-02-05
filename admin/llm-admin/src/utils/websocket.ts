@@ -1,5 +1,7 @@
-import { WebSocketMessage } from '@/types/websocket';
-import { ConversationResponse } from '@/types/conversation';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { type WebSocketMessage } from '@/types/websocket';
+import { type ConversationResponse } from '@/types/conversation';
+import { logger } from '@/lib/logger';
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -35,7 +37,7 @@ export class WebSocketClient {
         let resolved = false;
 
         this.ws.onopen = () => {
-          console.log('WebSocket 연결됨:', this.url);
+          logger.debug('WebSocket 연결됨:', this.url);
           this.reconnectAttempts = 0;
           this.emit('open', {});
           if (!resolved) {
@@ -49,17 +51,18 @@ export class WebSocketClient {
             const data: ConversationResponse = JSON.parse(event.data);
             this.emit('message', data);
           } catch (error) {
-            console.error('메시지 파싱 오류:', error);
+            logger.error('메시지 파싱 오류:', error);
             this.emit('error', { error: '메시지 파싱 실패' });
           }
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         this.ws.onerror = (error) => {
           // 초기 연결 실패 시에는 조용히 처리하고 재연결 시도
           // (onclose에서 attemptReconnect가 호출됨)
           // 첫 연결 시도가 아닌 경우에만 경고 표시
           if (this.reconnectAttempts > 0) {
-            console.warn('WebSocket 연결 오류:', this.url);
+            logger.warn('WebSocket 연결 오류:', this.url);
           }
           // reject는 하지 않음 - onclose에서 재연결 시도
         };
@@ -67,9 +70,9 @@ export class WebSocketClient {
         this.ws.onclose = (event) => {
           if (event.code !== 1000) {
             // 정상 종료가 아닌 경우
-            console.log('WebSocket 연결 종료 (재연결 시도)', event.code);
+            logger.debug('WebSocket 연결 종료 (재연결 시도)', event.code);
           } else {
-            console.log('WebSocket 연결 종료');
+            logger.debug('WebSocket 연결 종료');
           }
           this.emit('close', {});
           
@@ -93,15 +96,15 @@ export class WebSocketClient {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       setTimeout(() => {
-        console.log(`재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts} (${this.url})`);
+        logger.debug(`재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts} (${this.url})`);
         this.connect().catch((err) => {
           // 재연결 실패는 onclose에서 다시 attemptReconnect가 호출됨
-          console.warn('재연결 실패:', err.message);
+          logger.warn('재연결 실패:', err.message);
         });
       }, this.reconnectDelay * this.reconnectAttempts);
     } else {
       const errorMessage = `백엔드 서버에 연결할 수 없습니다 (${this.url}). 서버가 실행 중인지 확인하세요.`;
-      console.error(errorMessage);
+      logger.error(errorMessage);
       this.emit('error', { error: errorMessage });
     }
   }
@@ -110,7 +113,7 @@ export class WebSocketClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      console.error('WebSocket이 연결되지 않았습니다.');
+      logger.error('WebSocket이 연결되지 않았습니다.');
       this.emit('error', { error: 'WebSocket이 연결되지 않았습니다.' });
     }
   }

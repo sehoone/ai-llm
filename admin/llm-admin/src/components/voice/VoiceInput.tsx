@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAudioCaptureWithSTT } from '@/hooks/audio/useAudioCaptureWithSTT';
+import { logger } from '@/lib/logger';
 
 interface VoiceInputProps {
   onSpeechResult: (text: string) => void;
@@ -23,19 +24,20 @@ export default function VoiceInput({
   const [isAutoStartPaused, setIsAutoStartPaused] = useState(false);
 
   const handleAudioData = (audioBase64: string) => {
-    console.log('[VoiceInput] 오디오 데이터 수신, 길이:', audioBase64.length);
+    logger.debug('[VoiceInput] 오디오 데이터 수신, 길이:', audioBase64.length);
     // Send audio to backend via WebSocket with type: "audio"
     onAudioData(audioBase64, 'wav');
   };
 
   const handleUnexpectedStop = useCallback(() => {
-    console.log('[VoiceInput] 비정상 종료 감지 - 자동 시작 일시 중지');
+    logger.debug('[VoiceInput] 비정상 종료 감지 - 자동 시작 일시 중지');
     setIsAutoStartPaused(true);
   }, []);
 
   // AI 발화가 끝나고 입력이 활성화되면 자동 시작 일시 중지 상태를 해제
   useEffect(() => {
     if (!disabled) {
+       
       setIsAutoStartPaused(false);
     }
   }, [disabled]);
@@ -82,6 +84,7 @@ export default function VoiceInput({
       }, 300);
       return () => clearTimeout(timer);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleToggle = () => {

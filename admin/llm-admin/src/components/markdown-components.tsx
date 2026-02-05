@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Custom components for react-markdown
 export const markdownComponents = {
   table: ({ node, ...props }: any) => (

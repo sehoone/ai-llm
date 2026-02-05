@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { ragApi, type RAGSearchResult } from '@/api/rag'
 import { toast } from 'sonner'
 import { DEFAULT_LLM_MODEL, LLM_MODELS, type LlmModel } from '@/config/models'
+import { logger } from '@/lib/logger'
 
 export default function NaturalSearchPage() {
   const [loading, setLoading] = useState(false)
@@ -19,23 +21,11 @@ export default function NaturalSearchPage() {
   const [hasStarted, setHasStarted] = useState(false)
   
   const [ragKey, setRagKey] = useState('')
-  const [availableKeys, setAvailableKeys] = useState<string[]>([])
 
   const [ragGroup, setRagGroup] = useState('')
   const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('natural_search')
   const [query, setQuery] = useState('')
   const [model, setModel] = useState<LlmModel>(DEFAULT_LLM_MODEL)
-
-  useEffect(() => {
-    // Fetch unique rag keys for the user (only for user_isolated for now or based on type)
-    const fetchKeys = async () => {
-        try {
-            const docs = await ragApi.getDocuments(undefined, ragType)
-        } catch (e) {
-            console.error(e)
-        }
-    }
-  }, [ragType])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,13 +61,13 @@ export default function NaturalSearchPage() {
                 }
             },
             (error) => {
-                console.error("Stream error", error);
+                logger.error("Stream error", error);
                 throw error;
             }
         )
 
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('Search failed')
     } finally {
       setLoading(false)

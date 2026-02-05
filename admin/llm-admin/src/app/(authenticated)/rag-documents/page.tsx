@@ -27,10 +27,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, Trash2, FileText, Calendar, Database, Eye } from 'lucide-react'
+import { Loader2, Trash2, FileText, Calendar, Eye } from 'lucide-react'
 import { ragApi, type DocumentResponse, type DocumentDetailResponse } from '@/api/rag'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { logger } from '@/lib/logger'
 
 export default function RagDocumentsPage() {
   const [documents, setDocuments] = useState<DocumentResponse[]>([])
@@ -53,7 +54,7 @@ export default function RagDocumentsPage() {
       const docs = await ragApi.getDocuments(ragKey || undefined, ragType || undefined)
       setDocuments(docs)
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('Failed to load documents')
     } finally {
       setLoading(false)
@@ -62,6 +63,7 @@ export default function RagDocumentsPage() {
 
   useEffect(() => {
     fetchDocuments()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Initial load
 
   const handleDelete = async (id: number) => {
@@ -74,7 +76,7 @@ export default function RagDocumentsPage() {
       // Remove from list immediately
       setDocuments(prev => prev.filter(doc => doc.id !== id))
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('Failed to delete document')
     } finally {
       setDeletingId(null)
@@ -88,7 +90,7 @@ export default function RagDocumentsPage() {
       const detail = await ragApi.getDocument(doc.id)
       setViewDoc(detail)
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('Failed to load document content')
       setIsOpen(false) // Close if failed
     } finally {

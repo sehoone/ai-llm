@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { logger } from '@/lib/logger'
 
 const formSchema = z.object({
   email: z.email({
@@ -39,8 +40,7 @@ export function ForgotPasswordForm({
 
   function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
-    // eslint-disable-next-line no-console
-    console.log(data)
+    logger.debug(data)
 
     toast.promise(sleep(2000), {
       loading: 'Sending email...',

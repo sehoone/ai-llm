@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { logger } from '@/lib/logger'
 import api from './axios'
 
 export interface RAGSearchResult {
@@ -143,7 +145,7 @@ export const ragApi = {
                         const json = JSON.parse(line);
                         onData(json);
                     } catch (e) {
-                         console.error('Error parsing JSON line from stream', e);
+                         logger.error('Error parsing JSON line from stream', e);
                     }
                 }
             }

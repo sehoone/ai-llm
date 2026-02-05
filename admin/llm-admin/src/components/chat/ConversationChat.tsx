@@ -1,6 +1,6 @@
 'use client';
 
-import { ConversationMessage } from '@/types/conversation';
+import { type ConversationMessage } from '@/types/conversation';
 import { useEffect, useRef } from 'react';
 
 interface ConversationChatProps {
@@ -27,6 +27,7 @@ export default function ConversationChat({ messages, isLoading }: ConversationCh
     if (messages.length > 0) {
       scrollToBottom();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, isLoading]);
 
   const formatTime = (date: Date) => {

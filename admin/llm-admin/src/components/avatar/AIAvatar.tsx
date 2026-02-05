@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { logger } from '@/lib/logger';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface AIAvatarProps {
@@ -10,7 +12,7 @@ interface AIAvatarProps {
 export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpeechEnd }: AIAvatarProps) {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [status, setStatus] = useState<string>('Initializing...');
+  const [, setStatus] = useState<string>('Initializing...');
   const synthesizerRef = useRef<any>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const [SpeechSDK, setSpeechSDK] = useState<any>(null);
@@ -22,6 +24,7 @@ export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpee
     import('microsoft-cognitiveservices-speech-sdk').then((module) => {
       setSpeechSDK(module);
     }).catch(err => {
+      logger.error("Failed to load Speech SDK", err);
     });
   }, []);
 
@@ -56,7 +59,7 @@ export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpee
         // 2. Setup WebRTC
         // Follow the working sample's pattern: Use the first URL from the list
         const iceServerUrl = avatarTokenData.Urls[0];
-        console.log(`Using ICE Server URL: ${iceServerUrl}`);
+        logger.debug(`Using ICE Server URL: ${iceServerUrl}`);
         const iceServers = [
             {
                 urls: [iceServerUrl], 
@@ -77,17 +80,17 @@ export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpee
 
         peerConnection.oniceconnectionstatechange = () => {
             if (peerConnection.iceConnectionState === 'connected') {
-                console.log("ICE Connected! Media should flow.");
+                logger.debug("ICE Connected! Media should flow.");
             }
         };
 
         peerConnection.onconnectionstatechange = () => {
-            console.log(`Connection State: ${peerConnection.connectionState}`);
+            logger.debug(`Connection State: ${peerConnection.connectionState}`);
         };
 
         peerConnection.onicecandidate = (event) => {
              if (event.candidate) {
-                 console.log(`Local ICE Candidate: ${event.candidate.candidate.substring(0, 50)}...`);
+                 logger.debug(`Local ICE Candidate: ${event.candidate.candidate.substring(0, 50)}...`);
              }
         };
 
@@ -172,7 +175,7 @@ export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpee
 
       } catch (error: any) {
         if (aborted) return;
-        console.error("Avatar init failed", error);
+        logger.error("Avatar init failed", error);
         setStatus(`Error: ${error.message}`);
         isInitializingRef.current = false; // Allow retry if failed
       }
@@ -192,6 +195,7 @@ export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpee
             peerConnectionRef.current = null;
         }
         if (videoContainerRef.current) {
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             videoContainerRef.current.innerHTML = '';
         }
         videoRef.current = null;
@@ -206,9 +210,9 @@ export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpee
         const speak = async () => {
             if (onSpeechStart) onSpeechStart();
             try {
-                const result = await synthesizerRef.current.speakTextAsync(textToSpeak);
+                await synthesizerRef.current.speakTextAsync(textToSpeak);
             } catch (e: any) {
-                console.error("Speak error", e);
+                logger.error("Speak error", e);
             } finally {
                 if (onSpeechEnd) onSpeechEnd();
             }

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Message } from '@/types/chat-api'
+import { type Message } from '@/types/chat-api'
 import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Bot, ChevronDown, ChevronRight, User, BrainCircuit, CheckCircle2, Loader2, FileText, Image as ImageIcon } from 'lucide-react'
@@ -20,6 +19,7 @@ const DeepThinkingAccordion = ({ thoughts, isThinking }: { thoughts: { title: st
   // Auto-collapse when thinking finishes (answer starts)
   useEffect(() => {
     if (!isThinking) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsOpen(false);
     } else {
         setIsOpen(true);

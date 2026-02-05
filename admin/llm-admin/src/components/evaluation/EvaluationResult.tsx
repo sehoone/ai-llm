@@ -1,7 +1,8 @@
 'use client';
 
-import { Evaluation } from '@/types/conversation';
-import { JSX } from 'react';
+import { logger } from '@/lib/logger';
+import { type Evaluation } from '@/types/conversation';
+import { type JSX } from 'react';
 
 interface EvaluationResultProps {
   evaluation: Evaluation;
@@ -18,12 +19,6 @@ export default function EvaluationResult({ evaluation, className = '' }: Evaluat
   const comprehensionScore = evaluation_details.comprehension_score 
     ? evaluation_details.comprehension_score 
     : evaluation_details.communication_score;
-
-  const getScoreColor = (score: number) => {
-    if (score >= 8) return 'text-green-600';
-    if (score >= 6) return 'text-yellow-600';
-    return 'text-red-600';
-  };
 
   const getScoreBgColor = (score: number) => {
     if (score >= 8) return 'bg-green-100';
@@ -48,17 +43,17 @@ export default function EvaluationResult({ evaluation, className = '' }: Evaluat
   }, 0);
   
   // 디버깅용 로그
-  console.log('에러 타입 데이터:', { errorTypes, errorEntries, totalErrors });
+  logger.debug('에러 타입 데이터:', { errorTypes, errorEntries, totalErrors });
 
   // 파이 차트 색상
   const pieColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
 
   // 파이 차트 섹션 생성 함수
   const createPieSections = () => {
-    console.log('파이 차트 생성 시작:', { errorEntries, totalErrors });
+    logger.debug('파이 차트 생성 시작:', { errorEntries, totalErrors });
     
     if (errorEntries.length === 0 || totalErrors === 0) {
-      console.log('파이 차트 데이터 없음');
+      logger.debug('파이 차트 데이터 없음');
       return [];
     }
     
@@ -124,7 +119,7 @@ export default function EvaluationResult({ evaluation, className = '' }: Evaluat
         `Z`                                   // 중심으로 닫기
       ].join(' ');
       
-      console.log(`파이 섹션 ${index}:`, { 
+      logger.debug(`파이 섹션 ${index}:`, { 
         errorType, 
         originalAngle: originalAngle.toFixed(2),
         angle: angle.toFixed(2),
@@ -147,7 +142,7 @@ export default function EvaluationResult({ evaluation, className = '' }: Evaluat
       currentAngle = endAngle;
     });
     
-    console.log('파이 차트 섹션 생성 완료:', sections.length, '총 각도:', currentAngle + 90);
+    logger.debug('파이 차트 섹션 생성 완료:', sections.length, '총 각도:', currentAngle + 90);
     return sections;
   };
 

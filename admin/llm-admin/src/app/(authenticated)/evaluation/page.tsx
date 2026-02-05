@@ -1,16 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '@/hooks/websocket/useWebSocket';
-import ExamSection from './components/ExamSection';
 import EvaluationHeader from './components/EvaluationHeader';
 import EvaluationSection from './components/EvaluationSection';
 import PronunciationDebugPanel from '@/components/debug/PronunciationDebugPanel';
-import { ConversationMessage } from '@/types/conversation';
-import EvaluationResult from '@/components/evaluation/EvaluationResult';
+import { type ConversationMessage } from '@/types/conversation';
 import VoiceInput from '@/components/voice/VoiceInput';
 import ConversationChat from '@/components/chat/ConversationChat';
-import AIAvatar from '@/components/avatar/AIAvatar';
+import { logger } from '@/lib/logger';
 
 type ScreenMode = 'exam' | 'evaluation';
 
@@ -22,19 +21,19 @@ export default function EvaluationPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastAudioRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
+  const [, setIsAudioEnabled] = useState(false);
   const [isExamStarted, setIsExamStarted] = useState(false);
   const isExamStartedRef = useRef(false);
   const recognitionControlsRef = useRef<{ pause: () => void; resume: () => void; stop: () => void } | null>(null);
   const isAudioPlayingRef = useRef(false);
   const examStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isAIPlaying, setIsAIPlaying] = useState(false);
-  const [currentAIText, setCurrentAIText] = useState<string | undefined>(undefined);
+  const [, setCurrentAIText] = useState<string | undefined>(undefined);
   const [showDebugChat, setShowDebugChat] = useState(true);
 
   const handleRecognitionReady = useCallback((controls: { pause: () => void; resume: () => void; stop: () => void }) => {
     recognitionControlsRef.current = controls;
-    console.log('음성 인식 컨트롤 준비 완료');
+    logger.log('음성 인식 컨트롤 준비 완료');
   }, []);
 
   // 모의시험 시작 핸들러
@@ -52,25 +51,25 @@ export default function EvaluationPage() {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         audioContextRef.current = new AudioContextClass();
         setIsAudioEnabled(true);
-        console.log('오디오 컨텍스트 활성화됨');
+        logger.log('오디오 컨텍스트 활성화됨');
       } catch (err) {
-        console.error('오디오 컨텍스트 생성 실패:', err);
+        logger.error('오디오 컨텍스트 생성 실패:', err);
       }
     } else if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().then(() => {
         setIsAudioEnabled(true);
-        console.log('오디오 컨텍스트 재개됨');
+        logger.log('오디오 컨텍스트 재개됨');
       });
     }
     
     // 모의시험 시작
     setIsExamStarted(true);
     isExamStartedRef.current = true;
-    console.log('모의시험 시작');
+    logger.log('모의시험 시작');
     
     // AI가 먼저 질문하도록 초기 메시지 전송
     if (isConnected) {
-      console.log('AI 초기 질문 요청');
+      logger.log('AI 초기 질문 요청');
       // 약간의 딜레이 후 전송하여 음성 인식이 준비될 시간 확보
       if (examStartTimeoutRef.current) clearTimeout(examStartTimeoutRef.current);
       
@@ -83,13 +82,13 @@ export default function EvaluationPage() {
 
   // 모의시험 종료 핸들러
   const handleEndExam = useCallback(() => {
-    console.log('모의시험 종료');
+    logger.log('모의시험 종료');
     
     // 시작 대기 중인 타임아웃이 있다면 취소
     if (examStartTimeoutRef.current) {
       clearTimeout(examStartTimeoutRef.current);
       examStartTimeoutRef.current = null;
-      console.log('AI 초기 질문 요청 취소됨');
+      logger.log('AI 초기 질문 요청 취소됨');
     }
     
     // 음성 인식 완전 중지
@@ -97,14 +96,14 @@ export default function EvaluationPage() {
       try {
         // 먼저 완전히 중지
         recognitionControlsRef.current.stop();
-        console.log('음성 인식 완전 중지됨');
+        logger.log('음성 인식 완전 중지됨');
       } catch (err) {
-        console.error('음성 인식 중지 실패:', err);
+        logger.error('음성 인식 중지 실패:', err);
         // stop이 실패하면 pause 시도
         try {
           recognitionControlsRef.current.pause();
         } catch (pauseErr) {
-          console.error('음성 인식 일시 중지도 실패:', pauseErr);
+          logger.error('음성 인식 일시 중지도 실패:', pauseErr);
         }
       }
     }
@@ -114,7 +113,7 @@ export default function EvaluationPage() {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current = null;
-      console.log('오디오 재생 정지됨');
+      logger.log('오디오 재생 정지됨');
     }
     
     // 상태 초기화
@@ -127,12 +126,12 @@ export default function EvaluationPage() {
     // 평가 완료 상태로 변경
     setExamCompleted(true);
     
-    console.log('모의시험 종료 완료');
+    logger.log('모의시험 종료 완료');
   }, []);
 
   // 음성 인식 오류 핸들러
   const handleVoiceError = useCallback((errorMsg: string) => {
-    console.error('음성 인식 오류 발생:', errorMsg);
+    logger.error('음성 인식 오류 발생:', errorMsg);
     alert(`음성 인식 오류: ${errorMsg}\n모의시험을 중단합니다.`);
     handleEndExam();
   }, [handleEndExam]);
@@ -141,18 +140,18 @@ export default function EvaluationPage() {
   const handleSpeechResult = (text: string) => {
     // 모의평가가 종료된 상태면 입력 무시
     if (!isExamStarted) {
-      console.log('모의평가 종료 상태 - 사용자 입력 무시:', text);
+      logger.log('모의평가 종료 상태 - 사용자 입력 무시:', text);
       return;
     }
     
     // AI 음성 재생 중이면 입력 무시
     if (isAudioPlayingRef.current) {
-      console.log('AI 음성 재생 중 - 사용자 입력 무시:', text);
+      logger.log('AI 음성 재생 중 - 사용자 입력 무시:', text);
       return;
     }
     
     if (text.trim() && isConnected && !isLoading && isExamStarted) {
-      console.log('브라우저 STT 결과 (화면 표시용):', text);
+      logger.log('브라우저 STT 결과 (화면 표시용):', text);
       addLocalMessage(text.trim());
       // sendText(text.trim()); // 중복 전송 방지를 위해 텍스트 전송은 하지 않음 (오디오 데이터가 전송됨)
     }
@@ -161,28 +160,28 @@ export default function EvaluationPage() {
   const handleAudioData = (audioBase64: string, format: string) => {
     // 모의평가가 종료된 상태면 오디오 데이터 무시
     if (!isExamStartedRef.current) {
-      console.log('모의평가 종료 상태 - 오디오 데이터 무시');
+      logger.log('모의평가 종료 상태 - 오디오 데이터 무시');
       return;
     }
     
     // AI 음성 재생 중이면 오디오 데이터 무시
     if (isAudioPlayingRef.current) {
-      console.log('AI 음성 재생 중 - 오디오 데이터 무시');
+      logger.log('AI 음성 재생 중 - 오디오 데이터 무시');
       return;
     }
 
-    console.log('[EvaluationPage] 오디오 데이터 수신, 길이:', audioBase64.length);
+    logger.log('[EvaluationPage] 오디오 데이터 수신, 길이:', audioBase64.length);
     sendAudio(audioBase64, format);
   };
 
   // AI 응답 오디오 자동 재생 (Azure Avatar 사용 시 텍스트 전달로 변경)
   useEffect(() => {
-    console.log('메시지 업데이트됨, 총 메시지:', messages.length);
+    logger.log('메시지 업데이트됨, 총 메시지:', messages.length);
     
     const lastMessage = messages[messages.length - 1];
     
     if (lastMessage) {
-      console.log('마지막 메시지:', {
+      logger.log('마지막 메시지:', {
         role: lastMessage.role,
         hasAudio: !!lastMessage.audio,
         audioLength: lastMessage.audio?.length,
@@ -195,17 +194,18 @@ export default function EvaluationPage() {
       lastMessage.role === 'assistant' &&
       lastMessage.content !== lastAudioRef.current
     ) {
-      console.log('새로운 AI 응답 감지, 아바타 발화 시도');
+      logger.log('새로운 AI 응답 감지, 아바타 발화 시도');
       lastAudioRef.current = lastMessage.content;
       
       // AI 음성 재생 플래그 설정
       isAudioPlayingRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsAIPlaying(true);
       
       // 아바타에게 텍스트 전달
       setCurrentAIText(lastMessage.content);
       
-      console.log('AI 아바타 발화 요청 - 사용자 입력 차단');
+      logger.log('AI 아바타 발화 요청 - 사용자 입력 차단');
       
       // 기존 오디오 정리
       if (audioRef.current) {
@@ -218,33 +218,33 @@ export default function EvaluationPage() {
       const playAudio = async () => {
         try {
           const audioUrl = `data:audio/mpeg;base64,${lastMessage.audio}`;
-          console.log('오디오 URL 생성, 길이:', audioUrl.length);
+          logger.log('오디오 URL 생성, 길이:', audioUrl.length);
           
           const audio = new Audio(audioUrl);
           
           audio.onloadeddata = () => {
-            console.log('오디오 로드 완료');
+            logger.log('오디오 로드 완료');
           };
           
           audio.onerror = (e) => {
-            console.error('오디오 로드 오류:', e);
+            logger.error('오디오 로드 오류:', e);
             // 오류 발생 시 플래그 해제 및 음성 인식 재개
             isAudioPlayingRef.current = false;
             setIsAIPlaying(false);
-            console.log('AI 음성 재생 종료 (오류) - 사용자 입력 허용');
+            logger.log('AI 음성 재생 종료 (오류) - 사용자 입력 허용');
           };
           
           audio.onplay = () => {
-            console.log('AI 음성 재생 중... (사용자 입력 차단됨)');
+            logger.log('AI 음성 재생 중... (사용자 입력 차단됨)');
           };
           
           audio.onended = () => {
-            console.log('오디오 재생 완료');
+            logger.log('오디오 재생 완료');
             // 오디오 재생 종료 후 충분한 시간을 두고 음성 인식 재개
             setTimeout(() => {
               isAudioPlayingRef.current = false;
               setIsAIPlaying(false);
-              console.log('AI 음성 재생 종료 - 사용자 입력 허용');
+              logger.log('AI 음성 재생 종료 - 사용자 입력 허용');
             }, 1500); // 1.5초 대기 후 재개
           };
           
@@ -259,15 +259,15 @@ export default function EvaluationPage() {
           if (playPromise !== undefined) {
             playPromise
               .then(() => {
-                console.log('오디오 재생 시작됨');
+                logger.log('오디오 재생 시작됨');
               })
               .catch((err) => {
-                console.error('오디오 자동 재생 실패:', err);
-                console.error('에러 이름:', err.name);
-                console.error('에러 메시지:', err.message);
+                logger.error('오디오 자동 재생 실패:', err);
+                logger.error('에러 이름:', err.name);
+                logger.error('에러 메시지:', err.message);
                 
                 if (err.name === 'NotAllowedError') {
-                  console.warn('자동 재생이 브라우저에 의해 차단되었습니다.');
+                  logger.warn('자동 재생이 브라우저에 의해 차단되었습니다.');
                   // 사용자에게 클릭을 유도하는 알림 표시 (선택사항)
                   alert('음성 재생을 위해 화면을 한 번 클릭해주세요.');
                 }
@@ -276,7 +276,7 @@ export default function EvaluationPage() {
           
           audioRef.current = audio;
         } catch (err) {
-          console.error('오디오 재생 오류:', err);
+          logger.error('오디오 재생 오류:', err);
         }
       };
       
@@ -287,6 +287,7 @@ export default function EvaluationPage() {
   // 평가 결과 업데이트 감지
   useEffect(() => {
     if (evaluation && evaluation.evaluation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentEvaluation(evaluation);
     }
   }, [evaluation]);
@@ -307,27 +308,27 @@ export default function EvaluationPage() {
     setScreenMode('exam');
   }, []);
 
-  const handlePlayAudio = (audioBase64: string) => {
-    // 기존 오디오 정지
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
+  // const handlePlayAudio = (audioBase64: string) => {
+  //   // 기존 오디오 정지
+  //   if (audioRef.current) {
+  //     audioRef.current.pause();
+  //     audioRef.current.currentTime = 0;
+  //   }
     
-    try {
-      const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
-      audio.play()
-        .then(() => {
-          console.log('오디오 재생 시작됨');
-        })
-        .catch((err) => {
-          console.error('오디오 재생 실패:', err);
-        });
-      audioRef.current = audio;
-    } catch (err) {
-      console.error('오디오 재생 오류:', err);
-    }
-  };
+  //   try {
+  //     const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
+  //     audio.play()
+  //       .then(() => {
+  //         logger.log('오디오 재생 시작됨');
+  //       })
+  //       .catch((err) => {
+  //         logger.error('오디오 재생 실패:', err);
+  //       });
+  //     audioRef.current = audio;
+  //   } catch (err) {
+  //     logger.error('오디오 재생 오류:', err);
+  //   }
+  // };
 
   const renderControls = () => (
     <div className="mt-4 pt-4 border-t border-gray-200">
@@ -417,13 +418,13 @@ export default function EvaluationPage() {
                     //   isTalking={isAIPlaying} 
                     //   textToSpeak={currentAIText}
                     //   onSpeechStart={() => {
-                    //       console.log("Avatar started speaking");
+                    //       logger.log("Avatar started speaking");
                     //       setIsAIPlaying(true);
                     //       isAudioPlayingRef.current = true;
                     //       if (recognitionControlsRef.current) recognitionControlsRef.current.pause();
                     //   }}
                     //   onSpeechEnd={() => {
-                    //       console.log("Avatar finished speaking");
+                    //       logger.log("Avatar finished speaking");
                     //       setIsAIPlaying(false);
                     //       isAudioPlayingRef.current = false;
                           
@@ -487,4 +488,3 @@ export default function EvaluationPage() {
     </div>
   );
 }
-

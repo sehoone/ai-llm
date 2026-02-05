@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
+import { logger } from '@/lib/logger'
 
 const formSchema = z
   .object({
@@ -52,8 +53,7 @@ export function SignUpForm({
 
   function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
-    // eslint-disable-next-line no-console
-    console.log(data)
+    logger.debug(data)
 
     setTimeout(() => {
       setIsLoading(false)

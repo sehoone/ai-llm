@@ -1,7 +1,7 @@
 'use client';
 
 import EvaluationResult from '@/components/evaluation/EvaluationResult';
-import { ConversationMessage } from '@/types/conversation';
+import { type ConversationMessage } from '@/types/conversation';
 
 type EvaluationSectionProps = {
   isLoading: boolean;

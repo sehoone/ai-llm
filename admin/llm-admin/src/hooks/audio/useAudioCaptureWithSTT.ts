@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { logger } from '@/lib/logger';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 // 브라우저 내장 Web Speech API 타입 사용
@@ -52,7 +54,7 @@ export function useAudioCaptureWithSTT(
 
     recognition.onresult = (event: any) => {
       if (isPausedRef.current) {
-        console.log('[STT] 일시 중지 중 - 입력 무시됨');
+        logger.debug('[STT] 일시 중지 중 - 입력 무시됨');
         return;
       }
 
@@ -69,7 +71,7 @@ export function useAudioCaptureWithSTT(
       if (finalTranscript) {
         const text = finalTranscript.trim();
         if (text) {
-          console.log('[STT] 최종 결과:', text);
+          logger.debug('[STT] 최종 결과:', text);
           
           // 성공적인 인식이므로 상태를 먼저 업데이트하여 onend에서 비정상 종료로 처리되지 않도록 함
           isListeningRef.current = false;
@@ -79,21 +81,21 @@ export function useAudioCaptureWithSTT(
           if (recognition.abort) {
             try {
               recognition.abort();
-              console.log('[STT] abort 호출');
+              logger.debug('[STT] abort 호출');
             } catch (e) {
-              console.log('[STT] abort 중 오류:', e);
+              logger.debug('[STT] abort 중 오류:', e);
             }
           }
           
           // MediaRecorder의 최종 데이터 요청
           if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            console.log('[Audio] 최종 청크 요청');
+            logger.debug('[Audio] 최종 청크 요청');
             mediaRecorderRef.current.requestData?.();
             
             // 200ms 후 MediaRecorder 정지
             setTimeout(() => {
               if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-                console.log('[Audio] MediaRecorder 정지');
+                logger.debug('[Audio] MediaRecorder 정지');
                 mediaRecorderStartedRef.current = false;
                 mediaRecorderRef.current.stop();
               }
@@ -107,19 +109,19 @@ export function useAudioCaptureWithSTT(
     };
 
     recognition.addEventListener('start', () => {
-      console.log('[STT] onstart 호출됨');
+      logger.debug('[STT] onstart 호출됨');
       recognitionStartedRef.current = true;
     });
 
     recognition.onerror = (event: any) => {
       // aborted 에러는 정상적인 중지이므로 무시
       if (event.error === 'aborted') {
-        console.log('[STT] 중지됨 (정상)');
+        logger.debug('[STT] 중지됨 (정상)');
         return;
       }
 
       if (event.error === 'no-speech') {
-        console.log('[STT] no-speech 오류 - 무시됨');
+        logger.debug('[STT] no-speech 오류 - 무시됨');
         return;
       }
 
@@ -130,7 +132,7 @@ export function useAudioCaptureWithSTT(
           ? '마이크 권한이 거부되었습니다.'
           : `STT 오류: ${event.error}`;
       
-      console.error('[STT] 오류:', errorMessage);
+      logger.error('[STT] 오류:', errorMessage);
       setError(errorMessage);
       if (onError) {
         onError(errorMessage);
@@ -140,13 +142,13 @@ export function useAudioCaptureWithSTT(
     };
 
     recognition.onend = () => {
-      console.log('[STT] onend 호출됨, recognitionStarted:', recognitionStartedRef.current);
+      logger.debug('[STT] onend 호출됨, recognitionStarted:', recognitionStartedRef.current);
       // onend는 자동으로 호출되므로 상태만 업데이트
       recognitionStartedRef.current = false;
       
       // 의도치 않게 종료된 경우 (예: 침묵 시간 초과) 상태 동기화
       if (isListeningRef.current && !isPausedRef.current) {
-        console.log('[STT] 비정상 종료 감지 (Timeout 등) -> 상태 업데이트');
+        logger.debug('[STT] 비정상 종료 감지 (Timeout 등) -> 상태 업데이트');
         setIsListening(false);
         if (onStop) onStop();
       }
@@ -158,11 +160,13 @@ export function useAudioCaptureWithSTT(
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (e) {
           // ignore
         }
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onResult, onError]);
 
   // Convert audio blob to WAV format
@@ -230,10 +234,10 @@ export function useAudioCaptureWithSTT(
         offset += 2;
       }
 
-      console.log('[Audio] WAV 변환 완료:', dataLength, '바이트');
+      logger.debug('[Audio] WAV 변환 완료:', dataLength, '바이트');
       return new Blob([buffer], { type: 'audio/wav' });
     } catch (error) {
-      console.error('[Audio] WAV 변환 실패:', error);
+      logger.error('[Audio] WAV 변환 실패:', error);
       throw error;
     }
   }, []);
@@ -253,7 +257,7 @@ export function useAudioCaptureWithSTT(
   }, []);
 
   const startListening = useCallback(async () => {
-    console.log('[Audio] startListening 호출, isListeningRef:', isListeningRef.current);
+    logger.debug('[Audio] startListening 호출, isListeningRef:', isListeningRef.current);
     
     if (!recognitionRef.current || !isSupported) {
       const msg = '음성 인식을 사용할 수 없습니다.';
@@ -263,13 +267,13 @@ export function useAudioCaptureWithSTT(
     }
 
     if (isListeningRef.current) {
-      console.log('[Audio] 이미 리스닝 중이므로 무시');
+      logger.debug('[Audio] 이미 리스닝 중이므로 무시');
       return;
     }
 
     try {
       // Initialize MediaRecorder
-      console.log('[Audio] 마이크 접근 시작');
+      logger.debug('[Audio] 마이크 접근 시작');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
@@ -286,7 +290,7 @@ export function useAudioCaptureWithSTT(
       };
 
       mediaRecorder.onstop = async () => {
-        console.log('[Audio] onstop 호출됨, 총', audioChunksRef.current.length, '청크');
+        logger.debug('[Audio] onstop 호출됨, 총', audioChunksRef.current.length, '청크');
         mediaRecorderStartedRef.current = false;
         
         try {
@@ -294,44 +298,44 @@ export function useAudioCaptureWithSTT(
           stream.getTracks().forEach((track) => track.stop());
 
           if (audioChunksRef.current.length === 0) {
-            console.warn('[Audio] 청크가 없습니다');
+            logger.warn('[Audio] 청크가 없습니다');
             return;
           }
 
           // Create blob
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          console.log('[Audio] WebM Blob 크기:', audioBlob.size, '바이트');
+          logger.debug('[Audio] WebM Blob 크기:', audioBlob.size, '바이트');
 
           // 최소 1KB 이상이어야 변환 가능
           if (audioBlob.size < 1024) {
-            console.warn('[Audio] 오디오 너무 작음 (< 1KB):', audioBlob.size);
+            logger.warn('[Audio] 오디오 너무 작음 (< 1KB):', audioBlob.size);
             return;
           }
 
           // Convert to WAV
           const wavBlob = await blobToWav(audioBlob);
-          console.log('[Audio] WAV Blob 크기:', wavBlob.size, '바이트');
+          logger.debug('[Audio] WAV Blob 크기:', wavBlob.size, '바이트');
 
           // Convert to base64
           const base64 = await blobToBase64(wavBlob);
-          console.log('[Audio] Base64 길이:', base64.length, '문자');
+          logger.debug('[Audio] Base64 길이:', base64.length, '문자');
 
           // Send audio data via WebSocket (minimum 400 chars = ~300 bytes)
           if (base64.length > 400) {
-            console.log('[Audio] ✓ 오디오 데이터 전송 (충분한 크기)');
+            logger.debug('[Audio] ✓ 오디오 데이터 전송 (충분한 크기)');
             onAudioData(base64);
           } else {
-            console.warn('[Audio] ✗ 오디오 크기 부족:', base64.length, '<', 400);
+            logger.warn('[Audio] ✗ 오디오 크기 부족:', base64.length, '<', 400);
           }
 
           audioChunksRef.current = [];
         } catch (error) {
-          console.error('[Audio] onstop 처리 중 오류:', error);
+          logger.error('[Audio] onstop 처리 중 오류:', error);
         }
       };
 
       mediaRecorder.onerror = (event) => {
-        console.error('[Audio] MediaRecorder 오류:', event);
+        logger.error('[Audio] MediaRecorder 오류:', event);
         setError('녹음 중 오류가 발생했습니다.');
         mediaRecorderStartedRef.current = false;
       };
@@ -341,7 +345,7 @@ export function useAudioCaptureWithSTT(
       // Start recording with periodic data requests
       mediaRecorder.start();
       mediaRecorderStartedRef.current = true;
-      console.log('[Audio] MediaRecorder 시작');
+      logger.debug('[Audio] MediaRecorder 시작');
 
       // Request data every 100ms
       if (dataIntervalIdRef.current) {
@@ -361,9 +365,9 @@ export function useAudioCaptureWithSTT(
         try {
           recognitionStartedRef.current = true;
           recognitionRef.current.start();
-          console.log('[Audio] 음성 인식 시작');
+          logger.debug('[Audio] 음성 인식 시작');
         } catch (err) {
-          console.error('[Audio] 음성 인식 시작 오류:', err);
+          logger.error('[Audio] 음성 인식 시작 오류:', err);
           recognitionStartedRef.current = false;
         }
       }
@@ -372,7 +376,7 @@ export function useAudioCaptureWithSTT(
       setError(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '마이크 접근 권한이 필요합니다.';
-      console.error('[Audio] 시작 실패:', err);
+      logger.error('[Audio] 시작 실패:', err);
       setError(msg);
       if (onError) onError(msg);
       setIsListening(false);
@@ -380,7 +384,7 @@ export function useAudioCaptureWithSTT(
   }, [isSupported, blobToWav, blobToBase64, onAudioData, onError]);
 
   const stopListening = useCallback(() => {
-    console.log('[Audio] stopListening 호출됨');
+    logger.debug('[Audio] stopListening 호출됨');
     
     // 의도적인 중지이므로 ref를 먼저 업데이트하여 onend에서 비정상 종료로 감지되지 않도록 함
     isListeningRef.current = false;
@@ -389,7 +393,7 @@ export function useAudioCaptureWithSTT(
     if (dataIntervalIdRef.current) {
       clearInterval(dataIntervalIdRef.current);
       dataIntervalIdRef.current = null;
-      console.log('[Audio] 데이터 요청 인터벌 제거됨');
+      logger.debug('[Audio] 데이터 요청 인터벌 제거됨');
     }
 
     // Stop recognition
@@ -401,9 +405,9 @@ export function useAudioCaptureWithSTT(
         } else if (recognitionRef.current.abort) {
           recognitionRef.current.abort();
         }
-        console.log('[Audio] 음성 인식 정지');
+        logger.debug('[Audio] 음성 인식 정지');
       } catch (e) {
-        console.log('[Audio] 음성 인식 정지 중 오류:', e);
+        logger.debug('[Audio] 음성 인식 정지 중 오류:', e);
       }
     }
 
@@ -413,10 +417,10 @@ export function useAudioCaptureWithSTT(
         if (mediaRecorderRef.current.state === 'recording') {
           mediaRecorderRef.current.stop();
           mediaRecorderStartedRef.current = false;
-          console.log('[Audio] MediaRecorder 정지');
+          logger.debug('[Audio] MediaRecorder 정지');
         }
       } catch (e) {
-        console.log('[Audio] MediaRecorder 정지 중 오류:', e);
+        logger.debug('[Audio] MediaRecorder 정지 중 오류:', e);
         mediaRecorderStartedRef.current = false;
       }
     }
@@ -425,17 +429,17 @@ export function useAudioCaptureWithSTT(
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
-      console.log('[Audio] 스트림 트랙 정지');
+      logger.debug('[Audio] 스트림 트랙 정지');
     }
 
     isPausedRef.current = false;
     setIsListening(false);
     setIsPaused(false);
-    console.log('[Audio] 상태 초기화 완료');
+    logger.debug('[Audio] 상태 초기화 완료');
   }, []);
 
   const pauseListening = useCallback(() => {
-    console.log('[Audio] pauseListening 호출됨');
+    logger.debug('[Audio] pauseListening 호출됨');
     
     if (recognitionRef.current && isListeningRef.current && !isPausedRef.current) {
       isPausedRef.current = true;
@@ -444,28 +448,28 @@ export function useAudioCaptureWithSTT(
       try {
         recognitionRef.current.abort();
         recognitionStartedRef.current = false;
-        console.log('[Audio] 음성 인식 일시 중지 (abort)');
+        logger.debug('[Audio] 음성 인식 일시 중지 (abort)');
       } catch (err) {
-        console.error('[Audio] 음성 인식 일시 중지 실패:', err);
+        logger.error('[Audio] 음성 인식 일시 중지 실패:', err);
       }
     }
   }, []);
 
   const resumeListening = useCallback(() => {
-    console.log('[Audio] resumeListening 호출됨');
+    logger.debug('[Audio] resumeListening 호출됨');
     
     if (!recognitionRef.current) {
-      console.log('[Audio] 재개 불가: recognition 객체 없음');
+      logger.debug('[Audio] 재개 불가: recognition 객체 없음');
       return;
     }
 
     if (!isListeningRef.current) {
-      console.log('[Audio] 재개 불가: 음성 인식이 시작되지 않음');
+      logger.debug('[Audio] 재개 불가: 음성 인식이 시작되지 않음');
       return;
     }
 
     if (!isPausedRef.current) {
-      console.log('[Audio] 재개 불가: 이미 재개된 상태');
+      logger.debug('[Audio] 재개 불가: 이미 재개된 상태');
       return;
     }
 
@@ -476,10 +480,10 @@ export function useAudioCaptureWithSTT(
       if (recognitionRef.current.start && !recognitionStartedRef.current) {
         recognitionStartedRef.current = true;
         recognitionRef.current.start();
-        console.log('[Audio] 음성 인식 재개');
+        logger.debug('[Audio] 음성 인식 재개');
       }
     } catch (err) {
-      console.error('[Audio] 음성 인식 재개 실패:', err);
+      logger.error('[Audio] 음성 인식 재개 실패:', err);
       recognitionStartedRef.current = false;
     }
   }, []);

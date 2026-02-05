@@ -35,6 +35,7 @@ import {
   type NavLink,
   type NavGroup as NavGroupProps,
 } from './types'
+import { logger } from '@/lib/logger'
 
 export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()
@@ -78,6 +79,8 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         <Link
           href={item.url}
           onClick={(e) => {
+            logger.debug('[SidebarMenuLink] 클릭된 항목:', item.title, '활성 상태:', isActive);
+            if (isActive) e.preventDefault()
             if (isMobile) setOpenMobile(false)
           }}
         >

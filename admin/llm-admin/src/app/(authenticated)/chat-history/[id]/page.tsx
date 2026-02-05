@@ -1,14 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { chatService } from '@/api/chat'
-import { ChatHistoryResponse } from '@/types/chat-api'
+import { type ChatHistoryResponse } from '@/types/chat-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Calendar, User, MessageCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
+import { logger } from '@/lib/logger'
 
 export default function ChatHistoryDetailPage() {
   const params = useParams()
@@ -26,7 +28,7 @@ export default function ChatHistoryDetailPage() {
         const result = await chatService.getChatHistoryDetail(Number(id))
         setData(result)
       } catch (err: any) {
-        console.error(err)
+        logger.error(err)
         setError(err.message || 'Failed to load details')
       } finally {
         setLoading(false)

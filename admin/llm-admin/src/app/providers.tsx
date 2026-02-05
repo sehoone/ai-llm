@@ -12,14 +12,14 @@ import { NavigationProgress } from '@/components/navigation-progress'
 import { handleServerError } from '@/lib/handle-server-error'
 import { toast } from 'sonner'
 import { AxiosError } from 'axios'
+import { logger } from '@/lib/logger'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(() => new QueryClient({
     defaultOptions: {
       queries: {
         retry: (failureCount, error) => {
-          // eslint-disable-next-line no-console
-          if (process.env.NODE_ENV === 'development') console.log({ failureCount, error })
+          if (process.env.NODE_ENV === 'development') logger.debug({ failureCount, error })
           if (failureCount >= 0 && process.env.NODE_ENV === 'development') return false
           if (failureCount > 3 && process.env.NODE_ENV === 'production') return false
           return !(

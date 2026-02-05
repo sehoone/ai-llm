@@ -98,7 +98,7 @@ export function useTableUrlState(
         }
     })
     return obj
-  }, [searchParams.toString()])
+  }, [searchParams])
 
   const updateUrl = useCallback((updater: (prev: SearchRecord) => SearchRecord, replace = false) => {
       const newSearch = updater(search)

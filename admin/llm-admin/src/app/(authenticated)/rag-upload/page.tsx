@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState } from 'react'
-import { Upload, FileText, File as FileIcon, Loader2 } from 'lucide-react'
+import { Upload, FileText, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { ragApi, type DocumentUploadParams } from '@/api/rag'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { logger } from '@/lib/logger'
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes'
@@ -24,7 +25,6 @@ function formatBytes(bytes: number, decimals = 2) {
 }
 
 export default function RagUploadPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   
@@ -90,7 +90,7 @@ export default function RagUploadPage() {
       if (fileInput) fileInput.value = ''
 
     } catch (error: any) {
-      console.error(error)
+      logger.error(error)
       // Check for specific error message regarding PDF/Docx support
       if (error.response?.data?.detail?.includes('support is not fully configured')) {
           toast.error(error.response.data.detail)

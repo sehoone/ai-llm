@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface SpeechRecognitionResult {
@@ -74,6 +75,7 @@ export function useSpeechRecognition(
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSupported(false);
       setError('브라우저가 음성 인식을 지원하지 않습니다.');
       return;
@@ -88,7 +90,7 @@ export function useSpeechRecognition(
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       // 일시 중지 상태면 결과 무시
       if (isPausedRef.current) {
-        console.log('음성 인식 일시 중지 중 - 입력 무시됨');
+        logger.debug('음성 인식 일시 중지 중 - 입력 무시됨');
         return;
       }
 
@@ -112,7 +114,7 @@ export function useSpeechRecognition(
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      // console.error('음성 인식 오류:', event);
+      // logger.error('음성 인식 오류:', event);
       
       // no-speech 에러는 무시하고 계속 진행
       if (event.error === 'no-speech') {
@@ -138,10 +140,11 @@ export function useSpeechRecognition(
         try {
           recognition.start();
           // 자동 재시작은 정상 동작이므로 로그 제거 (필요시 주석 해제)
-          // console.log('음성 인식 자동 재시작');
+          // logger.debug('음성 인식 자동 재시작');
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (e) {
           // 재시작 중 오류는 무시 (이미 시작된 경우 등)
-          // console.log('음성 인식 재시작 중 오류 (무시됨):', e);
+          // logger.debug('음성 인식 재시작 중 오류 (무시됨):', e);
         }
       }
     };
@@ -164,7 +167,7 @@ export function useSpeechRecognition(
 
     // 이미 시작된 경우 무시
     if (isListeningRef.current && !isPausedRef.current) {
-      console.log('음성 인식이 이미 시작되어 있음');
+      logger.debug('음성 인식이 이미 시작되어 있음');
       return;
     }
 
@@ -175,15 +178,15 @@ export function useSpeechRecognition(
       recognitionRef.current.start();
       setIsListening(true);
       setError(null);
-      console.log('음성 인식 시작');
+      logger.debug('음성 인식 시작');
     } catch (err) {
       // 이미 시작된 경우의 에러는 무시
       if (err instanceof Error && err.message.includes('already started')) {
-        console.log('음성 인식이 이미 시작되어 있음 (상태 동기화)');
+        logger.debug('음성 인식이 이미 시작되어 있음 (상태 동기화)');
         setIsListening(true);
         setError(null);
       } else {
-        console.error('음성 인식 시작 실패:', err);
+        logger.error('음성 인식 시작 실패:', err);
         setError('음성 인식을 시작할 수 없습니다.');
       }
     }
@@ -199,7 +202,7 @@ export function useSpeechRecognition(
 
   const pauseListening = useCallback(() => {
     if (recognitionRef.current && isListeningRef.current && !isPausedRef.current) {
-      console.log('음성 인식 일시 중지 시작');
+      logger.debug('음성 인식 일시 중지 시작');
       // 먼저 플래그 설정하여 새로운 입력 차단
       isPausedRef.current = true;
       setIsPaused(true);
@@ -207,42 +210,42 @@ export function useSpeechRecognition(
       try {
         // abort()를 사용하여 즉시 중지
         recognitionRef.current.abort();
-        console.log('음성 인식 일시 중지 완료 (abort)');
+        logger.debug('음성 인식 일시 중지 완료 (abort)');
       } catch (err) {
-        console.error('음성 인식 일시 중지 실패:', err);
+        logger.error('음성 인식 일시 중지 실패:', err);
       }
     }
   }, []);
 
   const resumeListening = useCallback(() => {
     if (!recognitionRef.current) {
-      console.log('재개 불가: recognition 객체 없음');
+      logger.debug('재개 불가: recognition 객체 없음');
       return;
     }
 
     if (!isListeningRef.current) {
-      console.log('재개 불가: 음성 인식이 시작되지 않음');
+      logger.debug('재개 불가: 음성 인식이 시작되지 않음');
       return;
     }
 
     if (!isPausedRef.current) {
-      console.log('재개 불가: 이미 재개된 상태');
+      logger.debug('재개 불가: 이미 재개된 상태');
       return;
     }
 
-    console.log('음성 인식 재개 시작');
+    logger.debug('음성 인식 재개 시작');
     // 먼저 플래그 해제
     isPausedRef.current = false;
     setIsPaused(false);
     
     try {
       recognitionRef.current.start();
-      console.log('음성 인식 재개 완료');
+      logger.debug('음성 인식 재개 완료');
     } catch (err) {
-      console.error('음성 인식 재개 실패:', err);
+      logger.error('음성 인식 재개 실패:', err);
       // 이미 시작된 경우 무시
       if (err instanceof Error && err.message.includes('already started')) {
-        console.log('이미 시작됨 - 상태만 업데이트');
+        logger.debug('이미 시작됨 - 상태만 업데이트');
       }
     }
   }, []);

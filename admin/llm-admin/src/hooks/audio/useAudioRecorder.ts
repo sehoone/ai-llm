@@ -30,7 +30,7 @@ export function useAudioRecorder() {
 
       mediaRecorder.onerror = (event) => {
         setError('녹음 중 오류가 발생했습니다.');
-        console.error('MediaRecorder 오류:', event);
+        logger.error('MediaRecorder 오류:', event);
       };
 
       mediaRecorderRef.current = mediaRecorder;
@@ -39,7 +39,7 @@ export function useAudioRecorder() {
       setError(null);
     } catch (err) {
       setError('마이크 접근 권한이 필요합니다.');
-      console.error('녹음 시작 실패:', err);
+      logger.error('녹음 시작 실패:', err);
     }
   }, []);
 

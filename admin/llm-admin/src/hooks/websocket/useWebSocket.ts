@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { WebSocketClient } from '@/utils/websocket';
-import { ConversationResponse, ConversationMessage } from '@/types/conversation';
+import { type ConversationResponse, type ConversationMessage } from '@/types/conversation';
 import { setGlobalAssessmentData } from '@/components/debug/PronunciationDebugPanel';
+import { logger } from '@/lib/logger';
 
 export function useWebSocket(url?: string) {
   const [isConnected, setIsConnected] = useState(false);
@@ -29,7 +31,7 @@ export function useWebSocket(url?: string) {
       // 발음 평가 결과 처리
       if ((data as any).type === 'user_text' && (data as any).pronunciation) {
         const pronunciationData = (data as any).pronunciation;
-        console.log('[디버그] 발음 평가 데이터 수신:', pronunciationData);
+        logger.debug('[디버그] 발음 평가 데이터 수신:', pronunciationData);
         
         // 발음 평가 데이터를 전역 상태에 설정
         if (pronunciationData.accuracy_score !== undefined && 
@@ -44,7 +46,7 @@ export function useWebSocket(url?: string) {
             prosody_score: parseFloat(pronunciationData.prosody_score) || 0,
             word_details: pronunciationData.word_details || [],
           };
-          console.log('[디버그] 평가 데이터 파싱:', assessmentData);
+          logger.debug('[디버그] 평가 데이터 파싱:', assessmentData);
           setGlobalAssessmentData(assessmentData);
         }
       }
@@ -114,7 +116,7 @@ export function useWebSocket(url?: string) {
     client.connect().catch((err) => {
       // 초기 연결 실패는 조용히 처리 (재연결 시도 중)
       // 최대 재연결 시도 후에만 오류 표시
-      console.warn('초기 WebSocket 연결 실패 (재연결 시도 중):', err.message);
+      logger.warn('초기 WebSocket 연결 실패 (재연결 시도 중):', err.message);
     });
 
     return () => {

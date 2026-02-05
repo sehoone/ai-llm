@@ -1,5 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-refresh/only-export-components */
 'use client';
 
+import { logger } from '@/lib/logger';
 import { useRef, useEffect, useState, createContext, useContext } from 'react';
 
 interface PronunciationLog {
@@ -60,7 +63,7 @@ export default function PronunciationDebugPanel({ showDebugChat, onToggleDebugCh
   // Listen for global assessment data updates
   useEffect(() => {
     const callback = (data: AssessmentResult) => {
-      console.log('[PronunciationDebugPanel] 평가 데이터 업데이트:', data);
+      logger.debug('[PronunciationDebugPanel] 평가 데이터 업데이트:', data);
       setAssessmentResult(data);
       setLogs(prev => [...prev, {
         timestamp: new Date(),
@@ -73,7 +76,8 @@ export default function PronunciationDebugPanel({ showDebugChat, onToggleDebugCh
     
     // If data already exists, display it
     if (globalAssessmentData) {
-      console.log('[PronunciationDebugPanel] 기존 평가 데이터 발견:', globalAssessmentData);
+      logger.debug('[PronunciationDebugPanel] 기존 평가 데이터 발견:', globalAssessmentData);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAssessmentResult(globalAssessmentData);
     }
     
@@ -82,9 +86,9 @@ export default function PronunciationDebugPanel({ showDebugChat, onToggleDebugCh
     };
   }, []);
 
-  // Override console.log to capture logs
+  // Override logger.debug to capture logs
   useEffect(() => {
-    const originalLog = console.log;
+    const originalLog = logger.debug;
 
     const consoleLogHandler = (...args: any[]) => {
       originalLog(...args);
@@ -103,10 +107,10 @@ export default function PronunciationDebugPanel({ showDebugChat, onToggleDebugCh
       }
     };
 
-    console.log = consoleLogHandler;
+    logger.debug = consoleLogHandler;
 
     return () => {
-      console.log = originalLog;
+      logger.debug = originalLog;
     };
   }, []);
 
@@ -114,12 +118,6 @@ export default function PronunciationDebugPanel({ showDebugChat, onToggleDebugCh
     if (score >= 85) return 'text-green-600';
     if (score >= 70) return 'text-yellow-600';
     return 'text-red-600';
-  };
-
-  const getScoreBgColor = (score: number) => {
-    if (score >= 85) return 'bg-green-50';
-    if (score >= 70) return 'bg-yellow-50';
-    return 'bg-red-50';
   };
 
   return (

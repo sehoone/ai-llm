@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { logger } from '@/lib/logger'
 import api from './axios'
 import type {
   ChatHistoryResponse,
@@ -8,7 +10,7 @@ import type {
   Message,
 } from '@/types/chat-api'
 
-const AUTH_BASE = '/api/v1/auth'
+// const AUTH_BASE = '/api/v1/auth'
 const CHATBOT_BASE = '/api/v1/chatbot'
 
 export const chatService = {
@@ -126,7 +128,7 @@ export const chatService = {
                   onChunk(data.content, data.done)
                 }
               } catch (e) {
-                console.error('Error parsing stream chunk', e, 'chunk:', dataStr)
+                logger.error('Error parsing stream chunk', e, 'chunk:', dataStr)
               }
             }
           }
@@ -145,6 +147,7 @@ export const chatService = {
               onChunk(data.content, data.done)
             } catch (e) {
               // Ignore incomplete JSON at the very end
+              logger.error('Error parsing stream chunk at the end', e, 'chunk:', dataStr)
             }
           }
         }

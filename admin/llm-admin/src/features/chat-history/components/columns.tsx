@@ -1,7 +1,7 @@
 'use client'
 
-import { ColumnDef } from '@tanstack/react-table'
-import { ChatHistoryResponse } from '@/types/chat-api'
+import { type ColumnDef } from '@tanstack/react-table'
+import { type ChatHistoryResponse } from '@/types/chat-api'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'

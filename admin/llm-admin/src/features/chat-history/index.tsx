@@ -7,14 +7,15 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { chatService } from '@/api/chat'
-import { ChatHistoryResponse } from '@/types/chat-api'
+import { type ChatHistoryResponse } from '@/types/chat-api'
 import { columns } from './components/columns'
 import { DataTable } from './components/data-table'
 import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
 
 export function ChatHistory() {
   const [data, setData] = useState<ChatHistoryResponse[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
 
   useEffect(() => {
     loadData()
@@ -27,7 +28,7 @@ export function ChatHistory() {
       const history = await chatService.getAllChatHistory(100, 0)
       setData(history)
     } catch (error) {
-      console.error('Failed to load chat history', error)
+      logger.error('Failed to load chat history', error)
       toast.error('Failed to load chat history')
     } finally {
       setLoading(false)
