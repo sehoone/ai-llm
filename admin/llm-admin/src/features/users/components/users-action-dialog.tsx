@@ -3,7 +3,6 @@
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { showSubmittedData } from '@/lib/show-submitted-data'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,13 +25,11 @@ import { PasswordInput } from '@/components/password-input'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { roles } from '../data/data'
 import { type User } from '../data/schema'
+import { useUsers } from './users-provider'
 
 const formSchema = z
   .object({
-    firstName: z.string().min(1, 'First Name is required.'),
-    lastName: z.string().min(1, 'Last Name is required.'),
     username: z.string().min(1, 'Username is required.'),
-    phoneNumber: z.string().min(1, 'Phone number is required.'),
     email: z.email({
       error: (iss) => (iss.input === '' ? 'Email is required.' : undefined),
     }),
@@ -115,22 +112,39 @@ export function UsersActionDialog({
           isEdit,
         }
       : {
-          firstName: '',
-          lastName: '',
           username: '',
           email: '',
           role: '',
-          phoneNumber: '',
           password: '',
           confirmPassword: '',
           isEdit,
         },
   })
 
-  const onSubmit = (values: UserForm) => {
-    form.reset()
-    showSubmittedData(values)
-    onOpenChange(false)
+  const { addUser, updateUser } = useUsers()
+
+  const onSubmit = async (values: UserForm) => {
+    // form.reset() // Don't reset immediately?
+    
+    try {
+      if (isEdit) {
+        await updateUser({
+          ...currentRow,
+          ...values,
+          role: values.role as User['role'],
+        })
+      } else {
+        await addUser({
+          ...values,
+          role: values.role as User['role'],
+          status: 'active',
+        })
+      }
+      form.reset()
+      onOpenChange(false)
+    } catch (_e) {
+      // Handle error
+    }
   }
 
   const isPasswordTouched = !!form.formState.dirtyFields.password
@@ -157,47 +171,8 @@ export function UsersActionDialog({
               id='user-form'
               onSubmit={form.handleSubmit(onSubmit)}
               className='space-y-4 px-0.5'
+              autoComplete="off"
             >
-              <FormField
-                control={form.control}
-                name='firstName'
-                render={({ field }) => (
-                  <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>
-                      First Name
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='John'
-                        className='col-span-4'
-                        autoComplete='off'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='lastName'
-                render={({ field }) => (
-                  <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>
-                      Last Name
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='Doe'
-                        className='col-span-4'
-                        autoComplete='off'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name='username'
@@ -208,8 +183,9 @@ export function UsersActionDialog({
                     </FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='john_doe'
+                        placeholder='sehoon'
                         className='col-span-4'
+                        autoComplete="off"
                         {...field}
                       />
                     </FormControl>
@@ -225,27 +201,9 @@ export function UsersActionDialog({
                     <FormLabel className='col-span-2 text-end'>Email</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='john.doe@gmail.com'
+                        placeholder='sehoon@gmail.com'
                         className='col-span-4'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='phoneNumber'
-                render={({ field }) => (
-                  <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>
-                      Phone Number
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='+123456789'
-                        className='col-span-4'
+                        autoComplete="off"
                         {...field}
                       />
                     </FormControl>
@@ -283,8 +241,9 @@ export function UsersActionDialog({
                     </FormLabel>
                     <FormControl>
                       <PasswordInput
-                        placeholder='e.g., S3cur3P@ssw0rd'
+                        placeholder='e.g., qwer@ssw0rd'
                         className='col-span-4'
+                        autoComplete="new-password"
                         {...field}
                       />
                     </FormControl>
@@ -303,8 +262,9 @@ export function UsersActionDialog({
                     <FormControl>
                       <PasswordInput
                         disabled={!isPasswordTouched}
-                        placeholder='e.g., S3cur3P@ssw0rd'
+                        placeholder='e.g., qwer@ssw0rd'
                         className='col-span-4'
+                        autoComplete="new-password"
                         {...field}
                       />
                     </FormControl>

@@ -12,8 +12,11 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Create user table
 CREATE TABLE IF NOT EXISTS "user" (
     id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     hashed_password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    status TEXT NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

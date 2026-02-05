@@ -1,3 +1,5 @@
+'use client'
+
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -6,13 +8,16 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { UsersDialogs } from './components/users-dialogs'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
-import { UsersProvider } from './components/users-provider'
+import { UsersProvider, useUsers } from './components/users-provider'
 import { UsersTable } from './components/users-table'
-import { users } from './data/users'
 
-export function Users() {
+function UsersContent({ title, desc }: { title: string; desc: string }) {
+  const { users, isLoading } = useUsers()
+
+  if (isLoading) return <div>Loading...</div>
+
   return (
-    <UsersProvider>
+    <>
       <Header fixed>
         <Search />
         <div className='ms-auto flex items-center space-x-4'>
@@ -25,9 +30,9 @@ export function Users() {
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
         <div className='flex flex-wrap items-end justify-between gap-2'>
           <div>
-            <h2 className='text-2xl font-bold tracking-tight'>User List</h2>
+            <h2 className='text-2xl font-bold tracking-tight'>{title}</h2>
             <p className='text-muted-foreground'>
-              Manage your users and their roles here.
+              {desc}
             </p>
           </div>
           <UsersPrimaryButtons />
@@ -36,6 +41,15 @@ export function Users() {
       </Main>
 
       <UsersDialogs />
+    </>
+  )
+}
+
+export function Users() {
+
+  return (
+    <UsersProvider>
+      <UsersContent title='User List' desc='Manage users.' />
     </UsersProvider>
   )
 }

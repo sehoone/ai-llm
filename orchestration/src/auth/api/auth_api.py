@@ -127,7 +127,15 @@ async def register_user(request: Request, user_data: UserCreate):
             raise HTTPException(status_code=400, detail="Email already registered")
 
         # Create user
-        user = await db_service.create_user(email=sanitized_email, password=User.hash_password(password))
+        username = user_data.username
+        if not username:
+             username = sanitized_email.split("@")[0]
+
+        user = await db_service.create_user(
+            email=sanitized_email,
+            password=User.hash_password(password),
+            username=username,
+        )
 
         # Create access token
         token = create_access_token(str(user.id))

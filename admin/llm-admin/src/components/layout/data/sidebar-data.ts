@@ -7,6 +7,7 @@ import {
   FileText,
   // AudioWaveform,
   Command,
+  Users,
   // GalleryVerticalEnd,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -96,11 +97,11 @@ export const sidebarData: SidebarData = {
         // },
 
 
-        // {
-        //   title: 'Users',
-        //   url: '/users',
-        //   icon: Users,
-        // },
+        {
+          title: 'User Management',
+          url: '/users',
+          icon: Users,
+        }
         // {
         //   title: 'Secured by Clerk',
         //   icon: ClerkLogo,

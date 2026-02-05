@@ -26,6 +26,7 @@ from src.chatbot.models.session_model import Session as ChatSession
 from src.user.models.user_model import User
 from src.rag.models.rag_embedding_model import RAGEmbedding
 from src.chatbot.models.message_model import ChatMessage
+from src.user.models.user_model import UserRole
 
 
 class DatabaseService:
@@ -76,18 +77,26 @@ class DatabaseService:
 
 
 
-    async def create_user(self, email: str, password: str) -> User:
+    async def create_user(self, email: str, password: str, username: str, role: str = "user", status: str = "active") -> User:
         """Create a new user.
 
         Args:
             email: User's email address
             password: Hashed password
-
+            username: User's username
+            role: User's role
+            status: User's status
         Returns:
             User: The created user
         """
         with Session(self.engine) as session:
-            user = User(email=email, hashed_password=password)
+            user = User(
+                email=email, 
+                hashed_password=password, 
+                username=username, 
+                role=role, 
+                status=status
+            )
             session.add(user)
             session.commit()
             session.refresh(user)
@@ -120,6 +129,63 @@ class DatabaseService:
             statement = select(User).where(User.email == email)
             user = session.exec(statement).first()
             return user
+
+    async def get_all_users(self, skip: int = 0, limit: int = 100) -> List[User]:
+        """Get all users.
+
+        Args:
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+
+        Returns:
+            List[User]: List of users
+        """
+        with Session(self.engine) as session:
+            statement = select(User).offset(skip).limit(limit)
+            users = session.exec(statement).all()
+            return users
+
+    async def update_user(self, user_id: int, user_update: dict) -> Optional[User]:
+        """Update a user.
+
+        Args:
+            user_id: The ID of the user to update
+            user_update: Dictionary of fields to update
+
+        Returns:
+            Optional[User]: The updated user if found, None otherwise
+        """
+        with Session(self.engine) as session:
+            user = session.get(User, user_id)
+            if not user:
+                return None
+            
+            for key, value in user_update.items():
+                if value is not None:
+                    setattr(user, key, value)
+            
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            return user
+
+    async def delete_user(self, user_id: int) -> bool:
+        """Delete a user.
+
+        Args:
+            user_id: The ID of the user to delete
+
+        Returns:
+            bool: True if deleted, False if not found
+        """
+        with Session(self.engine) as session:
+            user = session.get(User, user_id)
+            if not user:
+                return False
+            
+            session.delete(user)
+            session.commit()
+            return True
 
     async def delete_user_by_email(self, email: str) -> bool:
         """Delete a user by email.
