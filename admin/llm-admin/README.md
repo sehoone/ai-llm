@@ -93,3 +93,23 @@ src/
 
 ## 참고소스
 - https://github.com/satnaing/shadcn-admin (해당 프로젝트를 base로 프레임워크를 next.js로 변경해서 사용)
+
+## Docker 배포
+
+### 필수 조건
+- 프로젝트 루트에 환경 변수 파일(`.env.production` 등)이 있어야 합니다. (예: `.env.example` 복사 후 수정)
+
+### 기본 배포 (Production)
+기본적으로 `.env.production` 파일을 사용하여 빌드합니다.
+
+```bash
+docker-compose up -d --build
+```
+
+### 특정 환경 설정 파일로 배포
+다른 환경 설정 파일(예: `.env.staging`)을 사용하여 배포하려면 `docker-compose.yml`을 수정하거나 아래와 같이 빌드 인자를 전달하세요.
+
+```bash
+docker-compose build --build-arg ENV_FILE=.env.production
+docker-compose up -d
+```

@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # 빌드 시 사용할 환경 변수 파일 지정 (기본값: .env.production)
+        ENV_FILE: .env.production
     container_name: llm-admin
     restart: always
     ports:

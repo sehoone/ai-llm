@@ -15,6 +15,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# 빌드 시 사용할 환경 변수 파일을 .env.production으로 복사
+ARG ENV_FILE=.env
+COPY ${ENV_FILE} .env.production
+
 RUN corepack enable pnpm && pnpm run build
 
 # Production image, copy all the files and run next
