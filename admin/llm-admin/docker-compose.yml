@@ -1,0 +1,14 @@
+services:
+  llm-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llm-admin
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    # 환경 변수 파일이 있다면 아래 주석을 해제하고 사용하세요
+    # env_file:
+    #   - .env
