@@ -7,14 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Check, ChevronsUpDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { ragApi, type NaturalLanguageSearchResponse, type RAGSearchResult } from '@/api/rag'
+import { ragApi, type RAGSearchResult } from '@/api/rag'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
 import { DEFAULT_LLM_MODEL, LLM_MODELS, type LlmModel } from '@/config/models'
 
 export default function NaturalSearchPage() {
@@ -26,7 +20,6 @@ export default function NaturalSearchPage() {
   
   const [ragKey, setRagKey] = useState('')
   const [availableKeys, setAvailableKeys] = useState<string[]>([])
-  // const [openCombobox, setOpenCombobox] = useState(false)
 
   const [ragGroup, setRagGroup] = useState('')
   const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('natural_search')
@@ -37,25 +30,11 @@ export default function NaturalSearchPage() {
     // Fetch unique rag keys for the user (only for user_isolated for now or based on type)
     const fetchKeys = async () => {
         try {
-            // This is a bit inefficient as it fetches all docs, but works for limited data
-            // Ideal: dedicated endpoint for keys
             const docs = await ragApi.getDocuments(undefined, ragType)
-            // Extract keys from result. Assuming API returns documents list
-            // Note: The structure of document response might need check if it has rag_key field visible
-            // The current DocumentResponse has: id, filename, user_id, size, created_at.
-            // It does NOT have rag_key exposed.
-            // I should update DocumentResponse in rag.ts if I want to source keys from it, 
-            // or just rely on manual input + maybe a hint if possible.
-            // Since backend DocumentResponse doesn't include rag_key, I cannot populate this list easily without backend change.
-            // For now, I will skip populating the dropdown dynamically to avoid backend refactoring 
-            // and just keep the text input, or assuming the user knows the keys.
-            // Wait, I can update the backend schema easily if needed.
-            // Let's assume for now user inputs text, as making backend changes for `getDocuments` wasn't part of plan yet.
         } catch (e) {
             console.error(e)
         }
     }
-    // fetchKeys()
   }, [ragType])
 
   const handleSearch = async (e: React.FormEvent) => {
