@@ -60,10 +60,10 @@ export const sidebarData: SidebarData = {
           ]
         },
         {
-          title: 'RAG',
+          title: 'DataSource',
           items: [
             {
-              title: 'Documents',
+              title: 'RAG Documents',
               url: '/rag-documents',
               icon: FileText,
             },

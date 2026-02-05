@@ -26,29 +26,29 @@ const pinoLogger = pino({
 
 // 기존 Logger 인터페이스 호환을 위한 래퍼
 class Logger {
-  debug(...args: unknown[]) {
+  debug = (...args: unknown[]) => {
     pinoLogger.debug(this.formatArgs(args));
-  }
+  };
 
-  log(...args: unknown[]) {
+  log = (...args: unknown[]) => {
     // pino에는 'log' 레벨이 없으므로 'info'로 매핑하거나 'debug'로 매핑
     pinoLogger.info(this.formatArgs(args));
-  }
+  };
 
-  info(...args: unknown[]) {
+  info = (...args: unknown[]) => {
     pinoLogger.info(this.formatArgs(args));
-  }
+  };
 
-  warn(...args: unknown[]) {
+  warn = (...args: unknown[]) => {
     pinoLogger.warn(this.formatArgs(args));
-  }
+  };
 
-  error(...args: unknown[]) {
+  error = (...args: unknown[]) => {
     pinoLogger.error(this.formatArgs(args));
-  }
+  };
 
   // 여러 인자를 하나의 객체나 메시지로 변환
-  private formatArgs(args: unknown[]) {
+  private formatArgs = (args: unknown[]) => {
     if (args.length === 0) return undefined;
     if (args.length === 1) {
       return args[0];
