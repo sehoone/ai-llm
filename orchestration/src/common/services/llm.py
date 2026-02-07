@@ -9,7 +9,9 @@ from typing import (
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
+from src.common.services.database import database_service
+from src.llm_resources.models.llm_resource_model import LLMResource
 from openai import (
     APIError,
     APITimeoutError,
@@ -264,17 +266,47 @@ class LLMService:
             )
             raise
 
+    def _create_llm_from_resource(self, resource: LLMResource, **kwargs) -> BaseChatModel:
+        """Create an LLM client from a resource configuration."""
+        
+        # Base configuration
+        config = {
+            "api_key": resource.api_key,
+            "max_tokens": settings.MAX_TOKENS,
+            "temperature": settings.DEFAULT_LLM_TEMPERATURE,
+        }
+        
+        # Override with any provided kwargs
+        config.update(kwargs)
+
+        if resource.provider == "azure":
+            return AzureChatOpenAI(
+                azure_deployment=resource.deployment_name,
+                api_version=resource.api_version,
+                azure_endpoint=resource.api_base,
+                **config
+            )
+        else:
+            # Default to OpenAI-compatible
+            return ChatOpenAI(
+                model=resource.deployment_name or resource.name,
+                base_url=resource.api_base,
+                **config
+            )
+
     async def call(
         self,
         messages: List[BaseMessage],
         model_name: Optional[str] = None,
         **model_kwargs,
     ) -> BaseMessage:
-        """Call the LLM with the specified messages and circular fallback.
+        """Call the LLM with the specified messages and fallback logic.
+
+        Prioritizes DB-configured resources. Fallbacks to registry if no DB resources found.
 
         Args:
             messages: List of messages to send to the LLM
-            model_name: Optional specific model to use. If None, uses current model.
+            model_name: Optional specific model to use. If None, uses first available DB resource.
             **model_kwargs: Optional kwargs to override default model configuration
 
         Returns:
@@ -283,6 +315,70 @@ class LLMService:
         Raises:
             RuntimeError: If all models fail after retries
         """
+        # 1. Try to fetch resources from DB
+        db_resources = []
+        try:
+            # Note: This might block if database_service uses sync session.
+            all_resources = await database_service.get_llm_resources()
+            db_resources = [r for r in all_resources if r.is_active]
+        except Exception as e:
+            logger.error("failed_to_fetch_llm_resources", error=str(e))
+            db_resources = []
+
+        # 2. If DB resources exist, use them
+        if db_resources:
+            candidates = db_resources
+            
+            # If specific model requested, prioritize it
+            if model_name:
+                matching = [r for r in db_resources if r.name == model_name]
+                if matching:
+                    # Found requested model(s). Try them first.
+                    # We append others after handling matching
+                    others = [r for r in db_resources if r.name != model_name]
+                    candidates = matching + others
+                else:
+                    logger.warning("requested_model_not_in_db", model_name=model_name)
+                    # If model not in DB, continue with other DB resources (fallback behavior)
+            
+            last_error = None
+            models_tried = 0
+            
+            for resource in candidates:
+                try:
+                    logger.info("using_db_resource", resource_name=resource.name, provider=resource.provider)
+                    self._llm = self._create_llm_from_resource(resource, **model_kwargs)
+                    
+                    response = await self._call_llm_with_retry(messages)
+                    return response
+                except OpenAIError as e:
+                    last_error = e
+                    models_tried += 1
+                    logger.warning(
+                        "db_resource_failed", 
+                        resource=resource.name, 
+                        error=str(e),
+                        tried=models_tried
+                    )
+                    continue
+                except Exception as e:
+                    last_error = e
+                    models_tried += 1
+                    logger.error(
+                        "db_resource_error",
+                        resource=resource.name,
+                        error=str(e)
+                    )
+                    continue
+
+            # If we are here, all DB resources failed
+            logger.warning(
+                "all_db_resources_failed_falling_back_to_env", 
+                tried=models_tried, 
+                error=str(last_error)
+            )
+
+        # 3. Fallback to Registry Logic (Original Code)
         # If user specifies a model, get it from registry
         if model_name:
             try:
@@ -297,6 +393,12 @@ class LLMService:
             except ValueError as e:
                 logger.error("requested_model_not_found", model_name=model_name, error=str(e))
                 raise
+        else:
+            # If no model name provided, ensure we are using the current registry model
+            # This is necessary because self._llm might be pointing to a DB resource (failed or stale)
+            current_entry = LLMRegistry.get_model_at_index(self._current_model_index)
+            self._llm = current_entry["llm"]
+            logger.info("using_registry_fallback", model=current_entry["name"])
 
         # Track which models we've tried to prevent infinite loops
         total_models = len(LLMRegistry.LLMS)
