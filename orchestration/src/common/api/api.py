@@ -12,6 +12,7 @@ from src.chatbot.api.session_api import router as session_router
 from src.rag.api.rag_api import router as rag_router
 from src.voice_evaluation.api.voice_evaluation_api import router as voice_evaluation_router
 from src.user.api.user_api import router as user_router
+from src.llm_resources.api.llm_resource_api import router as llm_resource_router
 from src.common.logging import logger
 
 api_router = APIRouter()
@@ -23,6 +24,7 @@ api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(session_router, prefix="/chatbot", tags=["chatbot-session"])
 api_router.include_router(rag_router, prefix="/rag", tags=["rag"])
 api_router.include_router(voice_evaluation_router, prefix="/voice-evaluation", tags=["voice-evaluation"])
+api_router.include_router(llm_resource_router, prefix="/llm-resources", tags=["llm-resources"])
 
 
 @api_router.get("/health")

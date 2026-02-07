@@ -3,6 +3,7 @@ import {
   ListTodo,
   MessagesSquare,
   Search,
+  Settings,
   Upload,
   FileText,
   // AudioWaveform,
@@ -225,5 +226,15 @@ export const sidebarData: SidebarData = {
     //     },
     //   ],
     // },
+    {
+      title: 'Configuration',
+      items: [
+        {
+          title: 'LLM Resources',
+          url: '/llm-resources',
+          icon: Settings,
+        },
+      ],
+    },
   ],
 }

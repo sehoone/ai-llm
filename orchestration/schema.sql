@@ -87,3 +87,20 @@ CREATE TABLE chat_message (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message(session_id);
+
+-- Create llm_resource table
+CREATE TABLE IF NOT EXISTS llm_resource (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    api_base TEXT NOT NULL,
+    api_key TEXT NOT NULL,
+    deployment_name TEXT,
+    api_version TEXT,
+    region TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_resource_name ON llm_resource(name);

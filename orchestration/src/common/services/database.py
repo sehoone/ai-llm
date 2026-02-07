@@ -27,6 +27,8 @@ from src.user.models.user_model import User
 from src.rag.models.rag_embedding_model import RAGEmbedding
 from src.chatbot.models.message_model import ChatMessage
 from src.user.models.user_model import UserRole
+from src.llm_resources.models.llm_resource_model import LLMResource
+from src.llm_resources.schemas.llm_resource_schemas import LLMResourceCreate, LLMResourceUpdate
 
 
 class DatabaseService:
@@ -448,6 +450,45 @@ class DatabaseService:
         except Exception as e:
             logger.error("database_health_check_failed", error=str(e))
             return False
+
+    async def get_llm_resources(self) -> List[LLMResource]:
+        with Session(self.engine) as session:
+            statement = select(LLMResource).order_by(LLMResource.priority.desc())
+            results = session.exec(statement)
+            return results.all()
+
+    async def get_llm_resource(self, id: int) -> Optional[LLMResource]:
+        with Session(self.engine) as session:
+            return session.get(LLMResource, id)
+
+    async def create_llm_resource(self, resource: LLMResourceCreate) -> LLMResource:
+        with Session(self.engine) as session:
+            db_resource = LLMResource.model_validate(resource)
+            session.add(db_resource)
+            session.commit()
+            session.refresh(db_resource)
+            return db_resource
+            
+    async def update_llm_resource(self, id: int, resource: LLMResourceUpdate) -> Optional[LLMResource]:
+        with Session(self.engine) as session:
+            db_resource = session.get(LLMResource, id)
+            if not db_resource:
+                return None
+            resource_data = resource.model_dump(exclude_unset=True)
+            db_resource.sqlmodel_update(resource_data)
+            session.add(db_resource)
+            session.commit()
+            session.refresh(db_resource)
+            return db_resource
+            
+    async def delete_llm_resource(self, id: int) -> bool:
+        with Session(self.engine) as session:
+            resource = session.get(LLMResource, id)
+            if not resource:
+                return False
+            session.delete(resource)
+            session.commit()
+            return True
 
 
 # Create a singleton instance
