@@ -19,12 +19,17 @@ from src.auth.schemas.auth_schema import Token
 from src.common.services.sanitization import sanitize_string
 
 
-def create_access_token(thread_id: str, expires_delta: Optional[timedelta] = None) -> Token:
-    """Create a new access token for a thread.
+def create_access_token(
+    thread_id: str, 
+    expires_delta: Optional[timedelta] = None, 
+    claims: Optional[dict] = None
+) -> Token:
+    """Create a new access token for a thread or user.
 
     Args:
-        thread_id: The unique thread ID for the conversation.
+        thread_id: The unique thread ID (or user ID) for the subject.
         expires_delta: Optional expiration time delta.
+        claims: Optional additional claims to include in the token.
 
     Returns:
         Token: The generated access token.
@@ -35,11 +40,14 @@ def create_access_token(thread_id: str, expires_delta: Optional[timedelta] = Non
         expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode = {
-        "sub": thread_id,
+        "sub": str(thread_id),
         "exp": expire,
         "iat": datetime.now(UTC),
         "jti": sanitize_string(f"{thread_id}-{datetime.now(UTC).timestamp()}"),  # Add unique token identifier
     }
+    
+    if claims:
+        to_encode.update(claims)
 
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
@@ -48,14 +56,14 @@ def create_access_token(thread_id: str, expires_delta: Optional[timedelta] = Non
     return Token(access_token=encoded_jwt, expires_at=expire)
 
 
-def verify_token(token: str) -> Optional[str]:
-    """Verify a JWT token and return the thread ID.
+def verify_token(token: str) -> Optional[dict]:
+    """Verify a JWT token and return the payload.
 
     Args:
         token: The JWT token to verify.
 
     Returns:
-        Optional[str]: The thread ID if token is valid, None otherwise.
+        Optional[dict]: The token payload if valid, None otherwise.
 
     Raises:
         ValueError: If the token format is invalid
@@ -78,7 +86,7 @@ def verify_token(token: str) -> Optional[str]:
             return None
 
         logger.info("token_verified", thread_id=thread_id)
-        return thread_id
+        return payload
 
     except JWTError as e:
         logger.error("token_verification_failed", error=str(e))

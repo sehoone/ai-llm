@@ -104,3 +104,14 @@ CREATE TABLE IF NOT EXISTS llm_resource (
 );
 
 CREATE INDEX IF NOT EXISTS idx_llm_resource_name ON llm_resource(name);
+
+-- Create api_key table
+CREATE TABLE IF NOT EXISTS api_key (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    key TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL DEFAULT 'API Key',
+    expires_at TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

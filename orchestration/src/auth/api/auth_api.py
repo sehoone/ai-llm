@@ -17,7 +17,9 @@ from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBearer,
 )
+from sqlmodel import Session
 
+from src.auth.services.api_key_service import api_key_service
 from src.common.config import settings
 from src.common.limiter import limiter
 from src.common.logging import (
@@ -50,11 +52,13 @@ db_service = DatabaseService()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
+    session: Session = Depends(db_service.get_db_session),
 ) -> User:
-    """Get the current user ID from the token.
+    """Get the current user ID from the token or API key.
 
     Args:
-        credentials: The HTTP authorization credentials containing the JWT token.
+        credentials: The HTTP authorization credentials containing the JWT token or API key.
+        session: Database session.
 
     Returns:
         User: The user extracted from the token.
@@ -66,15 +70,46 @@ async def get_current_user(
         # Sanitize token
         token = sanitize_string(credentials.credentials)
 
-        user_id = verify_token(token)
-        if user_id is None:
-            logger.error("invalid_token", token_part=token[:10] + "...")
+        # Check for API Key (Database backed)
+        # We need to check the DB if it is a "tracked" key or if it starts with sk- (legacy/UUID)
+        # But now we use JWT for everything.
+        # How to know if we should check the DB revocation list?
+        # 1. If it has a specific claim "type": "api_key"
+        # 2. Or we just decode it.
+        
+        payload = verify_token(token)
+        if payload is None:
+             # It might be a raw opaque token (sk-...)
+            if token.startswith("sk-"):
+                 # Legacy opaque token support
+                api_key = api_key_service.get_api_key_by_token(session, token)
+                if not api_key:
+                    raise HTTPException(status_code=401, detail="Invalid API Key")
+                user = await db_service.get_user(api_key.user_id)
+                if user:
+                    bind_context(user_id=user.id)
+                    return user
+            
+            # Invalid JWT and not an opaque token
+            logger.error("invalid_token_payload", token_part=token[:10] + "...")
             raise HTTPException(
                 status_code=401,
                 detail="Invalid authentication credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-
+            
+        user_id = payload.get("sub")
+        token_type = payload.get("type")
+        
+        # If it is an API Key JWT, we MUST check if it is still active in the DB
+        if token_type == "api_key":
+            # The "key" stored in DB matches the JWT string
+            api_key = api_key_service.get_api_key_by_token(session, token)
+            if not api_key:
+                 # Revoked or deleted
+                 logger.warning("api_key_revoked_or_not_found", user_id=user_id)
+                 raise HTTPException(status_code=401, detail="API Key is invalid or revoked")
+                 
         # Verify user exists in database
         user_id_int = int(user_id)
         user = await db_service.get_user(user_id_int)

@@ -7,6 +7,7 @@ endpoints like authentication and chatbot functionality.
 from fastapi import APIRouter
 
 from src.auth.api.auth_api import router as auth_router
+from src.auth.api.api_key_api import router as api_key_router
 from src.chatbot.api.chatbot_api import router as chatbot_router
 from src.chatbot.api.session_api import router as session_router
 from src.rag.api.rag_api import router as rag_router
@@ -19,6 +20,7 @@ api_router = APIRouter()
 
 # Include routers
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
+api_router.include_router(api_key_router, prefix="/api-keys", tags=["api-keys"])
 api_router.include_router(user_router, prefix="/users", tags=["users"])
 api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(session_router, prefix="/chatbot", tags=["chatbot-session"])

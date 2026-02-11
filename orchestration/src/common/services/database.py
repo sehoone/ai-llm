@@ -77,7 +77,10 @@ class DatabaseService:
             if settings.ENVIRONMENT != Environment.PRODUCTION:
                 raise
 
-
+    def get_db_session(self):
+        """Get a database session generator for dependencies."""
+        with Session(self.engine) as session:
+            yield session
 
     async def create_user(self, email: str, password: str, username: str, role: str = "user", status: str = "active") -> User:
         """Create a new user.

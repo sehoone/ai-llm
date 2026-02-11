@@ -9,6 +9,7 @@ import {
   // AudioWaveform,
   Command,
   Users,
+  Key,
   // GalleryVerticalEnd,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -233,6 +234,11 @@ export const sidebarData: SidebarData = {
           title: 'LLM Resources',
           url: '/llm-resources',
           icon: Settings,
+        },
+        {
+          title: 'Auth Keys',
+          url: '/api-keys',
+          icon: Key,
         },
       ],
     },
