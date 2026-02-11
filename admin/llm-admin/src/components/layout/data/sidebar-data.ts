@@ -4,7 +4,6 @@ import {
   MessagesSquare,
   Search,
   Settings,
-  Upload,
   FileText,
   // AudioWaveform,
   Command,
@@ -69,11 +68,6 @@ export const sidebarData: SidebarData = {
               title: 'RAG Documents',
               url: '/rag-documents',
               icon: FileText,
-            },
-            {
-              title: 'RAG Upload',
-              url: '/rag-upload',
-              icon: Upload,
             },
             {
               title: 'Natural Language Search',

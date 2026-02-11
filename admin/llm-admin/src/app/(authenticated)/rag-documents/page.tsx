@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   TableBody,
@@ -27,11 +27,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, Trash2, FileText, Calendar, Eye } from 'lucide-react'
+import {
+  Loader2,
+  Trash2,
+  FileText,
+  Calendar,
+  Eye,
+  Upload,
+} from 'lucide-react'
 import { ragApi, type DocumentResponse, type DocumentDetailResponse } from '@/api/rag'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { logger } from '@/lib/logger'
+import { UploadForm } from '@/features/rag-upload/components/upload-form'
 
 export default function RagDocumentsPage() {
   const [documents, setDocuments] = useState<DocumentResponse[]>([])
@@ -42,6 +50,9 @@ export default function RagDocumentsPage() {
   const [viewDoc, setViewDoc] = useState<DocumentDetailResponse | null>(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+
+  // Upload Dialog State
+  const [isUploadOpen, setIsUploadOpen] = useState(false)
 
   // Filters
   const [ragKey, setRagKey] = useState('')
@@ -98,6 +109,11 @@ export default function RagDocumentsPage() {
     }
   }
 
+  const handleUploadSuccess = () => {
+    setIsUploadOpen(false)
+    fetchDocuments() // Refresh list
+  }
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
     const k = 1024
@@ -115,9 +131,15 @@ export default function RagDocumentsPage() {
             Manage your uploaded documents and knowledge base.
           </p>
         </div>
-        <Button onClick={fetchDocuments} variant="outline" size="sm">
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+            <Button onClick={() => setIsUploadOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Document
+            </Button>
+            <Button onClick={fetchDocuments} variant="outline" size="sm">
+            Refresh
+            </Button>
+        </div>
       </div>
 
       <Card>
@@ -225,6 +247,7 @@ export default function RagDocumentsPage() {
         </CardContent>
       </Card>
 
+      {/* View Dialog */}
       <Dialog open={isOpen} onOpenChange={(open) => {
         setIsOpen(open)
         if (!open) setViewDoc(null)
@@ -252,6 +275,19 @@ export default function RagDocumentsPage() {
                 </ScrollArea>
              )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Dialog */}
+      <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>
+              Upload a new document to your RAG knowledge base.
+            </DialogDescription>
+          </DialogHeader>
+          <UploadForm onSuccess={handleUploadSuccess} />
         </DialogContent>
       </Dialog>
     </div>

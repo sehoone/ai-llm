@@ -33,7 +33,7 @@ export function UploadConfiguration({
 }: UploadConfigurationProps) {
   return (
     <div className='grid gap-4 md:grid-cols-2'>
-      <div className='space-y-2'>
+      <div className='space-y-2 md:col-span-2'>
         <Label htmlFor='rag_type'>RAG Type</Label>
         <Select
           value={ragType}
@@ -80,7 +80,7 @@ export function UploadConfiguration({
         />
       </div>
 
-      <div className='space-y-2'>
+      <div className='space-y-2 md:col-span-2'>
         <Label htmlFor='tags'>Tags</Label>
         <Input
           id='tags'
