@@ -23,7 +23,6 @@ src/
 │   ├── (auth)/          # Authentication routes
 │   ├── (authenticated)/ # Protected dashboard routes
 │   ├── (errors)/        # Error pages
-│   └── clerk/           # Clerk authentication pages
 ├── assets/              # Static assets (icons, images)
 ├── components/          # Shared UI components
 │   ├── ui/              # Shadcn UI primitives
