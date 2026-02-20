@@ -2,7 +2,7 @@ install:
 	pip install uv
 	uv sync
 
-DOCKER_COMPOSE ?= docker-compose
+DOCKER_COMPOSE ?= docker compose
 
 set-env:
 	@if [ -z "$(ENV)" ]; then \

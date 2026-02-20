@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useRef, useCallback } from 'react';
 
 export function useAudioRecorder() {

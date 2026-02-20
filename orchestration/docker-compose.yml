@@ -27,9 +27,9 @@ services:
       args:
         APP_ENV: ${APP_ENV:-development}
     ports:
-      - "8000:8000"
+      - "8061:8000"
     volumes:
-      - ./app:/app/app
+      - ./src:/app/app
       - ./logs:/app/logs
     env_file:
       - .env.${APP_ENV:-development}
@@ -40,7 +40,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8061/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -53,7 +53,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "8063:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
@@ -66,7 +66,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "8064:3000"
     volumes:
       - grafana-storage:/var/lib/grafana
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
@@ -81,7 +81,7 @@ services:
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     ports:
-      - "8080:8080"
+      - "8065:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
