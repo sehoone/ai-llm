@@ -29,7 +29,7 @@ services:
     ports:
       - "8061:8000"
     volumes:
-      - ./app:/app/app
+      - ./src:/app/app
       - ./logs:/app/logs
     env_file:
       - .env.${APP_ENV:-development}
