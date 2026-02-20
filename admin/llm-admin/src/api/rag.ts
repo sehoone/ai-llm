@@ -155,4 +155,13 @@ export const ragApi = {
         throw error;
     }
   },
+
+  // getDocuments: async (rag_key?: string, rag_type?: string) => {
+  //   const params = new URLSearchParams()
+  //   if (rag_key) params.append('rag_key', rag_key)
+  //   if (rag_type) params.append('rag_type', rag_type)
+    
+  //   const response = await api.get<DocumentResponse[]>(`/rag/documents?${params.toString()}`)
+  //   return response.data
+  // },
 }

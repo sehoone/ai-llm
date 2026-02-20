@@ -234,7 +234,10 @@ class LangGraphAgent:
             else settings.DEFAULT_LLM_MODEL
         )
 
-        SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
+        if state.system_instructions:
+            SYSTEM_PROMPT = f"{state.system_instructions}\n\nMemory:\n{state.long_term_memory}" if state.long_term_memory else state.system_instructions
+        else:
+            SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
 
         # Prepare messages with system prompt (returns list of dicts ready for LLM)
         messages = prepare_messages(state.messages, current_llm, SYSTEM_PROMPT)
@@ -455,6 +458,8 @@ Review the analysis and plan provided in the previous turn.
         session_id: str,
         user_id: Optional[str] = None,
         is_deep_thinking: bool = False,
+        system_instructions: Optional[str] = None,
+        rag_key: Optional[str] = None,
     ) -> list[dict]:
         """Get a response from the LLM.
 
@@ -463,6 +468,8 @@ Review the analysis and plan provided in the previous turn.
             session_id (str): The session ID for Langfuse tracking.
             user_id (Optional[str]): The user ID for Langfuse tracking.
             is_deep_thinking (bool): Whether to enable deep thinking mode.
+            system_instructions (Optional[str]): Custom instructions for the GPT.
+            rag_key (Optional[str]): RAG key for the GPT knowledge base.
 
         Returns:
             list[dict]: The response from the LLM.
@@ -479,15 +486,19 @@ Review the analysis and plan provided in the previous turn.
                 "debug": settings.DEBUG,
             },
         }
+        
         relevant_memory = (
             await self._get_relevant_memory(user_id, messages[-1].content)
         ) or "No relevant memory found."
+
         try:
             response = await self._graph.ainvoke(
                 input={
                     "messages": dump_messages(messages),
                     "long_term_memory": relevant_memory,
                     "is_deep_thinking": is_deep_thinking,
+                    "system_instructions": system_instructions,
+                    "rag_key": rag_key,
                 },
                 config=config,
             )
@@ -507,7 +518,9 @@ Review the analysis and plan provided in the previous turn.
         messages: list[Message], 
         session_id: str, 
         user_id: Optional[str] = None,
-        is_deep_thinking: bool = False
+        is_deep_thinking: bool = False,
+        system_instructions: Optional[str] = None,
+        rag_key: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Get a stream response from the LLM.
 
@@ -516,6 +529,8 @@ Review the analysis and plan provided in the previous turn.
             session_id (str): The session ID for the conversation.
             user_id (Optional[str]): The user ID for the conversation.
             is_deep_thinking (bool): Whether to enable deep thinking mode.
+            system_instructions (Optional[str]): Custom instructions for the GPT.
+            rag_key (Optional[str]): RAG key for the GPT knowledge base.
 
         Yields:
             str: Tokens of the LLM response.
@@ -542,11 +557,13 @@ Review the analysis and plan provided in the previous turn.
             verify_tag_sent = False
             answer_tag_sent = False
 
-            async for token, metadata in self._graph.astream(
+            async for msg, metadata in self._graph.astream(
                 {
                     "messages": dump_messages(messages), 
                     "long_term_memory": relevant_memory,
                     "is_deep_thinking": is_deep_thinking,
+                    "system_instructions": system_instructions,
+                    "rag_key": rag_key,
                 },
                 config,
                 stream_mode="messages",
@@ -565,7 +582,7 @@ Review the analysis and plan provided in the previous turn.
                             yield "[Deep Thinking - Answer]\n"
                             answer_tag_sent = True
                     
-                    yield token.content
+                    yield msg.content
                 except Exception as token_error:
                     logger.error("Error processing token", error=str(token_error), session_id=session_id)
                     # Continue with next token even if current one fails

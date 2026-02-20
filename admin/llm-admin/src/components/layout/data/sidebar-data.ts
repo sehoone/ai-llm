@@ -1,4 +1,5 @@
 import {
+  Bot,
   LayoutDashboard,
   ListTodo,
   MessagesSquare,
@@ -52,6 +53,11 @@ export const sidebarData: SidebarData = {
               title: 'Chats',
               url: '/chats',
               icon: MessagesSquare,
+            },
+            {
+              title: 'My GPTs',
+              url: '/gpts',
+              icon: Bot,
             },
 
             {

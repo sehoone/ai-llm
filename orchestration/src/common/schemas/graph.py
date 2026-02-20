@@ -17,3 +17,5 @@ class GraphState(BaseModel):
     )
     long_term_memory: str = Field(default="", description="The long term memory of the conversation")
     is_deep_thinking: bool = Field(default=False, description="Whether deep thinking mode is enabled")
+    system_instructions: str | None = Field(default=None, description="Custom instructions for the GPT")
+    rag_key: str | None = Field(default=None, description="RAG key for the GPT knowledge base")

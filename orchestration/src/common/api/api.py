@@ -10,6 +10,7 @@ from src.auth.api.auth_api import router as auth_router
 from src.auth.api.api_key_api import router as api_key_router
 from src.chatbot.api.chatbot_api import router as chatbot_router
 from src.chatbot.api.session_api import router as session_router
+from src.chatbot.api.custom_gpts import router as custom_gpts_router
 from src.rag.api.rag_api import router as rag_router
 from src.voice_evaluation.api.voice_evaluation_api import router as voice_evaluation_router
 from src.user.api.user_api import router as user_router
@@ -23,6 +24,7 @@ api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(api_key_router, prefix="/api-keys", tags=["api-keys"])
 api_router.include_router(user_router, prefix="/users", tags=["users"])
 api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
+api_router.include_router(custom_gpts_router, prefix="/gpts", tags=["custom-gpts"])
 api_router.include_router(session_router, prefix="/chatbot", tags=["chatbot-session"])
 api_router.include_router(rag_router, prefix="/rag", tags=["rag"])
 api_router.include_router(voice_evaluation_router, prefix="/voice-evaluation", tags=["voice-evaluation"])

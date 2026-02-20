@@ -28,6 +28,19 @@ CREATE TABLE IF NOT EXISTS session (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create gpt_session table
+CREATE TABLE IF NOT EXISTS gpt_session (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    custom_gpt_id TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (custom_gpt_id) REFERENCES custom_gpt(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gpt_session_user_id ON gpt_session(user_id);
+CREATE INDEX IF NOT EXISTS idx_gpt_session_custom_gpt_id ON gpt_session(custom_gpt_id);
+
 -- Create thread table
 CREATE TABLE IF NOT EXISTS thread (
     id TEXT PRIMARY KEY,
@@ -88,6 +101,16 @@ CREATE TABLE chat_message (
 
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message(session_id);
 
+CREATE TABLE gpt_chat_message (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_gpt_chat_message_session_id ON gpt_chat_message(session_id);
+
 -- Create llm_resource table
 CREATE TABLE IF NOT EXISTS llm_resource (
     id SERIAL PRIMARY KEY,
@@ -115,3 +138,20 @@ CREATE TABLE IF NOT EXISTS api_key (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create custom_gpt table
+CREATE TABLE IF NOT EXISTS custom_gpt (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    instructions TEXT NOT NULL,
+    rag_key TEXT NOT NULL,
+    is_public BOOLEAN NOT NULL DEFAULT FALSE,
+    model TEXT NOT NULL DEFAULT 'gpt-4-turbo',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_custom_gpt_user_id ON custom_gpt(user_id);
+CREATE INDEX IF NOT EXISTS idx_custom_gpt_rag_key ON custom_gpt(rag_key);
+

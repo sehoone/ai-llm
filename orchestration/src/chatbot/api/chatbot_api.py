@@ -46,7 +46,6 @@ from src.chatbot.schemas.session_schema import ChatTitleUpdate
 router = APIRouter()
 agent = LangGraphAgent()
 
-
 @router.post("/chat", response_model=ChatResponse, summary="채팅 요청", description="LangGraph를 사용하여 채팅 요청을 처리합니다.")
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat"][0])
 async def chat(
@@ -82,10 +81,10 @@ async def chat(
         )
 
         result = await agent.get_response(
-            chat_request.messages, 
-            session.id, 
+            chat_request.messages,
+            session.id,
             user_id=session.user_id,
-            is_deep_thinking=chat_request.is_deep_thinking
+            is_deep_thinking=chat_request.is_deep_thinking,
         )
 
         # Save interaction (user question + assistant answer)
@@ -260,10 +259,10 @@ async def chat_stream(
                 full_response = ""
                 with llm_stream_duration_seconds.labels(model=agent.llm_service.get_llm().get_name()).time():
                     async for chunk in agent.get_stream_response(
-                        chat_request.messages, 
-                        session.id, 
+                        chat_request.messages,
+                        session.id,
                         user_id=session.user_id,
-                        is_deep_thinking=chat_request.is_deep_thinking
+                        is_deep_thinking=chat_request.is_deep_thinking,
                     ):
                         full_response += chunk
                         response = StreamResponse(content=chunk, done=False)
