@@ -65,6 +65,6 @@ docker build --no-cache \
     --build-arg LANGFUSE_PUBLIC_KEY="$LANGFUSE_PUBLIC_KEY" \
     --build-arg LANGFUSE_SECRET_KEY="$LANGFUSE_SECRET_KEY" \
     --build-arg JWT_SECRET_KEY="$JWT_SECRET_KEY" \
-    -t fastapi-langgraph-template:"$ENV" .
+    -t orchestration-template:"$ENV" .
 
-echo "Docker image fastapi-langgraph-template:$ENV built successfully"
+echo "Docker image orchestration-template:$ENV built successfully"
