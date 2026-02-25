@@ -1,16 +1,18 @@
 # LLM Orchestration
 
-A production-ready FastAPI template for building AI agent applications with LangGraph integration. This template provides a robust foundation for building scalable, secure, and maintainable AI agent services.
+A production-ready LLM orchestration service built with FastAPI + LangGraph + Langfuse. Features a multi-bot RAG system with isolated knowledge bases, long-term memory, voice evaluation, and comprehensive observability.
+
+**Stack:** Python 3.13+, FastAPI, LangGraph, PostgreSQL + pgvector, OpenAI, Langfuse, mem0ai
 
 ## Features
 
 - **Production-Ready Architecture**
 
-  - FastAPI for high-performance async API endpoints with uvloop optimization
-  - LangGraph integration for AI agent workflows with state persistence
-  - Langfuse for LLM observability and monitoring
-  - Structured logging with environment-specific formatting and request context
-  - Rate limiting with configurable rules per endpoint
+  - FastAPI for high-performance async API endpoints
+  - LangGraph integration for AI agent workflows with PostgreSQL state persistence
+  - Langfuse for LLM observability and tracing (optional)
+  - Structured logging with environment-specific formatting and request context (structlog)
+  - Rate limiting with configurable rules per endpoint (slowapi)
   - PostgreSQL with pgvector for data persistence and vector storage
   - Docker and Docker Compose support
   - Prometheus metrics and Grafana dashboards for monitoring
@@ -18,14 +20,31 @@ A production-ready FastAPI template for building AI agent applications with Lang
 - **AI & LLM Features**
 
   - Long-term memory with mem0ai and pgvector for semantic memory storage
-  - LLM Service with automatic retry logic using tenacity
-  - Multiple LLM model support (GPT-4o, GPT-4o-mini, GPT-5, GPT-5-mini, GPT-5-nano)
+  - LLM Service with automatic retry logic using tenacity (3 attempts, exponential backoff)
+  - Multiple LLM model support with fallback chain: `gpt-5-mini → gpt-5 → gpt-4o → gpt-4o-mini`
   - Streaming responses for real-time chat interactions
-  - Tool calling and function execution capabilities
+  - Tool calling with DuckDuckGo search integration
+  - Custom GPTs — user-created bots with custom system prompts and model selection
+
+- **Multi-Bot RAG System**
+
+  - Isolated knowledge bases per chatbot via `rag_key`
+  - Document upload with automatic chunking (500 chars, 100 overlap) and embedding
+  - Vector storage using pgvector (1536-dim OpenAI `text-embedding-3-small`)
+  - Semantic similarity search with cosine distance
+  - `user_isolated` and `chatbot_shared` RAG types
+  - Batch embedding processing with rate limit protection
+
+- **Voice Evaluation**
+
+  - Azure Speech STT/TTS integration
+  - Language proficiency evaluation via OpenAI Whisper
+  - Audio processing and scoring pipeline
 
 - **Security**
 
-  - JWT-based authentication
+  - JWT-based authentication (10 min access token, 7 day refresh token)
+  - API key management for service-to-service auth
   - Session management
   - Input sanitization
   - CORS configuration
@@ -33,34 +52,17 @@ A production-ready FastAPI template for building AI agent applications with Lang
 
 - **Developer Experience**
 
-  - Environment-specific configuration with automatic .env file loading
-  - Comprehensive logging system with context binding
-  - Clear project structure following best practices
+  - Environment-specific configuration with automatic `.env` file loading
   - Type hints throughout for better IDE support
   - Easy local development setup with Makefile commands
-  - Automatic retry logic with exponential backoff for resilience
-
-- **Model Evaluation Framework**
-  - Automated metric-based evaluation of model outputs
-  - Integration with Langfuse for trace analysis
-  - Detailed JSON reports with success/failure metrics
-  - Interactive command-line interface
-  - Customizable evaluation metrics
-
-- **Multi-Bot RAG System**
-  - Separate RAG knowledge bases for different chatbots
-  - Document upload with automatic chunking and embedding
-  - Vector storage using pgvector (1536-dimensional OpenAI embeddings)
-  - Semantic similarity search with configurable limits
-  - RAG key-based isolation for bot-specific knowledge
-  - Batch embedding processing with rate limit protection
+  - Model evaluation framework with Langfuse trace analysis
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python 3.13+
-- PostgreSQL ([see Database setup](#database-setup))
+- PostgreSQL with pgvector extension ([see Database setup](#database-setup))
 - Docker and Docker Compose (optional)
 
 ### Environment Setup
@@ -69,10 +71,10 @@ A production-ready FastAPI template for building AI agent applications with Lang
 
 ```bash
 git clone <repository-url>
-cd <project-directory>
+cd orchestration
 ```
 
-2. Create and activate a virtual environment:
+2. Install dependencies:
 
 ```bash
 uv sync
@@ -81,41 +83,36 @@ uv sync
 3. Copy the example environment file:
 
 ```bash
-cp .env.example .env.[development|staging|production] # e.g. .env.development
+cp .env.example .env.development
 ```
 
-4. Update the `.env` file with your configuration (see `.env.example` for reference)
+4. Update the `.env.development` file with your configuration.
 
-### Database setup
+### Database Setup
 
-1. Create a PostgreSQL database (e.g Supabase or local PostgreSQL)
+1. Create a PostgreSQL database with the pgvector extension enabled.
 2. Update the database connection settings in your `.env` file:
 
 ```bash
-POSTGRES_HOST=db
+POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_DB=cool_db
+POSTGRES_DB=mydb
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
+POSTGRES_SCHEMA=llmonl
 ```
 
-- You don't have to create the tables manually, the ORM will handle that for you.But if you faced any issues,please run the `schemas.sql` file to create the tables manually.
+Tables are auto-created by the SQLModel ORM at startup. If you encounter issues, run `schema.sql` manually.
 
 ### Running the Application
 
 #### Local Development
 
-1. Install dependencies:
-
-```bash
-uv sync
-```
-
-2. Run the application:
-
 **On Linux/macOS:**
 ```bash
-make [dev|staging|prod] # e.g. make dev
+make dev        # Development server with hot reload (port 8000)
+make staging    # Staging server
+make prod       # Production server
 ```
 
 **On Windows (PowerShell):**
@@ -130,137 +127,190 @@ $env:APP_ENV='staging'; uv run uvicorn src.main:app --reload --port 8000
 $env:APP_ENV='production'; uv run uvicorn src.main:app --port 8000
 ```
 
-3. Go to Swagger UI:
-
-```bash
-http://localhost:8000/docs
-```
+Go to Swagger UI: `http://localhost:8000/docs`
 
 #### Using Docker
 
-1. Build and run with Docker Compose:
-
 **On Linux/macOS:**
 ```bash
-make docker-build-env ENV=[development|staging|production] # e.g. make docker-build-env ENV=development
-make docker-run-env ENV=[development|staging|production] # e.g. make docker-run-env ENV=development
+# Build and start full stack (API, DB, Prometheus, Grafana, cAdvisor)
+make docker-compose-up ENV=development
+
+# Stop stack
+make docker-compose-down ENV=development
+
+# View logs
+make docker-compose-logs ENV=development
+
+# Build only
+make docker-build-env ENV=development
+
+# Run specific services (DB + API only)
+make docker-run-env ENV=development
 ```
 
 **On Windows (PowerShell):**
 ```powershell
-# Build Docker image
-docker build -t fastapi-langgraph-template .
-
 # Run with Docker Compose
-docker-compose --env-file .env.development up -d --build db app
+docker compose --env-file .env.development up -d
 ```
 
-2. Access the monitoring stack:
+The Docker stack exposes:
 
-```bash
-# Prometheus metrics
-http://localhost:9090
+| Service    | Port | Description              |
+| ---------- | ---- | ------------------------ |
+| API        | 8061 | FastAPI application      |
+| PostgreSQL | 5432 | Database (configurable)  |
+| Prometheus | 8063 | Metrics collection       |
+| Grafana    | 8064 | Metrics visualization    |
+| cAdvisor   | 8065 | Container resource usage |
 
-# Grafana dashboards
-http://localhost:3000
-Default credentials:
-- Username: admin
-- Password: admin
-```
+Grafana default credentials: `admin` / `admin`
 
-The Docker setup includes:
-
-- FastAPI application
-- PostgreSQL database
-- Prometheus for metrics collection
-- Grafana for metrics visualization
-- Pre-configured dashboards for:
-  - API performance metrics
-  - Rate limiting statistics
-  - Database performance
-  - System resource usage
-
-## Model Evaluation
-
-The project includes a robust evaluation framework for measuring and tracking model performance over time. The evaluator automatically fetches traces from Langfuse, applies evaluation metrics, and generates detailed reports.
-
-### Running Evaluations
-
-You can run evaluations with different options using the provided Makefile commands:
-
-**On Linux/macOS:**
-```bash
-# Interactive mode with step-by-step prompts
-make eval [ENV=development|staging|production]
-
-# Quick mode with default settings (no prompts)
-make eval-quick [ENV=development|staging|production]
-
-# Evaluation without report generation
-make eval-no-report [ENV=development|staging|production]
-```
-
-**On Windows (PowerShell):**
-```powershell
-# Interactive mode
-$env:APP_ENV='development'; python -m evals.main --interactive
-
-# Quick mode
-$env:APP_ENV='development'; python -m evals.main --quick
-
-# Without report generation
-$env:APP_ENV='development'; python -m evals.main --no-report
-```
-
-### Evaluation Features
-
-- **Interactive CLI**: User-friendly interface with colored output and progress bars
-- **Flexible Configuration**: Set default values or customize at runtime
-- **Detailed Reports**: JSON reports with comprehensive metrics including:
-  - Overall success rate
-  - Metric-specific performance
-  - Duration and timing information
-  - Trace-level success/failure details
-
-### Customizing Metrics
-
-Evaluation metrics are defined in `evals/metrics/prompts/` as markdown files:
-
-1. Create a new markdown file (e.g., `my_metric.md`) in the prompts directory
-2. Define the evaluation criteria and scoring logic
-3. The evaluator will automatically discover and apply your new metric
-
-### Viewing Reports
-
-Reports are automatically generated in the `evals/reports/` directory with timestamps in the filename:
+## Architecture
 
 ```
-evals/reports/evaluation_report_YYYYMMDD_HHMMSS.json
+src/
+├── main.py                         # FastAPI app entry point (middleware, lifespan, health)
+├── common/                         # Shared infrastructure
+│   ├── config.py                   # Environment config (auto-loads .env.{APP_ENV})
+│   ├── logging.py                  # structlog setup with context binding
+│   ├── metrics.py                  # Prometheus metrics
+│   ├── middleware.py               # Logging, metrics middleware
+│   ├── limiter.py                  # Rate limiting (slowapi)
+│   ├── api/api.py                  # API router registration
+│   ├── services/
+│   │   ├── database.py             # SQLModel ORM + connection pooling
+│   │   ├── llm.py                  # LLMRegistry + LLMService with retry/fallback
+│   │   ├── graph.py                # Message processing (dump/prepare/process)
+│   │   └── sanitization.py        # Input sanitization
+│   ├── schemas/graph.py            # GraphState definition (LangGraph state type)
+│   ├── prompts/                    # System prompt templates
+│   └── langgraph/
+│       ├── graph.py                # LangGraphAgent — main orchestration class
+│       └── tools/                  # Tool registry (duckduckgo_search)
+├── auth/                           # JWT auth + API key management
+│   ├── api/auth_api.py
+│   └── api/api_key_api.py
+├── chatbot/                        # Chat endpoints, sessions, threads, custom GPTs
+│   ├── api/chatbot_api.py
+│   ├── api/session_api.py
+│   └── api/custom_gpts.py
+├── rag/                            # Multi-bot RAG system
+│   └── api/rag_api.py
+├── user/                           # User management
+│   └── api/user_api.py
+├── llm_resources/                  # Per-user LLM model configuration
+│   └── api/llm_resource_api.py
+└── voice_evaluation/               # Azure Speech STT/TTS + proficiency evaluation
+    └── api/voice_evaluation_api.py
 ```
 
-Each report includes:
+**Layer pattern per module:** `api/` (routers) → `services/` (business logic) → `models/` (SQLModel DB models) → `schemas/` (Pydantic)
 
-- High-level statistics (total trace count, success rate, etc.)
-- Per-metric performance metrics
-- Detailed trace-level information for debugging
+**Adding an endpoint:** Create in `src/{module}/api/`, register in `src/common/api/api.py`.
+
+## API Reference
+
+Base URL: `http://localhost:8000/api/v1`
+
+### Authentication
+
+| Method | Endpoint               | Description                   |
+| ------ | ---------------------- | ----------------------------- |
+| POST   | `/auth/register`       | Register a new user           |
+| POST   | `/auth/login`          | Authenticate, receive JWT     |
+| POST   | `/auth/logout`         | Logout and invalidate session |
+| POST   | `/auth/refresh`        | Refresh access token          |
+
+### API Keys
+
+| Method | Endpoint          | Description           |
+| ------ | ----------------- | --------------------- |
+| POST   | `/api-keys`       | Create API key        |
+| GET    | `/api-keys`       | List API keys         |
+| DELETE | `/api-keys/{id}`  | Revoke API key        |
+
+### Users
+
+| Method | Endpoint       | Description          |
+| ------ | -------------- | -------------------- |
+| GET    | `/users/me`    | Get current user     |
+| PUT    | `/users/me`    | Update current user  |
+
+### Chat
+
+| Method | Endpoint                   | Description                    |
+| ------ | -------------------------- | ------------------------------ |
+| POST   | `/chatbot/chat`            | Send message, receive response |
+| POST   | `/chatbot/chat/stream`     | Send message, streaming SSE    |
+| GET    | `/chatbot/sessions`        | List chat sessions             |
+| GET    | `/chatbot/sessions/{id}`   | Get session messages           |
+| DELETE | `/chatbot/sessions/{id}`   | Delete session                 |
+
+### Custom GPTs
+
+| Method | Endpoint       | Description             |
+| ------ | -------------- | ----------------------- |
+| POST   | `/gpts`        | Create custom GPT       |
+| GET    | `/gpts`        | List custom GPTs        |
+| GET    | `/gpts/{id}`   | Get custom GPT details  |
+| PUT    | `/gpts/{id}`   | Update custom GPT       |
+| DELETE | `/gpts/{id}`   | Delete custom GPT       |
+| POST   | `/gpts/{id}/chat`        | Chat with custom GPT    |
+| POST   | `/gpts/{id}/chat/stream` | Stream chat with custom GPT |
+
+### RAG
+
+| Method | Endpoint                      | Description                    |
+| ------ | ----------------------------- | ------------------------------ |
+| POST   | `/rag/upload`                 | Upload document (file + rag_key) |
+| GET    | `/rag/documents`              | List documents (filter by rag_key) |
+| DELETE | `/rag/documents/{id}`         | Delete document                |
+| POST   | `/rag/search`                 | Semantic similarity search     |
+
+### Voice Evaluation
+
+| Method | Endpoint                        | Description               |
+| ------ | ------------------------------- | ------------------------- |
+| POST   | `/voice-evaluation/evaluate`    | Evaluate voice recording  |
+| POST   | `/voice-evaluation/tts`         | Text-to-speech synthesis  |
+
+### LLM Resources
+
+| Method | Endpoint            | Description                  |
+| ------ | ------------------- | ---------------------------- |
+| GET    | `/llm-resources`    | Get per-user LLM config      |
+| PUT    | `/llm-resources`    | Update per-user LLM config   |
+
+### Health & Monitoring
+
+| Method | Endpoint    | Description                          |
+| ------ | ----------- | ------------------------------------ |
+| GET    | `/health`   | Health check with DB status          |
+| GET    | `/metrics`  | Prometheus metrics endpoint          |
+
+For full interactive API documentation: `/docs` (Swagger UI) or `/redoc` (ReDoc).
 
 ## Configuration
 
-The application uses a flexible configuration system with environment-specific settings:
+### Environment Files
 
-- `.env.development` - Local development settings
-- `.env.staging` - Staging environment settings
-- `.env.production` - Production environment settings
+Priority order (highest to lowest):
+1. `.env.{APP_ENV}.local`
+2. `.env.{APP_ENV}`
+3. `.env.local`
+4. `.env`
 
-### Environment Variables
+Valid environments: `development`, `staging`, `production`, `test`
 
-Key configuration variables include:
+### Key Environment Variables
 
 ```bash
 # Application
 APP_ENV=development
-PROJECT_NAME="FastAPI LangGraph Agent"
-DEBUG=true
+PROJECT_NAME="LLM Orchestration"
+DEBUG=false
 
 # Database
 POSTGRES_HOST=localhost
@@ -268,333 +318,166 @@ POSTGRES_PORT=5432
 POSTGRES_DB=mydb
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
+POSTGRES_SCHEMA=llmonl
 
-# LLM Configuration
+# OpenAI
 OPENAI_API_KEY=your_openai_api_key
-DEFAULT_LLM_MODEL=gpt-4o
-DEFAULT_LLM_TEMPERATURE=0.7
-MAX_TOKENS=4096
+DEFAULT_LLM_MODEL=gpt-5-mini
+DEFAULT_LLM_TEMPERATURE=0.2
+MAX_TOKENS=2000
 
-# Long-Term Memory
-LONG_TERM_MEMORY_COLLECTION_NAME=agent_memories
+# Long-Term Memory (mem0ai)
+LONG_TERM_MEMORY_COLLECTION_NAME=longterm_memory
 LONG_TERM_MEMORY_MODEL=gpt-4o-mini
 LONG_TERM_MEMORY_EMBEDDER_MODEL=text-embedding-3-small
 
-# Observability
+# Voice / Audio
+AZURE_SPEECH_KEY=your_azure_key
+AZURE_SPEECH_REGION=eastus
+OPENAI_TTS_MODEL=tts-1
+OPENAI_STT_MODEL=whisper-1
+
+# Observability (optional)
+LANGFUSE_ENABLED=true
 LANGFUSE_PUBLIC_KEY=your_public_key
 LANGFUSE_SECRET_KEY=your_secret_key
 LANGFUSE_HOST=https://cloud.langfuse.com
 
 # Security
-SECRET_KEY=your_secret_key_here
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_SECRET_KEY=your_secret_key_here
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10
+JWT_REFRESH_TOKEN_EXPIRE_MINUTES=10080
 
 # Rate Limiting
-RATE_LIMIT_ENABLED=true
+RATE_LIMIT_DEFAULT="200 per day,50 per hour"
 ```
 
-## Long-Term Memory
+## Key Components
 
-The application includes a sophisticated long-term memory system powered by mem0ai and pgvector:
+### LangGraph Agent
 
-### Features
+Stateful two-node workflow: `_chat` → `_tool_call` (if tool calls detected) → back to `_chat` → `END`.
 
-- **Semantic Memory Storage**: Stores and retrieves memories based on semantic similarity
-- **User-Specific Memories**: Each user has their own isolated memory space
-- **Automatic Memory Management**: Memories are automatically extracted, stored, and retrieved
-- **Vector Search**: Uses pgvector for efficient similarity search
-- **Configurable Models**: Separate models for memory processing and embeddings
+- State persisted as PostgreSQL checkpoints per `thread_id`
+- Long-term memory injected into system prompt via mem0ai semantic search
+- After each turn, conversation is summarized and stored back to mem0
+- Entry points: `get_response()` (blocking) and `stream_response()` (SSE)
 
-### How It Works
+### LLM Service
 
-1. **Memory Addition**: During conversations, important information is automatically extracted and stored
-2. **Memory Retrieval**: Relevant memories are retrieved based on conversation context
-3. **Memory Search**: Semantic search finds related memories across conversations
-4. **Memory Updates**: Existing memories can be updated as new information becomes available
+`LLMRegistry` maintains instances of all models. `LLMService` wraps calls with:
+- tenacity retry (3 attempts, exponential backoff: 1s → 2s → 4s)
+- Circular fallback across the registry
 
-## LLM Service
-
-The LLM service provides robust, production-ready language model interactions with automatic retry logic and multiple model support.
-
-### Features
-
-- **Multiple Model Support**: Pre-configured support for GPT-4o, GPT-4o-mini, GPT-5, and GPT-5 variants
-- **Automatic Retries**: Uses tenacity for exponential backoff retry logic
-- **Reasoning Configuration**: GPT-5 models support configurable reasoning effort levels
-- **Environment-Specific Tuning**: Different parameters for development vs production
-- **Fallback Mechanisms**: Graceful degradation when primary models fail
-
-### Supported Models
+**Supported models:**
 
 | Model       | Use Case                | Reasoning Effort |
 | ----------- | ----------------------- | ---------------- |
+| gpt-5-mini  | Default (balanced)      | Low              |
 | gpt-5       | Complex reasoning tasks | Medium           |
-| gpt-5-mini  | Balanced performance    | Low              |
 | gpt-5-nano  | Fast responses          | Minimal          |
 | gpt-4o      | Production workloads    | N/A              |
 | gpt-4o-mini | Cost-effective tasks    | N/A              |
 
-### Retry Configuration
+**Fallback chain:** `gpt-5-mini → gpt-5 → gpt-4o → gpt-4o-mini`
 
-- Automatically retries on API timeouts, rate limits, and temporary errors
-- **Max Attempts**: 3
-- **Wait Strategy**: Exponential backoff (1s, 2s, 4s)
-- **Logging**: All retry attempts are logged with context
+### RAG System
 
-## Multi-Bot RAG System
+Each chatbot has an isolated knowledge base identified by `rag_key`:
 
-Support for multiple chatbots with isolated knowledge bases using RAG (Retrieval-Augmented Generation).
+1. **Upload** — Document stored in DB, split into 500-char chunks (100-char overlap)
+2. **Embed** — Each chunk embedded with `text-embedding-3-small` (1536-dim), stored in pgvector
+3. **Search** — Cosine similarity search returns top-k chunks
 
-### Architecture
+RAG types:
+- `user_isolated` — knowledge base scoped per user
+- `chatbot_shared` — shared across all users of a chatbot
 
-- **RAG Keys**: Each chatbot has a unique `rag_key` for knowledge base isolation
-- **Document Chunking**: Large documents are automatically split into 500-character chunks with 100-character overlap
-- **Vector Embeddings**: Documents are converted to 1536-dimensional OpenAI embeddings (text-embedding-3-small)
-- **pgvector Storage**: Vectors are stored in PostgreSQL with IVFFlat indexing for fast similarity search
-- **Batch Processing**: Embeddings are processed in batches of 5 with rate limit protection
+### Long-Term Memory
 
-### How It Works
+mem0ai with pgvector backend. User-scoped semantic memory stored in the configured collection. Multimodal content (images) is filtered before storing to ensure compatibility.
 
-1. **Document Upload**
-   ```bash
-   POST /api/v1/rag/upload
-   Content-Type: multipart/form-data
-   
-   file: document.txt
-   rag_key: chatbot_general
-   tags: [optional] important
-   ```
+### Custom GPTs
 
-2. **Automatic Processing**
-   - Document is stored in database
-   - Content is split into chunks
-   - Each chunk is embedded using OpenAI API
-   - Embeddings are stored in pgvector table
+Users can create custom bots with:
+- Custom system instructions
+- Model selection and temperature
+- Assigned `rag_key` for knowledge base
+- Independent session/message history (`gpt_session`, `gpt_chat_message` tables)
 
-3. **Semantic Search**
-   ```bash
-   POST /api/v1/rag/search
-   
-   rag_key: chatbot_general
-   query: What is Python?
-   limit: 5
-   ```
+## Model Evaluation
 
-4. **Result Filtering**
-   - Search returns most similar chunks by cosine distance
-   - Results include similarity scores (0-1)
-   - Content is truncated to 500 characters in response
+The project includes an evaluation framework for measuring model performance using Langfuse traces.
 
-### Usage Examples
+**On Linux/macOS:**
+```bash
+make eval [ENV=development]          # Interactive mode
+make eval-quick [ENV=development]    # Quick mode with defaults
+make eval-no-report [ENV=development] # Without report generation
+```
 
-#### Python Client Example
+**On Windows (PowerShell):**
+```powershell
+$env:APP_ENV='development'; python -m evals.main --interactive
+$env:APP_ENV='development'; python -m evals.main --quick
+$env:APP_ENV='development'; python -m evals.main --no-report
+```
+
+Evaluation metrics are defined as markdown files in `evals/metrics/prompts/`:
+- `conciseness.md`
+- `hallucination.md`
+- `helpfulness.md`
+- `relevancy.md`
+- `toxicity.md`
+
+Reports are saved to `evals/reports/evaluation_report_YYYYMMDD_HHMMSS.json`.
+
+## Logging
+
+Uses structlog with automatic request context binding.
+
+- **Development:** colored console output
+- **Production:** JSON structured logs
+- Always use kwargs, never f-strings in log calls:
 
 ```python
-import aiohttp
+# Correct
+logger.info("user_login", user_id=user.id, ip=request.client.host)
 
-async with aiohttp.ClientSession() as session:
-    # Upload document
-    form_data = aiohttp.FormData()
-    form_data.add_field("file", open("guide.txt", "rb"), filename="guide.txt")
-    form_data.add_field("rag_key", "chatbot_support")
-    
-    resp = await session.post(
-        "http://localhost:8000/api/v1/rag/upload",
-        data=form_data,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    doc = await resp.json()
-    
-    # Search documents
-    search_data = {
-        "rag_key": "chatbot_support",
-        "query": "How do I reset my password?",
-        "limit": 3
-    }
-    resp = await session.post(
-        "http://localhost:8000/api/v1/rag/search",
-        data=search_data,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    results = await resp.json()
+# Wrong
+logger.info(f"User {user.id} logged in")
 ```
 
-#### cURL Example
-
-```bash
-# Upload
-curl -X POST http://localhost:8000/api/v1/rag/upload \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -F "file=@document.txt" \
-  -F "rag_key=chatbot_general" \
-  -F "tags=important"
-
-# Search
-curl -X POST http://localhost:8000/api/v1/rag/search \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "rag_key=chatbot_general&query=What is Python?&limit=5"
-
-# List documents for a specific RAG
-curl -X GET "http://localhost:8000/api/v1/rag/documents?rag_key=chatbot_general" \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-### Testing RAG System
-
-Run the included test script to verify RAG functionality:
-
-```bash
-# Run comprehensive RAG test
-$env:APP_ENV='development'; uv run python test_rag.py
-```
-
-The test script demonstrates:
-- Multiple chatbot RAG keys
-- Document upload and chunking
-- Embedding generation
-- Semantic search across different RAGs
-- RAG key isolation verification
-
-## Advanced Logging
-
-The application uses structlog for structured, contextual logging with automatic request tracking.
-
-### Features
-
-- **Structured Logging**: All logs are structured with consistent fields
-- **Request Context**: Automatic binding of request_id, session_id, and user_id
-- **Environment-Specific Formatting**: JSON in production, colored console in development
-- **Performance Tracking**: Automatic logging of request duration and status
-- **Exception Tracking**: Full stack traces with context preservation
-
-### Logging Context Middleware
-
-Every request automatically gets:
-- Unique request ID
-- Session ID (if authenticated)
-- User ID (if authenticated)
-- Request path and method
-- Response status and duration
-
-### Log Format Standards
-
-- **Event Names**: lowercase_with_underscores
-- **No F-Strings**: Pass variables as kwargs for proper filtering
-- **Context Binding**: Always include relevant IDs and context
-- **Appropriate Levels**: debug, info, warning, error, exception
-
-## Performance Optimizations
-
-### uvloop Integration
-
-The application uses uvloop for enhanced async performance (automatically enabled via Makefile):
-
-**Performance Improvements**:
-- 2-4x faster asyncio operations
-- Lower latency for I/O-bound tasks
-- Better connection pool management
-- Reduced CPU usage for concurrent requests
-
-### Connection Pooling
-
-- **Database**: Async connection pooling with configurable pool size
-- **LangGraph Checkpointing**: Shared connection pool for state persistence
-- **Redis** (optional): Connection pool for caching
-
-### Caching Strategy
-
-- Only successful responses are cached
-- Configurable TTL based on data volatility
-- Cache invalidation on updates
-- Supports Redis or in-memory caching
-
-## 🔌 API Reference
-
-### Authentication Endpoints
-
-- `POST /api/v1/auth/register` - Register a new user
-- `POST /api/v1/auth/login` - Authenticate and receive JWT token
-- `POST /api/v1/auth/logout` - Logout and invalidate session
-
-### Chat Endpoints
-
-- `POST /api/v1/chatbot/chat` - Send message and receive response
-- `POST /api/v1/chatbot/chat/stream` - Send message with streaming response
-- `GET /api/v1/chatbot/history` - Get conversation history
-- `DELETE /api/v1/chatbot/history` - Clear chat history
-
-### RAG Endpoints
-
-- `POST /api/v1/rag/upload` - Upload document for specific chatbot RAG
-  - Required: `file`, `rag_key`
-  - Optional: `tags`
-- `GET /api/v1/rag/documents` - List documents (optionally filtered by `rag_key`)
-- `POST /api/v1/rag/search` - Search documents using semantic similarity
-  - Required: `rag_key`, `query`
-  - Optional: `limit` (1-20, default 5)
-- `DELETE /api/v1/rag/documents/{doc_id}` - Delete document
-
-### Health & Monitoring
-
-- `GET /health` - Health check with database status
-- `GET /metrics` - Prometheus metrics endpoint
-
-For detailed API documentation, visit `/docs` (Swagger UI) or `/redoc` (ReDoc) when running the application.
+Every request automatically gets: `request_id`, `session_id`, `user_id`, `path`, `method`, `status`, `duration`.
 
 ## Project Structure
 
 ```
-whatsapp-food-order/
-├── src
-│   ├── auth
-│   │   ├── router.py
-│   │   ├── schemas.py  # pydantic models
-│   │   ├── models.py  # db models
-│   │   ├── dependencies.py
-│   │   ├── config.py  # local configs
-│   │   ├── constants.py
-│   │   ├── exceptions.py
-│   │   ├── service.py
-│   │   └── utils.py
-│   ├── aws
-│   │   ├── client.py  # client model for external service communication
-│   │   ├── schemas.py
-│   │   ├── config.py
-│   │   ├── constants.py
-│   │   ├── exceptions.py
-│   │   └── utils.py
-│   └── posts
-│   │   ├── router.py
-│   │   ├── schemas.py
-│   │   ├── models.py
-│   │   ├── dependencies.py
-│   │   ├── constants.py
-│   │   ├── exceptions.py
-│   │   ├── service.py
-│   │   └── utils.py
-│   ├── config.py  # global configs
-│   ├── models.py  # global models
-│   ├── exceptions.py  # global exceptions
-│   ├── pagination.py  # global module e.g. pagination
-│   ├── database.py  # db connection related stuff
-│   └── main.py                      # Application entry point
+orchestration/
+├── src/
+│   ├── main.py                     # Application entry point
+│   ├── common/                     # Shared infrastructure
+│   ├── auth/                       # JWT auth + API key management
+│   ├── chatbot/                    # Chat, sessions, custom GPTs
+│   ├── rag/                        # Multi-bot RAG system
+│   ├── user/                       # User management
+│   ├── llm_resources/              # Per-user LLM configuration
+│   └── voice_evaluation/           # Azure Speech STT/TTS + evaluation
 ├── evals/
-│   ├── evaluator.py                 # Evaluation logic
-│   ├── main.py                      # Evaluation CLI
-│   ├── metrics/
-│   │   └── prompts/                 # Evaluation metric definitions
-│   └── reports/                     # Generated evaluation reports
-├── grafana/                         # Grafana dashboards
-├── prometheus/                      # Prometheus configuration
-├── scripts/                         # Utility scripts
-├── docker-compose.yml               # Docker Compose configuration
-├── Dockerfile                       # Application Docker image
-├── Makefile                         # Development commands
-├── pyproject.toml                   # Python dependencies
-├── schema.sql                       # Database schema
-├── SECURITY.md                      # Security policy
-└── README.md                        # This file
+│   ├── evaluator.py                # Evaluation logic
+│   ├── main.py                     # Evaluation CLI
+│   ├── metrics/prompts/            # Metric definitions (markdown)
+│   └── reports/                    # Generated evaluation reports
+├── grafana/                        # Grafana dashboard provisioning
+├── prometheus/                     # Prometheus configuration
+├── scripts/                        # Utility scripts
+├── docker-compose.yml              # Full stack Docker Compose
+├── Dockerfile                      # Application Docker image
+├── Makefile                        # Development commands
+├── pyproject.toml                  # Python dependencies (uv)
+├── schema.sql                      # Database schema reference
+├── SECURITY.md                     # Security policy
+└── README.md                       # This file
 ```
 
 ## Security
