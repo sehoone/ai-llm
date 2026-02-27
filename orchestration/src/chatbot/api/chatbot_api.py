@@ -20,12 +20,12 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
+from src.chatbot.deps import get_owned_chat_session
 from src.common.config import settings
 from src.common.langgraph.graph import LangGraphAgent
 from src.common.limiter import limiter
 from src.common.logging import logger
 from src.common.metrics import llm_stream_duration_seconds
-from src.chatbot.models.session_model import Session
 from src.user.models.user_model import User
 from src.common.services.database import database_service
 from src.chatbot.schemas.admin_schema import ChatHistoryResponse
@@ -67,12 +67,7 @@ async def chat(
         HTTPException: If there's an error processing the request.
     """
     try:
-        # Verify session ownership
-        session = await database_service.get_session(chat_request.session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if session.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+        session = await get_owned_chat_session(chat_request.session_id, user)
 
         logger.info(
             "chat_request_received",
@@ -144,12 +139,7 @@ async def chat_with_files(
         HTTPException: If there's an error processing the request.
     """
     try:
-        # Verify session ownership
-        session = await database_service.get_session(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if session.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+        session = await get_owned_chat_session(session_id, user)
 
         file_attachments = []
         
@@ -233,12 +223,7 @@ async def chat_stream(
         HTTPException: If there's an error processing the request.
     """
     try:
-        # Verify session ownership
-        session = await database_service.get_session(chat_request.session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if session.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+        session = await get_owned_chat_session(chat_request.session_id, user)
 
         logger.info(
             "stream_chat_request_received",
@@ -343,12 +328,7 @@ async def get_session_messages(
         HTTPException: If there's an error retrieving the messages.
     """
     try:
-        # Verify session ownership
-        session = await database_service.get_session(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if session.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+        session = await get_owned_chat_session(session_id, user)
 
         # Get messages from DB
         db_messages = await database_service.get_chat_messages(session.id)
@@ -383,12 +363,7 @@ async def clear_chat_history(
         dict: A message indicating the chat history was cleared.
     """
     try:
-        # Verify session ownership
-        session = await database_service.get_session(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if session.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+        session = await get_owned_chat_session(session_id, user)
 
         await agent.clear_chat_history(session.id)
         return {"message": "Chat history cleared successfully"}

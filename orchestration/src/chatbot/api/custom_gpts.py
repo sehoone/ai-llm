@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
+from src.chatbot.deps import get_owned_gpt_session
 from src.chatbot.schemas.chat_schema import ChatResponse, Message, StreamResponse
 from src.chatbot.schemas.custom_gpt_schema import (
     CustomGPTCreate,
@@ -118,11 +119,7 @@ async def rename_gpt_session(
     name: str = Form(...),
     user: User = Depends(get_current_user),
 ):
-    session = await database_service.get_gpt_session(session_id)
-    if not session or session.custom_gpt_id != gpt_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot modify other sessions")
+    session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     updated = await database_service.update_gpt_session_name(session_id, name)
     return GPTSessionResponse(session_id=updated.id, name=updated.name, custom_gpt_id=updated.custom_gpt_id)
@@ -134,11 +131,7 @@ async def delete_gpt_session(
     session_id: str,
     user: User = Depends(get_current_user),
 ):
-    session = await database_service.get_gpt_session(session_id)
-    if not session or session.custom_gpt_id != gpt_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot delete other sessions")
+    session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     await agent.clear_chat_history(session_id)
     await database_service.delete_gpt_session(session_id)
@@ -159,11 +152,7 @@ async def gpt_chat(
     if not gpt.is_public and gpt.user_id != user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    session = await database_service.get_gpt_session(chat_request.session_id)
-    if not session or session.custom_gpt_id != gpt_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot access other sessions")
+    session = await get_owned_gpt_session(chat_request.session_id, gpt_id, user)
 
     logger.info("gpt_chat_request", gpt_id=gpt_id, session_id=session.id)
 
@@ -206,11 +195,7 @@ async def gpt_chat_stream(
     if not gpt.is_public and gpt.user_id != user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    session = await database_service.get_gpt_session(chat_request.session_id)
-    if not session or session.custom_gpt_id != gpt_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot access other sessions")
+    session = await get_owned_gpt_session(chat_request.session_id, gpt_id, user)
 
     logger.info("gpt_stream_chat_request", gpt_id=gpt_id, session_id=session.id)
 
@@ -266,11 +251,7 @@ async def get_gpt_messages(
     session_id: str,
     user: User = Depends(get_current_user),
 ):
-    session = await database_service.get_gpt_session(session_id)
-    if not session or session.custom_gpt_id != gpt_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot access other sessions")
+    session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     db_messages = await database_service.get_gpt_chat_messages(session.id)
     messages = []
@@ -286,11 +267,7 @@ async def clear_gpt_messages(
     session_id: str,
     user: User = Depends(get_current_user),
 ):
-    session = await database_service.get_gpt_session(session_id)
-    if not session or session.custom_gpt_id != gpt_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot access other sessions")
+    session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     await agent.clear_chat_history(session.id)
     await database_service.delete_gpt_chat_messages(session.id)
