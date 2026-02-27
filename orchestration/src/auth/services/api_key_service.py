@@ -59,7 +59,7 @@ class ApiKeyService:
     def get_api_key_by_token(self, session: Session, token: str) -> Optional[ApiKey]:
         statement = select(ApiKey).where(ApiKey.key == token, ApiKey.is_active == True)
         key = session.exec(statement).first()
-        if key and key.expires_at and key.expires_at < datetime.now():
+        if key and key.expires_at and key.expires_at < datetime.now(UTC):
             return None
         return key
 

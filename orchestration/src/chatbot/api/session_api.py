@@ -16,6 +16,7 @@ from fastapi import (
 
 from src.auth.api.auth_api import get_current_user
 from src.auth.schemas.auth_schema import SessionResponse
+from src.chatbot.deps import get_owned_chat_session
 from src.common.logging import logger
 from src.common.services.database import database_service
 from src.common.services.sanitization import sanitize_string
@@ -77,13 +78,7 @@ async def update_session_name(
         sanitized_session_id = sanitize_string(session_id)
         sanitized_name = sanitize_string(name)
 
-        # Verify session exists and belongs to user
-        session = await database_service.get_session(sanitized_session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        if session.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Cannot modify other sessions")
+        session = await get_owned_chat_session(sanitized_session_id, user)
 
         # Update the session name
         session = await database_service.update_session_name(sanitized_session_id, sanitized_name)
@@ -109,13 +104,7 @@ async def delete_session(session_id: str, user: User = Depends(get_current_user)
         # Sanitize inputs
         sanitized_session_id = sanitize_string(session_id)
 
-        # Verify session exists and belongs to user
-        session = await database_service.get_session(sanitized_session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-            
-        if session.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Cannot delete other sessions")
+        session = await get_owned_chat_session(sanitized_session_id, user)
 
         # Delete the session
         await database_service.delete_session(sanitized_session_id)
