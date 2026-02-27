@@ -34,7 +34,7 @@ from src.auth.schemas.auth_schema import (
     UserLogin,
     UserResponse,
 )
-from src.common.services.database import DatabaseService
+from src.common.services.database import database_service
 from src.auth.services.auth_service import (
     create_access_token,
     verify_token,
@@ -47,12 +47,11 @@ from src.common.services.sanitization import (
 
 router = APIRouter()
 security = HTTPBearer()
-db_service = DatabaseService()
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    session: Session = Depends(db_service.get_db_session),
+    session: Session = Depends(database_service.get_db_session),
 ) -> User:
     """Get the current user ID from the token or API key.
 
@@ -85,7 +84,7 @@ async def get_current_user(
                 api_key = api_key_service.get_api_key_by_token(session, token)
                 if not api_key:
                     raise HTTPException(status_code=401, detail="Invalid API Key")
-                user = await db_service.get_user(api_key.user_id)
+                user = await database_service.get_user(api_key.user_id)
                 if user:
                     bind_context(user_id=user.id)
                     return user
@@ -112,7 +111,7 @@ async def get_current_user(
                  
         # Verify user exists in database
         user_id_int = int(user_id)
-        user = await db_service.get_user(user_id_int)
+        user = await database_service.get_user(user_id_int)
         if user is None:
             logger.error("user_not_found", user_id=user_id_int)
             raise HTTPException(
@@ -158,7 +157,7 @@ async def register_user(request: Request, user_data: UserCreate):
         validate_password_strength(password)
 
         # Check if user exists
-        if await db_service.get_user_by_email(sanitized_email):
+        if await database_service.get_user_by_email(sanitized_email):
             raise HTTPException(status_code=400, detail="Email already registered")
 
         # Create user
@@ -166,7 +165,7 @@ async def register_user(request: Request, user_data: UserCreate):
         if not username:
              username = sanitized_email.split("@")[0]
 
-        user = await db_service.create_user(
+        user = await database_service.create_user(
             email=sanitized_email,
             password=User.hash_password(password),
             username=username,
@@ -212,7 +211,7 @@ async def login(request: Request, user_data: UserLogin):
                 detail="Unsupported grant type. Must be 'password'",
             )
 
-        user = await db_service.get_user_by_email(username)
+        user = await database_service.get_user_by_email(username)
         if not user or not user.verify_password(password):
             raise HTTPException(
                 status_code=401,
@@ -261,7 +260,7 @@ async def refresh_token(request: Request, token_data: RefreshTokenRequest):
 
         # Verify user exists
         user_id_int = int(user_id)
-        user = await db_service.get_user(user_id_int)
+        user = await database_service.get_user(user_id_int)
         if user is None:
             raise HTTPException(
                 status_code=401,

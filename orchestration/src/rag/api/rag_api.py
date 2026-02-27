@@ -32,6 +32,16 @@ from src.common.services.sanitization import sanitize_string
 
 router = APIRouter()
 
+VALID_RAG_TYPES = frozenset({"user_isolated", "chatbot_shared", "natural_search"})
+
+
+def _validate_rag_type(rag_type: str) -> None:
+    if rag_type not in VALID_RAG_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'",
+        )
+
 
 @router.post("/upload", response_model=DocumentResponse, summary="문서 업로드", description="RAG를 위한 문서를 업로드합니다.")
 @limiter.limit("10 per hour")
@@ -64,10 +74,8 @@ async def upload_document(
     try:
         logger.info("document_upload_received", filename=file.filename, user_id=user.id, rag_key=rag_key, rag_group=rag_group, rag_type=rag_type)
         
-        # Validate rag_type
-        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
-            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
-        
+        _validate_rag_type(rag_type)
+
         # Validate file
         if not file.filename:
             raise HTTPException(status_code=400, detail="Filename is required")
@@ -307,16 +315,13 @@ async def search_rag(
         HTTPException: If there's an error processing the request
     """
     try:
-        # Validate rag_type
-        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
-            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
-        
-        # Validate inputs
+        _validate_rag_type(rag_type)
+
         query = sanitize_string(query)
         if not query:
             raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-        limit = min(max(1, limit), 20)  # Clamp between 1 and 20
+        limit = min(max(1, limit), 20)
 
         logger.info("rag_search_started", rag_key=rag_key, rag_type=rag_type, query=query, limit=limit, user_id=user.id)
 
@@ -377,16 +382,13 @@ async def search_rag_group(
         HTTPException: If there's an error processing the request
     """
     try:
-        # Validate rag_type
-        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
-            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
-        
-        # Validate inputs
+        _validate_rag_type(rag_type)
+
         query = sanitize_string(query)
         if not query:
             raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-        limit = min(max(1, limit), 20)  # Clamp between 1 and 20
+        limit = min(max(1, limit), 20)
 
         logger.info("rag_group_search_started", rag_group=rag_group, rag_type=rag_type, query=query, limit=limit, user_id=user.id)
 
@@ -434,10 +436,8 @@ async def natural_language_search(
 ):
     """Perform natural language search with LLM summary (Streaming)."""
     try:
-        # Validate rag_type
-        if rag_type not in ["user_isolated", "chatbot_shared", "natural_search"]:
-            raise HTTPException(status_code=400, detail="rag_type must be 'user_isolated', 'chatbot_shared' or 'natural_search'")
-        
+        _validate_rag_type(rag_type)
+
         if not rag_key and not rag_group:
              rag_group = "default"
 
