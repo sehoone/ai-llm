@@ -1,53 +1,36 @@
-"""This file contains the database service for the application."""
+"""Database service — engine setup and unified repository interface."""
 
-from typing import (
-    List,
-    Optional,
-)
-
-from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool
-from sqlalchemy import text
-from sqlmodel import (
-    Session,
-    SQLModel,
-    create_engine,
-    select,
-)
+from sqlmodel import Session, create_engine, select
 
-from src.common.config import (
-    Environment,
-    settings,
-)
+from src.common.config import Environment, settings
 from src.common.logging import logger
-from src.rag.models.document_model import Document
-from src.chatbot.models.session_model import Session as ChatSession
-from src.user.models.user_model import User
-from src.rag.models.rag_embedding_model import RAGEmbedding
-from src.chatbot.models.message_model import ChatMessage
-from src.chatbot.models.gpt_session_model import GPTSession
-from src.chatbot.models.gpt_message_model import GPTChatMessage
-from src.user.models.user_model import UserRole
-from src.llm_resources.models.llm_resource_model import LLMResource
-from src.llm_resources.schemas.llm_resource_schemas import LLMResourceCreate, LLMResourceUpdate
+from src.common.services.repositories.user_repository import UserRepositoryMixin
+from src.common.services.repositories.session_repository import SessionRepositoryMixin
+from src.common.services.repositories.gpt_repository import GPTRepositoryMixin
+from src.common.services.repositories.llm_resource_repository import LLMResourceRepositoryMixin
 
 
-class DatabaseService:
-    """Service class for database operations.
+class DatabaseService(
+    UserRepositoryMixin,
+    SessionRepositoryMixin,
+    GPTRepositoryMixin,
+    LLMResourceRepositoryMixin,
+):
+    """Unified database service.
 
-    This class handles all database operations for Users, Sessions, and Messages.
-    It uses SQLModel for ORM operations and maintains a connection pool.
+    Composes domain-specific repository mixins so call sites can use a single
+    ``database_service`` instance for all database operations.  Engine creation
+    and connection-pool configuration live here; all query logic lives in the
+    individual repository mixins.
     """
 
     def __init__(self):
-        """Initialize database service with connection pool."""
         try:
-            # Configure environment-specific database connection pool settings
             pool_size = settings.POSTGRES_POOL_SIZE
             max_overflow = settings.POSTGRES_MAX_OVERFLOW
 
-            # Create engine with appropriate pool configuration
             connection_url = (
                 f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
                 f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
@@ -60,12 +43,9 @@ class DatabaseService:
                 poolclass=QueuePool,
                 pool_size=pool_size,
                 max_overflow=max_overflow,
-                pool_timeout=30,  # Connection timeout (seconds)
-                pool_recycle=1800,  # Recycle connections after 30 minutes
+                pool_timeout=30,
+                pool_recycle=1800,
             )
-
-            # 테이블이 존재 하지 않으면 생성. SQLModel.metadata.create_all은 import된 모든 모델을 기준으로 테이블을 생성함.
-            # SQLModel.metadata.create_all(self.engine)
 
             logger.info(
                 "database_initialized",
@@ -75,500 +55,28 @@ class DatabaseService:
             )
         except SQLAlchemyError as e:
             logger.error("database_initialization_error", error=str(e), environment=settings.ENVIRONMENT.value)
-            # In production, don't raise - allow app to start even with DB issues
             if settings.ENVIRONMENT != Environment.PRODUCTION:
                 raise
 
     def get_db_session(self):
-        """Get a database session generator for dependencies."""
+        """Yield a database session for use as a FastAPI dependency."""
         with Session(self.engine) as session:
             yield session
 
-    async def create_user(self, email: str, password: str, username: str, role: str = "user", status: str = "active") -> User:
-        """Create a new user.
-
-        Args:
-            email: User's email address
-            password: Hashed password
-            username: User's username
-            role: User's role
-            status: User's status
-        Returns:
-            User: The created user
-        """
-        with Session(self.engine) as session:
-            user = User(
-                email=email, 
-                hashed_password=password, 
-                username=username, 
-                role=role, 
-                status=status
-            )
-            session.add(user)
-            session.commit()
-            session.refresh(user)
-            logger.info("user_created", email=email)
-            return user
-
-    async def get_user(self, user_id: int) -> Optional[User]:
-        """Get a user by ID.
-
-        Args:
-            user_id: The ID of the user to retrieve
-
-        Returns:
-            Optional[User]: The user if found, None otherwise
-        """
-        with Session(self.engine) as session:
-            user = session.get(User, user_id)
-            return user
-
-    async def get_user_by_email(self, email: str) -> Optional[User]:
-        """Get a user by email.
-
-        Args:
-            email: The email of the user to retrieve
-
-        Returns:
-            Optional[User]: The user if found, None otherwise
-        """
-        with Session(self.engine) as session:
-            statement = select(User).where(User.email == email)
-            user = session.exec(statement).first()
-            return user
-
-    async def get_all_users(self, skip: int = 0, limit: int = 100) -> List[User]:
-        """Get all users.
-
-        Args:
-            skip: Number of records to skip
-            limit: Maximum number of records to return
-
-        Returns:
-            List[User]: List of users
-        """
-        with Session(self.engine) as session:
-            statement = select(User).offset(skip).limit(limit)
-            users = session.exec(statement).all()
-            return users
-
-    async def update_user(self, user_id: int, user_update: dict) -> Optional[User]:
-        """Update a user.
-
-        Args:
-            user_id: The ID of the user to update
-            user_update: Dictionary of fields to update
-
-        Returns:
-            Optional[User]: The updated user if found, None otherwise
-        """
-        with Session(self.engine) as session:
-            user = session.get(User, user_id)
-            if not user:
-                return None
-            
-            for key, value in user_update.items():
-                if value is not None:
-                    setattr(user, key, value)
-            
-            session.add(user)
-            session.commit()
-            session.refresh(user)
-            return user
-
-    async def delete_user(self, user_id: int) -> bool:
-        """Delete a user.
-
-        Args:
-            user_id: The ID of the user to delete
-
-        Returns:
-            bool: True if deleted, False if not found
-        """
-        with Session(self.engine) as session:
-            user = session.get(User, user_id)
-            if not user:
-                return False
-            
-            session.delete(user)
-            session.commit()
-            return True
-
-    async def delete_user_by_email(self, email: str) -> bool:
-        """Delete a user by email.
-
-        Args:
-            email: The email of the user to delete
-
-        Returns:
-            bool: True if deletion was successful, False if user not found
-        """
-        with Session(self.engine) as session:
-            user = session.exec(select(User).where(User.email == email)).first()
-            if not user:
-                return False
-
-            session.delete(user)
-            session.commit()
-            logger.info("user_deleted", email=email)
-            return True
-
-    async def create_session(self, session_id: str, user_id: int, name: str = "") -> ChatSession:
-        """Create a new chat session.
-
-        Args:
-            session_id: The ID for the new session
-            user_id: The ID of the user who owns the session
-            name: Optional name for the session (defaults to empty string)
-
-        Returns:
-            ChatSession: The created session
-        """
-        with Session(self.engine) as session:
-            chat_session = ChatSession(id=session_id, user_id=user_id, name=name)
-            session.add(chat_session)
-            session.commit()
-            session.refresh(chat_session)
-            logger.info("session_created", session_id=session_id, user_id=user_id, name=name)
-            return chat_session
-
-    async def delete_session(self, session_id: str) -> bool:
-        """Delete a session by ID.
-
-        Args:
-            session_id: The ID of the session to delete
-
-        Returns:
-            bool: True if deletion was successful, False if session not found
-        """
-        with Session(self.engine) as session:
-            chat_session = session.get(ChatSession, session_id)
-            if not chat_session:
-                return False
-
-            session.delete(chat_session)
-            session.commit()
-            logger.info("session_deleted", session_id=session_id)
-            return True
-
-    async def get_session(self, session_id: str) -> Optional[ChatSession]:
-        """Get a session by ID.
-
-        Args:
-            session_id: The ID of the session to retrieve
-
-        Returns:
-            Optional[ChatSession]: The session if found, None otherwise
-        """
-        with Session(self.engine) as session:
-            chat_session = session.get(ChatSession, session_id)
-            return chat_session
-
-    async def get_user_sessions(self, user_id: int) -> List[ChatSession]:
-        """Get all sessions for a user.
-
-        Args:
-            user_id: The ID of the user
-
-        Returns:
-            List[ChatSession]: List of user's sessions
-        """
-        with Session(self.engine) as session:
-            statement = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at.desc())
-            sessions = session.exec(statement).all()
-            return sessions
-
-    async def update_session_name(self, session_id: str, name: str) -> ChatSession:
-        """Update a session's name.
-
-        Args:
-            session_id: The ID of the session to update
-            name: The new name for the session
-
-        Returns:
-            ChatSession: The updated session
-
-        Raises:
-            HTTPException: If session is not found
-        """
-        with Session(self.engine) as session:
-            chat_session = session.get(ChatSession, session_id)
-            if not chat_session:
-                raise HTTPException(status_code=404, detail="Session not found")
-
-            chat_session.name = name
-            session.add(chat_session)
-            session.commit()
-            session.refresh(chat_session)
-            logger.info("session_name_updated", session_id=session_id, name=name)
-            return chat_session
-
-    async def save_chat_interaction(self, session_id: str, question: str, answer: str, is_deep_thinking: bool = False) -> ChatMessage:
-        """Save a chat interaction (question and answer) to the database.
-
-        Args:
-            session_id: The ID of the session
-            question: The user's question
-            answer: The assistant's answer
-            is_deep_thinking: Whether the interaction used deep thinking
-
-        Returns:
-            ChatMessage: The saved interaction
-        """
-        with Session(self.engine) as session:
-            # Note: Assuming ChatMessage model doesn't have is_deep_thinking column yet. 
-            # If it does, add it here: is_deep_thinking=is_deep_thinking
-            # If not, we just ignore the argument for now but keep the signature compatible with API call
-            message = ChatMessage(session_id=session_id, question=question, answer=answer)
-            session.add(message)
-            session.commit()
-            session.refresh(message)
-            return message
-
-    async def get_chat_messages(self, session_id: str) -> List[ChatMessage]:
-        """Get all messages for a session.
-
-        Args:
-            session_id: The ID of the session
-
-        Returns:
-            List[ChatMessage]: List of messages sorted by creation time
-        """
-        with Session(self.engine) as session:
-            statement = select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at)
-            messages = session.exec(statement).all()
-            return messages
-
-    async def get_all_chat_history(self, limit: int = 100, offset: int = 0) -> List[dict]:
-        """Get all chat history with user details.
-
-        Args:
-            limit: Maximum number of records to return
-            offset: Number of records to skip
-
-        Returns:
-            List[dict]: List of chat history records with user info
-        """
-        with Session(self.engine) as session:
-            # Join ChatMessage, Session, and User
-            statement = (
-                select(ChatMessage, ChatSession, User)
-                .join(ChatSession, ChatMessage.session_id == ChatSession.id)
-                .join(User, ChatSession.user_id == User.id)
-                .order_by(ChatMessage.created_at.desc())
-                .offset(offset)
-                .limit(limit)
-            )
-            
-            results = session.exec(statement).all()
-            
-            history = []
-            for message, chat_session, user in results:
-                history.append({
-                    "id": message.id,
-                    "session_id": message.session_id,
-                    "user_email": user.email,
-                    "question": message.question,
-                    "answer": message.answer,
-                    "created_at": message.created_at,
-                    "session_name": chat_session.name
-                })
-            
-            return history
-
-    async def update_session_name(self, session_id: str, title: str) -> None:
-        """Update the name/title of a chat session.
-
-        Args:
-            session_id: The ID of the session to update
-            title: The new title for the session
-        """
-        try:
-            with Session(self.engine) as session:
-                statement = select(ChatSession).where(ChatSession.id == session_id)
-                chat_session = session.exec(statement).one_or_none()
-                
-                if chat_session:
-                    chat_session.name = title
-                    session.add(chat_session)
-                    session.commit()
-                    session.refresh(chat_session)
-                    logger.info("session_name_updated", session_id=session_id, new_title=title)
-                else:
-                     logger.warning("session_not_found_for_update", session_id=session_id)
-        except Exception as e:
-            logger.error("update_session_name_failed", session_id=session_id, error=str(e))
-            raise e
-
-    async def get_chat_message_by_id(self, message_id: int) -> Optional[dict]:
-        """Get a specific chat message by ID with user info.
-
-        Args:
-            message_id: The ID of the message
-
-        Returns:
-            Optional[dict]: The chat history record if found
-        """
-        with Session(self.engine) as session:
-            statement = (
-                select(ChatMessage, ChatSession, User)
-                .join(ChatSession, ChatMessage.session_id == ChatSession.id)
-                .join(User, ChatSession.user_id == User.id)
-                .where(ChatMessage.id == message_id)
-            )
-            
-            result = session.exec(statement).first()
-            
-            if not result:
-                return None
-                
-            message, chat_session, user = result
-            return {
-                "id": message.id,
-                "session_id": message.session_id,
-                "user_email": user.email,
-                "question": message.question,
-                "answer": message.answer,
-                "created_at": message.created_at,
-                "session_name": chat_session.name
-            }
-
-    def get_session_maker(self):
-        """Get a session maker for creating database sessions.
-
-        Returns:
-            Session: A SQLModel session maker
-        """
+    def get_session_maker(self) -> Session:
+        """Return a new database session (for non-dependency use)."""
         return Session(self.engine)
 
     async def health_check(self) -> bool:
-        """Check database connection health.
-
-        Returns:
-            bool: True if database is healthy, False otherwise
-        """
+        """Return True if the database connection is healthy."""
         try:
             with Session(self.engine) as session:
-                # Execute a simple query to check connection
                 session.exec(select(1)).first()
                 return True
         except Exception as e:
             logger.error("database_health_check_failed", error=str(e))
             return False
 
-    async def get_llm_resources(self) -> List[LLMResource]:
-        with Session(self.engine) as session:
-            statement = select(LLMResource).order_by(LLMResource.priority.desc())
-            results = session.exec(statement)
-            return results.all()
 
-    async def get_llm_resource(self, id: int) -> Optional[LLMResource]:
-        with Session(self.engine) as session:
-            return session.get(LLMResource, id)
-
-    async def create_llm_resource(self, resource: LLMResourceCreate) -> LLMResource:
-        with Session(self.engine) as session:
-            db_resource = LLMResource.model_validate(resource)
-            session.add(db_resource)
-            session.commit()
-            session.refresh(db_resource)
-            return db_resource
-            
-    async def update_llm_resource(self, id: int, resource: LLMResourceUpdate) -> Optional[LLMResource]:
-        with Session(self.engine) as session:
-            db_resource = session.get(LLMResource, id)
-            if not db_resource:
-                return None
-            resource_data = resource.model_dump(exclude_unset=True)
-            db_resource.sqlmodel_update(resource_data)
-            session.add(db_resource)
-            session.commit()
-            session.refresh(db_resource)
-            return db_resource
-            
-    async def delete_llm_resource(self, id: int) -> bool:
-        with Session(self.engine) as session:
-            resource = session.get(LLMResource, id)
-            if not resource:
-                return False
-            session.delete(resource)
-            session.commit()
-            return True
-
-    # ── GPT Session methods ──────────────────────────────────────────────
-
-    async def create_gpt_session(self, session_id: str, user_id: int, custom_gpt_id: str, name: str = "") -> GPTSession:
-        with Session(self.engine) as session:
-            gpt_session = GPTSession(id=session_id, user_id=user_id, custom_gpt_id=custom_gpt_id, name=name)
-            session.add(gpt_session)
-            session.commit()
-            session.refresh(gpt_session)
-            logger.info("gpt_session_created", session_id=session_id, user_id=user_id, custom_gpt_id=custom_gpt_id)
-            return gpt_session
-
-    async def get_gpt_session(self, session_id: str) -> Optional[GPTSession]:
-        with Session(self.engine) as session:
-            return session.get(GPTSession, session_id)
-
-    async def delete_gpt_session(self, session_id: str) -> bool:
-        with Session(self.engine) as session:
-            gpt_session = session.get(GPTSession, session_id)
-            if not gpt_session:
-                return False
-            session.delete(gpt_session)
-            session.commit()
-            logger.info("gpt_session_deleted", session_id=session_id)
-            return True
-
-    async def get_user_gpt_sessions(self, user_id: int, custom_gpt_id: str) -> List[GPTSession]:
-        with Session(self.engine) as session:
-            statement = (
-                select(GPTSession)
-                .where(GPTSession.user_id == user_id, GPTSession.custom_gpt_id == custom_gpt_id)
-                .order_by(GPTSession.created_at.desc())
-            )
-            return session.exec(statement).all()
-
-    async def update_gpt_session_name(self, session_id: str, name: str) -> Optional[GPTSession]:
-        with Session(self.engine) as session:
-            gpt_session = session.get(GPTSession, session_id)
-            if not gpt_session:
-                return None
-            gpt_session.name = name
-            session.add(gpt_session)
-            session.commit()
-            session.refresh(gpt_session)
-            logger.info("gpt_session_name_updated", session_id=session_id, name=name)
-            return gpt_session
-
-    # ── GPT Message methods ──────────────────────────────────────────────
-
-    async def save_gpt_chat_interaction(self, session_id: str, question: str, answer: str) -> GPTChatMessage:
-        with Session(self.engine) as session:
-            message = GPTChatMessage(session_id=session_id, question=question, answer=answer)
-            session.add(message)
-            session.commit()
-            session.refresh(message)
-            return message
-
-    async def get_gpt_chat_messages(self, session_id: str) -> List[GPTChatMessage]:
-        with Session(self.engine) as session:
-            statement = (
-                select(GPTChatMessage)
-                .where(GPTChatMessage.session_id == session_id)
-                .order_by(GPTChatMessage.created_at)
-            )
-            return session.exec(statement).all()
-
-    async def delete_gpt_chat_messages(self, session_id: str) -> None:
-        with Session(self.engine) as session:
-            statement = select(GPTChatMessage).where(GPTChatMessage.session_id == session_id)
-            messages = session.exec(statement).all()
-            for msg in messages:
-                session.delete(msg)
-            session.commit()
-            logger.info("gpt_chat_messages_deleted", session_id=session_id)
-
-
-# Create a singleton instance
+# Singleton — import this everywhere instead of instantiating DatabaseService directly.
 database_service = DatabaseService()
