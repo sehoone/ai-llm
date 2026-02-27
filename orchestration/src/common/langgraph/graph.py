@@ -1,54 +1,29 @@
-"""This file contains the LangGraph Agent/workflow and interactions with the LLM."""
+"""LangGraph Agent — orchestrates the LLM workflow and streaming responses."""
 
 import asyncio
-import os
-from typing import (
-    AsyncGenerator,
-    Optional,
-)
+from typing import AsyncGenerator, Optional
 from urllib.parse import quote_plus
 
 from asgiref.sync import sync_to_async
-from langchain_core.messages import (
-    BaseMessage,
-    ToolMessage,
-    convert_to_openai_messages,
-)
+from langchain_core.messages import BaseMessage, convert_to_openai_messages
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langgraph.graph import (
-    END,
-    START,
-    StateGraph,
-)
-from langgraph.graph.state import (
-    Command,
-    CompiledStateGraph,
-)
-from langgraph.types import (
-    RunnableConfig,
-    StateSnapshot,
-)
-from mem0 import AsyncMemory
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import StateSnapshot
 from psycopg_pool import AsyncConnectionPool
 
-from src.common.config import (
-    Environment,
-    settings,
-)
+from src.common.config import Environment, settings
+from src.common.langgraph._memory import MemoryMixin
+from src.common.langgraph._nodes import NodesMixin
 from src.common.langgraph.tools import tools
 from src.common.logging import logger
-from src.common.metrics import llm_inference_duration_seconds
-from src.common.prompts import load_system_prompt
 from src.common.schemas.graph import GraphState
 from src.chatbot.schemas.chat_schema import Message
+from src.common.services.graph import dump_messages
 from src.common.services.llm import llm_service
-from src.common.services.graph import (
-    dump_messages,
-    prepare_messages,
-    process_llm_response,
-)
 
-# Check if Langfuse is enabled
+import os
+
 _langfuse_enabled = (
     os.getenv("LANGFUSE_ENABLED", "true").lower() == "true"
     and os.getenv("LANGFUSE_PUBLIC_KEY", "")
@@ -57,385 +32,87 @@ _langfuse_enabled = (
 
 
 def _get_langfuse_callbacks():
-    """Get Langfuse callbacks if enabled, otherwise return empty list.
-
-    Note: User ID, session ID, environment, and other metadata should be passed
-    through the LangChain config's 'metadata' field, not to the CallbackHandler.
-    """
     if _langfuse_enabled:
         from langfuse.langchain import CallbackHandler
-
         return [CallbackHandler()]
     return []
 
 
-class LangGraphAgent:
-    """Manages the LangGraph Agent/workflow and interactions with the LLM.
+class LangGraphAgent(MemoryMixin, NodesMixin):
+    """Stateful LangGraph agent with long-term memory and tool support.
 
-    This class handles the creation and management of the LangGraph workflow,
-    including LLM interactions, database connections, and response processing.
+    Graph topology (per turn):
+        START → [think → verify →] chat → [tool_call →] chat → END
     """
 
     def __init__(self):
-        """Initialize the LangGraph Agent with necessary components."""
-        # Use the LLM service with tools bound
         self.llm_service = llm_service
         self.llm_service.bind_tools(tools)
         self.tools_by_name = {tool.name: tool for tool in tools}
         self._connection_pool: Optional[AsyncConnectionPool] = None
         self._graph: Optional[CompiledStateGraph] = None
-        self.memory: Optional[AsyncMemory] = None
+        self.memory = None  # lazily initialised by MemoryMixin
         logger.info(
             "langgraph_agent_initialized",
             model=settings.DEFAULT_LLM_MODEL,
             environment=settings.ENVIRONMENT.value,
         )
 
-    async def _long_term_memory(self) -> AsyncMemory:
-        """Initialize the long term memory."""
-        if self.memory is None:
-            self.memory = await AsyncMemory.from_config(
-                config_dict={
-                    "vector_store": {
-                        "provider": "pgvector",
-                        "config": {
-                            "collection_name": settings.LONG_TERM_MEMORY_COLLECTION_NAME,
-                            "dbname": settings.POSTGRES_DB,
-                            "user": settings.POSTGRES_USER,
-                            "password": settings.POSTGRES_PASSWORD,
-                            "host": settings.POSTGRES_HOST,
-                            "port": settings.POSTGRES_PORT,
-                        },
-                    },
-                    "llm": {
-                        "provider": "openai",
-                        "config": {"model": settings.LONG_TERM_MEMORY_MODEL},
-                    },
-                    "embedder": {"provider": "openai", "config": {"model": settings.LONG_TERM_MEMORY_EMBEDDER_MODEL}},
-                    # "custom_fact_extraction_prompt": load_custom_fact_extraction_prompt(),
-                }
-            )
-        return self.memory
+    # ── Infrastructure ────────────────────────────────────────────────────────
 
-    async def _get_connection_pool(self) -> AsyncConnectionPool:
-        """Get a PostgreSQL connection pool using environment-specific settings.
-
-        Returns:
-            AsyncConnectionPool: A connection pool for PostgreSQL database.
-        """
+    async def _get_connection_pool(self) -> Optional[AsyncConnectionPool]:
         if self._connection_pool is None:
             try:
-                # Configure pool size based on environment
-                max_size = settings.POSTGRES_POOL_SIZE
-
                 connection_url = (
                     "postgresql://"
                     f"{quote_plus(settings.POSTGRES_USER)}:{quote_plus(settings.POSTGRES_PASSWORD)}"
                     f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
                 )
-
                 self._connection_pool = AsyncConnectionPool(
                     connection_url,
                     open=False,
-                    max_size=max_size,
-                    kwargs={
-                        "autocommit": True,
-                        "connect_timeout": 5,
-                        "prepare_threshold": None,
-                    },
+                    max_size=settings.POSTGRES_POOL_SIZE,
+                    kwargs={"autocommit": True, "connect_timeout": 5, "prepare_threshold": None},
                 )
                 await self._connection_pool.open()
-                logger.info("connection_pool_created", max_size=max_size, environment=settings.ENVIRONMENT.value)
+                logger.info(
+                    "connection_pool_created",
+                    max_size=settings.POSTGRES_POOL_SIZE,
+                    environment=settings.ENVIRONMENT.value,
+                )
             except Exception as e:
                 logger.error("connection_pool_creation_failed", error=str(e), environment=settings.ENVIRONMENT.value)
-                # In production, we might want to degrade gracefully
                 if settings.ENVIRONMENT == Environment.PRODUCTION:
-                    logger.warning("continuing_without_connection_pool", environment=settings.ENVIRONMENT.value)
+                    logger.warning("continuing_without_connection_pool")
                     return None
-                raise e
+                raise
         return self._connection_pool
 
-    async def _get_relevant_memory(self, user_id: str, query: str) -> str:
-        """Get the relevant memory for the user and query.
-
-        Args:
-            user_id (str): The user ID.
-            query (str): The query to search for.
-
-        Returns:
-            str: The relevant memory.
-        """
-        try:
-            memory = await self._long_term_memory()
-            results = await memory.search(user_id=str(user_id), query=query)
-            # print(results)
-            return "\n".join([f"* {result['memory']}" for result in results["results"]])
-        except Exception as e:
-            logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
-            return ""
-
-    async def _update_long_term_memory(self, user_id: str, messages: list[dict], metadata: dict = None) -> None:
-        """Update the long term memory.
-
-        Args:
-            user_id (str): The user ID.
-            messages (list[dict]): The messages to update the long term memory with.
-            metadata (dict): Optional metadata to include.
-        """
-        try:
-            memory = await self._long_term_memory()
-            
-            # Filter out image content from messages to avoid mem0 vision processing issues
-            filtered_messages = []
-            for msg in messages:
-                if isinstance(msg.get("content"), list):
-                    # Extract only text content from multimodal messages
-                    text_parts = []
-                    for block in msg["content"]:
-                        if isinstance(block, dict):
-                            if block.get("type") == "text" and "text" in block:
-                                text_parts.append(block["text"])
-                            # Skip image_url blocks
-                        elif isinstance(block, str):
-                            text_parts.append(block)
-                    
-                    if text_parts:
-                        filtered_messages.append({
-                            "role": msg.get("role"),
-                            "content": "\n".join(text_parts)
-                        })
-                else:
-                    filtered_messages.append(msg)
-            
-            if filtered_messages:
-                await memory.add(filtered_messages, user_id=str(user_id), metadata=metadata)
-                logger.info("long_term_memory_updated_successfully", user_id=user_id)
-        except Exception as e:
-            logger.exception(
-                "failed_to_update_long_term_memory",
-                user_id=user_id,
-                error=str(e),
-            )
-
-    async def _chat(self, state: GraphState, config: RunnableConfig) -> Command:
-        """Process the chat state and generate a response.
-
-        Args:
-            state (GraphState): The current state of the conversation.
-
-        Returns:
-            Command: Command object with updated state and next node to execute.
-        """
-        # Get the current LLM instance for metrics
-        current_llm = self.llm_service.get_llm()
-        model_name = (
-            current_llm.model_name
-            if current_llm and hasattr(current_llm, "model_name")
-            else settings.DEFAULT_LLM_MODEL
-        )
-
-        if state.system_instructions:
-            SYSTEM_PROMPT = f"{state.system_instructions}\n\nMemory:\n{state.long_term_memory}" if state.long_term_memory else state.system_instructions
-        else:
-            SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
-
-        # Prepare messages with system prompt (returns list of dicts ready for LLM)
-        messages = prepare_messages(state.messages, current_llm, SYSTEM_PROMPT)
-
-        try:
-            # Use LLM service with automatic retries and circular fallback
-            with llm_inference_duration_seconds.labels(model=model_name).time():
-                response_message = await self.llm_service.call(messages)
-
-            # Process response to handle structured content blocks
-            response_message = process_llm_response(response_message)
-
-            if state.is_deep_thinking:
-                response_message.content = f"[Deep Thinking - Answer]\n{response_message.content}"
-
-            logger.info(
-                "llm_response_generated",
-                session_id=config["configurable"]["thread_id"],
-                model=model_name,
-                environment=settings.ENVIRONMENT.value,
-            )
-
-            # Determine next node based on whether there are tool calls
-            if response_message.tool_calls:
-                goto = "tool_call"
-            else:
-                goto = END
-
-            return Command(update={"messages": [response_message]}, goto=goto)
-        except Exception as e:
-            logger.error(
-                "llm_call_failed_all_models",
-                session_id=config["configurable"]["thread_id"],
-                error=str(e),
-                environment=settings.ENVIRONMENT.value,
-            )
-            raise Exception(f"failed to get llm response after trying all models: {str(e)}")
-
-    # Define our tool node
-    async def _tool_call(self, state: GraphState) -> Command:
-        """Process tool calls from the last message.
-
-        Args:
-            state: The current agent state containing messages and tool calls.
-
-        Returns:
-            Command: Command object with updated messages and routing back to chat.
-        """
-        outputs = []
-        for tool_call in state.messages[-1].tool_calls:
-            tool_result = await self.tools_by_name[tool_call["name"]].ainvoke(tool_call["args"])
-            outputs.append(
-                ToolMessage(
-                    content=tool_result,
-                    name=tool_call["name"],
-                    tool_call_id=tool_call["id"],
-                )
-            )
-        return Command(update={"messages": outputs}, goto="chat")
-
-    async def _think(self, state: GraphState, config: RunnableConfig) -> Command:
-        """Analyze the user's request and plan the response.
-
-        Args:
-            state (GraphState): The current state of the conversation.
-
-        Returns:
-            Command: Command object with thinking output.
-        """
-        current_llm = self.llm_service.get_llm()
-        THINKING_PROMPT = """You are an expert AI strategist designed to ensure high-quality responses.
-Your task is NOT to answer the user's question directly, but to ANALYZE the request and PLAN the best possible response.
-
-**Guidelines:**
-1.  **Deconstruct**: Break down the user's request into core components and implicit intent.
-2.  **Context Expansion**: What background knowledge or context is necessary to give a "Deep" answer?
-3.  **Strategy**: Outline a logical structure for the final response (e.g., Introduction -> Core Concept -> Examples -> deep usage -> Conclusion).
-4.  **Tone & Style**: Determine the appropriate tone (academic, practical, simple, etc.).
-
-**Output Style:**
-- Use **Internal Monologue** (e.g., "The user is asking about X. I must ensure to cover Y and Z...").
-- **DO NOT** address the user directly (No "Here is the plan for you").
-- **DO NOT** generate the final answer text. Only the plan.
-"""
-        messages = prepare_messages(state.messages, current_llm, THINKING_PROMPT)
-
-        try:
-            response = await self.llm_service.call(messages)
-            content = str(response.content)
-            
-            # Robustly remove any existing tag using regex to prevent duplication/formatting issues
-            import re
-            # Matches [Deep Thinking - Analysis] optionally surrounded by Markdown bold/italics etc, and followed by whitespace
-            content = re.sub(r'^[\s\*]*\[Deep Thinking - [^\]]+\][\s\*]*', '', content, flags=re.IGNORECASE | re.MULTILINE)
-            
-            response.content = f"[Deep Thinking - Analysis]\n{content}\n\n"
-            return Command(update={"messages": [response]}, goto="verify")
-        except Exception as e:
-            logger.error(
-                "think_step_failed",
-                session_id=config["configurable"]["thread_id"],
-                error=str(e)
-            )
-            # Fallback to chat if thinking fails
-            return Command(goto="chat")
-
-    async def _verify(self, state: GraphState, config: RunnableConfig) -> Command:
-        """Verify the analysis and plan.
-
-        Args:
-            state (GraphState): The current state of the conversation.
-
-        Returns:
-            Command: Command object with verification output.
-        """
-        current_llm = self.llm_service.get_llm()
-        VERIFY_PROMPT = """You are a Critical Reviewer.
-Review the analysis and plan provided in the previous turn.
-
-**Guidelines:**
-1.  **Critique**: identify any logical gaps, missing edge cases, or potential inaccuracies in the plan.
-2.  **Enhancement**: Suggest 1-2 specific ways to make the final answer more insightful or comprehensive.
-3.  **Safety**: Ensure no safety guidelines are violated.
-
-**Output Style:**
-- Concise and constructive.
-- **DO NOT** generate the final answer.
-- Focus on *improving* the execution of the plan.
-"""
-        messages = prepare_messages(state.messages, current_llm, VERIFY_PROMPT)
-
-        try:
-            response = await self.llm_service.call(messages)
-            content = str(response.content)
-            
-            import re
-            content = re.sub(r'^[\s\*]*\[Deep Thinking - [^\]]+\][\s\*]*', '', content, flags=re.IGNORECASE | re.MULTILINE)
-
-            response.content = f"[Deep Thinking - Verification]\n{content}\n\n"
-            return Command(update={"messages": [response]}, goto="chat")
-        except Exception as e:
-            logger.error(
-                "verify_step_failed",
-                session_id=config["configurable"]["thread_id"],
-                error=str(e)
-            )
-            return Command(goto="chat")
-
-    def _route_start(self, state: GraphState) -> str:
-        """Route the start of the graph based on deep thinking mode.
-
-        Args:
-           state (GraphState): The current state.
-
-        Returns:
-            str: The name of the next node.
-        """
-        if state.is_deep_thinking:
-            return "think"
-        return "chat"
-
     async def create_graph(self) -> Optional[CompiledStateGraph]:
-        """Create and configure the LangGraph workflow.
-
-        Returns:
-            Optional[CompiledStateGraph]: The configured LangGraph instance or None if init fails
-        """
+        """Build and compile the LangGraph workflow (idempotent)."""
         if self._graph is None:
             try:
-                graph_builder = StateGraph(GraphState)
-                graph_builder.add_node("chat", self._chat, ends=["tool_call", END])
-                graph_builder.add_node("tool_call", self._tool_call, ends=["chat"])
-                
-                # Deep thinking nodes
-                graph_builder.add_node("think", self._think, ends=["verify", "chat"])
-                graph_builder.add_node("verify", self._verify, ends=["chat"])
+                builder = StateGraph(GraphState)
+                builder.add_node("chat", self._chat, ends=["tool_call", END])
+                builder.add_node("tool_call", self._tool_call, ends=["chat"])
+                builder.add_node("think", self._think, ends=["verify", "chat"])
+                builder.add_node("verify", self._verify, ends=["chat"])
+                builder.add_conditional_edges(START, self._route_start)
+                builder.set_finish_point("chat")
 
-                # Conditional entry point
-                graph_builder.add_conditional_edges(START, self._route_start)
-                
-                # graph_builder.set_entry_point("chat") # Removed in favor of conditional edges
-                graph_builder.set_finish_point("chat")
-
-                # Get connection pool (may be None in production if DB unavailable)
                 connection_pool = await self._get_connection_pool()
                 if connection_pool:
                     checkpointer = AsyncPostgresSaver(connection_pool)
                     await checkpointer.setup()
                 else:
-                    # In production, proceed without checkpointer if needed
                     checkpointer = None
                     if settings.ENVIRONMENT != Environment.PRODUCTION:
                         raise Exception("Connection pool initialization failed")
 
-                self._graph = graph_builder.compile(
-                    checkpointer=checkpointer, name=f"{settings.PROJECT_NAME} Agent ({settings.ENVIRONMENT.value})"
+                self._graph = builder.compile(
+                    checkpointer=checkpointer,
+                    name=f"{settings.PROJECT_NAME} Agent ({settings.ENVIRONMENT.value})",
                 )
-
                 logger.info(
                     "graph_created",
                     graph_name=f"{settings.PROJECT_NAME} Agent",
@@ -444,13 +121,13 @@ Review the analysis and plan provided in the previous turn.
                 )
             except Exception as e:
                 logger.error("graph_creation_failed", error=str(e), environment=settings.ENVIRONMENT.value)
-                # In production, we don't want to crash the app
                 if settings.ENVIRONMENT == Environment.PRODUCTION:
                     logger.warning("continuing_without_graph")
                     return None
-                raise e
-
+                raise
         return self._graph
+
+    # ── Public interface ──────────────────────────────────────────────────────
 
     async def get_response(
         self,
@@ -461,35 +138,11 @@ Review the analysis and plan provided in the previous turn.
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
     ) -> list[dict]:
-        """Get a response from the LLM.
-
-        Args:
-            messages (list[Message]): The messages to send to the LLM.
-            session_id (str): The session ID for Langfuse tracking.
-            user_id (Optional[str]): The user ID for Langfuse tracking.
-            is_deep_thinking (bool): Whether to enable deep thinking mode.
-            system_instructions (Optional[str]): Custom instructions for the GPT.
-            rag_key (Optional[str]): RAG key for the GPT knowledge base.
-
-        Returns:
-            list[dict]: The response from the LLM.
-        """
         if self._graph is None:
             self._graph = await self.create_graph()
-        config = {
-            "configurable": {"thread_id": session_id},
-            "callbacks": _get_langfuse_callbacks(),
-            "metadata": {
-                "user_id": user_id,
-                "session_id": session_id,
-                "environment": settings.ENVIRONMENT.value,
-                "debug": settings.DEBUG,
-            },
-        }
-        
-        relevant_memory = (
-            await self._get_relevant_memory(user_id, messages[-1].content)
-        ) or "No relevant memory found."
+
+        config = self._build_config(session_id, user_id)
+        relevant_memory = (await self._get_relevant_memory(user_id, messages[-1].content)) or "No relevant memory found."
 
         try:
             response = await self._graph.ainvoke(
@@ -502,64 +155,37 @@ Review the analysis and plan provided in the previous turn.
                 },
                 config=config,
             )
-            # Run memory update in background without blocking the response
             asyncio.create_task(
                 self._update_long_term_memory(
                     user_id, convert_to_openai_messages(response["messages"]), config["metadata"]
                 )
             )
-            return self.__process_messages(response["messages"])
+            return self._process_messages(response["messages"])
         except Exception as e:
-            logger.error(f"Error getting response: {str(e)}")
-            raise  # Re-raise to let caller handle the error
+            logger.error("get_response_failed", session_id=session_id, error=str(e))
+            raise
 
     async def get_stream_response(
-        self, 
-        messages: list[Message], 
-        session_id: str, 
+        self,
+        messages: list[Message],
+        session_id: str,
         user_id: Optional[str] = None,
         is_deep_thinking: bool = False,
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
-        """Get a stream response from the LLM.
-
-        Args:
-            messages (list[Message]): The messages to send to the LLM.
-            session_id (str): The session ID for the conversation.
-            user_id (Optional[str]): The user ID for the conversation.
-            is_deep_thinking (bool): Whether to enable deep thinking mode.
-            system_instructions (Optional[str]): Custom instructions for the GPT.
-            rag_key (Optional[str]): RAG key for the GPT knowledge base.
-
-        Yields:
-            str: Tokens of the LLM response.
-        """
-        config = {
-            "configurable": {"thread_id": session_id},
-            "callbacks": _get_langfuse_callbacks(),
-            "metadata": {
-                "user_id": user_id,
-                "session_id": session_id,
-                "environment": settings.ENVIRONMENT.value,
-                "debug": settings.DEBUG,
-            },
-        }
         if self._graph is None:
             self._graph = await self.create_graph()
 
-        relevant_memory = (
-            await self._get_relevant_memory(user_id, messages[-1].content)
-        ) or "No relevant memory found."
+        config = self._build_config(session_id, user_id)
+        relevant_memory = (await self._get_relevant_memory(user_id, messages[-1].content)) or "No relevant memory found."
 
         try:
-            think_tag_sent = False
-            verify_tag_sent = False
-            answer_tag_sent = False
+            think_tag_sent = verify_tag_sent = answer_tag_sent = False
 
             async for msg, metadata in self._graph.astream(
                 {
-                    "messages": dump_messages(messages), 
+                    "messages": dump_messages(messages),
                     "long_term_memory": relevant_memory,
                     "is_deep_thinking": is_deep_thinking,
                     "system_instructions": system_instructions,
@@ -570,7 +196,6 @@ Review the analysis and plan provided in the previous turn.
             ):
                 try:
                     node_name = metadata.get("langgraph_node")
-                    
                     if is_deep_thinking:
                         if node_name == "think" and not think_tag_sent:
                             yield "[Deep Thinking - Analysis]\n"
@@ -581,14 +206,11 @@ Review the analysis and plan provided in the previous turn.
                         elif node_name == "chat" and not answer_tag_sent:
                             yield "[Deep Thinking - Answer]\n"
                             answer_tag_sent = True
-                    
                     yield msg.content
                 except Exception as token_error:
-                    logger.error("Error processing token", error=str(token_error), session_id=session_id)
-                    # Continue with next token even if current one fails
+                    logger.error("stream_token_processing_failed", error=str(token_error), session_id=session_id)
                     continue
 
-            # After streaming completes, get final state and update memory in background
             state: StateSnapshot = await sync_to_async(self._graph.get_state)(config=config)
             if state.values and "messages" in state.values:
                 asyncio.create_task(
@@ -596,80 +218,63 @@ Review the analysis and plan provided in the previous turn.
                         user_id, convert_to_openai_messages(state.values["messages"]), config["metadata"]
                     )
                 )
-        except Exception as stream_error:
-            logger.error("Error in stream processing", error=str(stream_error), session_id=session_id)
-            raise stream_error
+        except Exception as e:
+            logger.error("stream_processing_failed", error=str(e), session_id=session_id)
+            raise
 
     async def get_chat_history(self, session_id: str) -> list[Message]:
-        """Get the chat history for a given thread ID.
-
-        Args:
-            session_id (str): The session ID for the conversation.
-
-        Returns:
-            list[Message]: The chat history.
-        """
         if self._graph is None:
             self._graph = await self.create_graph()
-
         state: StateSnapshot = await sync_to_async(self._graph.get_state)(
             config={"configurable": {"thread_id": session_id}}
         )
-        return self.__process_messages(state.values["messages"]) if state.values else []
-
-    def __process_messages(self, messages: list[BaseMessage]) -> list[Message]:
-        openai_style_messages = convert_to_openai_messages(messages)
-        result = []
-        # keep just assistant and user messages
-        for message in openai_style_messages:
-            if message["role"] not in ["assistant", "user"] or not message["content"]:
-                continue
-            
-            content = message["content"]
-            
-            # Handle multimodal content (list of content blocks)
-            if isinstance(content, list):
-                # Extract only text content from multimodal messages
-                text_parts = []
-                for block in content:
-                    if isinstance(block, dict):
-                        if block.get("type") == "text" and "text" in block:
-                            text_parts.append(block["text"])
-                    elif isinstance(block, str):
-                        text_parts.append(block)
-                content = "\n".join(text_parts) if text_parts else ""
-            
-            # Skip empty content after processing
-            if not content:
-                continue
-                
-            result.append(Message(role=message["role"], content=str(content)))
-        
-        return result
+        return self._process_messages(state.values["messages"]) if state.values else []
 
     async def clear_chat_history(self, session_id: str) -> None:
-        """Clear all chat history for a given thread ID.
-
-        Args:
-            session_id: The ID of the session to clear history for.
-
-        Raises:
-            Exception: If there's an error clearing the chat history.
-        """
+        conn_pool = await self._get_connection_pool()
         try:
-            # Make sure the pool is initialized in the current event loop
-            conn_pool = await self._get_connection_pool()
-
-            # Use a new connection for this specific operation
             async with conn_pool.connection() as conn:
                 for table in settings.CHECKPOINT_TABLES:
                     try:
                         await conn.execute(f"DELETE FROM {table} WHERE thread_id = %s", (session_id,))
-                        logger.info(f"Cleared {table} for session {session_id}")
+                        logger.info("checkpoint_table_cleared", table=table, session_id=session_id)
                     except Exception as e:
-                        logger.error(f"Error clearing {table}", error=str(e))
+                        logger.error("checkpoint_table_clear_failed", table=table, error=str(e))
                         raise
-
         except Exception as e:
-            logger.error("Failed to clear chat history", error=str(e))
+            logger.error("clear_chat_history_failed", session_id=session_id, error=str(e))
             raise
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _build_config(self, session_id: str, user_id: Optional[str]) -> dict:
+        return {
+            "configurable": {"thread_id": session_id},
+            "callbacks": _get_langfuse_callbacks(),
+            "metadata": {
+                "user_id": user_id,
+                "session_id": session_id,
+                "environment": settings.ENVIRONMENT.value,
+                "debug": settings.DEBUG,
+            },
+        }
+
+    def _process_messages(self, messages: list[BaseMessage]) -> list[Message]:
+        result = []
+        for message in convert_to_openai_messages(messages):
+            if message["role"] not in ("assistant", "user") or not message["content"]:
+                continue
+
+            content = message["content"]
+            if isinstance(content, list):
+                text_parts = [
+                    block["text"]
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text" and "text" in block
+                ] + [block for block in content if isinstance(block, str)]
+                content = "\n".join(text_parts)
+
+            if content:
+                result.append(Message(role=message["role"], content=str(content)))
+
+        return result
