@@ -198,7 +198,6 @@ async def login(request: Request, user_data: UserLogin):
         HTTPException: If credentials are invalid
     """
     try:
-        print(user_data)
         # Sanitize inputs
         username = sanitize_string(user_data.email)
         password = sanitize_string(user_data.password.get_secret_value())
