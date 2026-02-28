@@ -142,8 +142,11 @@ export function UsersActionDialog({
       }
       form.reset()
       onOpenChange(false)
-    } catch (_e) {
-      // Handle error
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      if (detail === 'Email already registered') {
+        form.setError('email', { message: 'Email already registered.' })
+      }
     }
   }
 
