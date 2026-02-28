@@ -6,6 +6,7 @@ configuration value parsing.
 """
 
 import json
+import logging
 import os
 from enum import Enum
 from pathlib import Path
@@ -18,6 +19,8 @@ from typing import (
 )
 
 from dotenv import load_dotenv
+
+_log = logging.getLogger(__name__)
 
 
 # Define environment types
@@ -56,7 +59,7 @@ def get_environment() -> Environment:
 def load_env_file():
     """Load environment-specific .env file."""
     env = get_environment()
-    print(f"Loading environment: {env}")
+    _log.debug("loading_environment", extra={"environment": env.value})
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
     # Define env files in priority order
@@ -71,7 +74,7 @@ def load_env_file():
     for env_file in env_files:
         if os.path.isfile(env_file):
             load_dotenv(dotenv_path=env_file)
-            print(f"Loaded environment from {env_file}")
+            _log.debug("env_file_loaded", extra={"env_file": env_file})
             return env_file
 
     # Fall back to default if no env file found

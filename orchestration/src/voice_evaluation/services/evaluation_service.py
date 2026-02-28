@@ -12,7 +12,6 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from typing import List, Dict, Any, TypedDict, Annotated, Optional
 import json
-import asyncio
 
 from src.common.config import settings
 from src.common.logging import logger
@@ -210,36 +209,30 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
         
         return state
     
-    def _assess_pronunciation_node(self, state: ConversationState) -> ConversationState:
+    async def _assess_pronunciation_node(self, state: ConversationState) -> ConversationState:
         """Node for pronunciation assessment using Azure Speech Service."""
-        
         audio_data = state.get("audio_data")
         user_input = state.get("user_input", "")
-        
-        # Perform assessment if audio data is present
+
         if audio_data:
             try:
-                # Run async function synchronously
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                pronunciation_result = loop.run_until_complete(
-                    self.audio_service.assess_pronunciation(audio_data, user_input)
-                )
-                loop.close()
-                
+                pronunciation_result = await self.audio_service.assess_pronunciation(audio_data, user_input)
                 if pronunciation_result:
                     state["pronunciation_result"] = pronunciation_result
-                    logger.info(f"Assessment Node: Success - Score: {pronunciation_result.get('pronunciation_score', 0)}")
+                    logger.info(
+                        "assessment_node_success",
+                        score=pronunciation_result.get("pronunciation_score", 0),
+                    )
                 else:
                     state["pronunciation_result"] = None
-                    logger.warning("Assessment Node: Assessment failed")
+                    logger.warning("assessment_node_failed")
             except Exception as e:
-                logger.error(f"Assessment Node Error: {str(e)}", exc_info=True)
+                logger.error("assessment_node_error", error=str(e), exc_info=True)
                 state["pronunciation_result"] = None
         else:
             state["pronunciation_result"] = None
-            logger.info("Assessment Node: No audio data")
-        
+            logger.info("assessment_node_no_audio")
+
         return state
     
     def _evaluate_node(self, state: ConversationState) -> ConversationState:
