@@ -1,0 +1,96 @@
+services:
+  # ─────────────────────────────────────────────
+  # Nginx 리버스 프록시 (단일 진입점)
+  #   http://1.1.1.1:8060       → llm-admin (Next.js)
+  #   http://1.1.1.1:8060/api/* → orchestration (FastAPI)
+  #   ws://1.1.1.1:8060/api/*   → orchestration (WebSocket)
+  # ─────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "8060:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - llm-admin
+      - app
+    networks:
+      - app-network
+    restart: always
+
+  # ─────────────────────────────────────────────
+  # llm-admin (Next.js 프론트엔드)
+  # ─────────────────────────────────────────────
+  llm-admin:
+    build:
+      context: ../admin/llm-admin
+      dockerfile: Dockerfile
+      args:
+        # .env.production 에서 NEXT_PUBLIC_* 빌드타임 변수 주입
+        ENV_FILE: .env.production
+    container_name: llm-admin
+    environment:
+      - NODE_ENV=production
+      # Next.js server-side rewrite용 (직접 컨테이너 통신)
+      # Nginx 방식에서는 브라우저→Nginx→app 경로를 쓰므로 보조 용도
+      - API_URL=http://app:8000
+    networks:
+      - app-network
+    restart: always
+
+  # ─────────────────────────────────────────────
+  # orchestration (FastAPI 백엔드)
+  # ─────────────────────────────────────────────
+  app:
+    build:
+      context: ../orchestration
+      args:
+        APP_ENV: ${APP_ENV:-production}
+    container_name: orchestration-app
+    env_file:
+      - ../orchestration/.env.${APP_ENV:-production}
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL + pgvector
+  # ─────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: orchestration-db
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-mydb}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-mydb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    restart: always
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
