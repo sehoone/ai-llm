@@ -20,7 +20,7 @@ from src.common.logging import logger
 from src.common.schemas.graph import GraphState
 from src.chatbot.schemas.chat_schema import Message
 from src.common.services.graph import dump_messages
-from src.common.services.llm import llm_service
+from src.common.services.llm import LLMService
 
 import os
 
@@ -46,7 +46,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
     """
 
     def __init__(self):
-        self.llm_service = llm_service
+        self.llm_service = LLMService()
         self.llm_service.bind_tools(tools)
         self.tools_by_name = {tool.name: tool for tool in tools}
         self._connection_pool: Optional[AsyncConnectionPool] = None

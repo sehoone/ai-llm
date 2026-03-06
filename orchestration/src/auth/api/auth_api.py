@@ -26,7 +26,7 @@ from src.common.logging import (
     bind_context,
     logger,
 )
-from src.user.models.user_model import User
+from src.user.models.user_model import User, UserRole
 from src.auth.schemas.auth_schema import (
     RefreshTokenRequest,
     TokenResponse,
@@ -133,6 +133,16 @@ async def get_current_user(
         )
 
 
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Dependency that requires the current user to have admin or superadmin role.
+
+    Raises:
+        HTTPException: 403 if the user does not have sufficient privileges.
+    """
+    if user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
+        logger.warning("admin_access_denied", user_id=user.id, role=user.role)
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return user
 
 
 

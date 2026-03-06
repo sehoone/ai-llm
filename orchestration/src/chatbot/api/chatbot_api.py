@@ -19,7 +19,7 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 
-from src.auth.api.auth_api import get_current_user
+from src.auth.api.auth_api import get_current_user, require_admin
 from src.chatbot.deps import get_owned_chat_session
 from src.common.config import settings
 from src.common.langgraph.graph import LangGraphAgent
@@ -91,8 +91,8 @@ async def chat(
                  # Assuming result contains the *new* messages from the agent execution
                  assistant_content = ""
                  for msg in result:
-                     if msg.get("role") == "assistant":
-                         assistant_content = msg.get("content", "")
+                     if msg.role == "assistant":
+                         assistant_content = msg.content
                          break
                  
                  if assistant_content:
@@ -376,7 +376,7 @@ async def get_all_chat_history(
     request: Request,
     limit: int = 100,
     offset: int = 0,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     """Get all chat history for all users.
 
@@ -384,13 +384,12 @@ async def get_all_chat_history(
         request: The FastAPI request object
         limit: Max records
         offset: Records to skip
-        user: The authenticated user (Should be admin, but currently allowing any auth user for logic)
+        user: The authenticated admin user.
 
     Returns:
         List[ChatHistoryResponse]: List of chat histories
     """
     try:
-        # TODO: Add admin check here
         history = await database_service.get_all_chat_history(limit=limit, offset=offset)
         return history
     except Exception as e:
@@ -400,19 +399,18 @@ async def get_all_chat_history(
 @router.get("/history/{message_id}", response_model=ChatHistoryResponse, summary="대화 상세 조회", description="특정 대화 이력의 상세 정보를 조회합니다.")
 async def get_chat_history_detail(
     message_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     """Get chat history detail by ID.
 
     Args:
         message_id: The ID of the chat message to retrieve
-        user: The authenticated user
+        user: The authenticated admin user.
 
     Returns:
         ChatHistoryResponse: The chat history detail
     """
     try:
-        # TODO: Add admin check here
         history = await database_service.get_chat_message_by_id(message_id)
         if not history:
             raise HTTPException(status_code=404, detail="Chat history not found")
