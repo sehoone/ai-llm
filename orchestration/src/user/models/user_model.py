@@ -25,6 +25,8 @@ class User(BaseModel, table=True):
         created_at: When the user was created
     """
 
+    __tablename__ = "users"
+
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)
     email: str = Field(unique=True, index=True)

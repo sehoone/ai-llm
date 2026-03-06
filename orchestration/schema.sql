@@ -9,8 +9,8 @@ SET search_path TO llmonl, public;
 -- Enable pgvector extension for vector embeddings
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Create user table
-CREATE TABLE IF NOT EXISTS "user" (
+-- Create users table
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
@@ -34,8 +34,7 @@ CREATE TABLE IF NOT EXISTS gpt_session (
     user_id INTEGER NOT NULL,
     custom_gpt_id TEXT NOT NULL,
     name TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (custom_gpt_id) REFERENCES custom_gpt(id)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_gpt_session_user_id ON gpt_session(user_id);
@@ -75,7 +74,7 @@ CREATE TABLE IF NOT EXISTS rag_embedding (
 );
 
 -- Create indexes for frequently queried columns
-CREATE INDEX IF NOT EXISTS idx_user_email ON "user"(email);
+CREATE INDEX IF NOT EXISTS idx_user_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_session_user_id ON session(user_id);
 CREATE INDEX IF NOT EXISTS idx_document_user_id ON document(user_id);
 CREATE INDEX IF NOT EXISTS idx_document_rag_key ON document(rag_key);
