@@ -6,10 +6,10 @@ from sqlmodel import Session, create_engine, select
 
 from src.common.config import Environment, settings
 from src.common.logging import logger
-from src.common.services.repositories.user_repository import UserRepositoryMixin
-from src.common.services.repositories.session_repository import SessionRepositoryMixin
-from src.common.services.repositories.gpt_repository import GPTRepositoryMixin
-from src.common.services.repositories.llm_resource_repository import LLMResourceRepositoryMixin
+from src.user.services.user_repository import UserRepositoryMixin
+from src.chatbot.services.session_repository import SessionRepositoryMixin
+from src.chatbot.services.gpt_repository import GPTRepositoryMixin
+from src.llm_resources.services.llm_resource_repository import LLMResourceRepositoryMixin
 
 
 class DatabaseService(
