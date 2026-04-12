@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.multicampus.llmbackend.domain.user.repository.UserMapper">
+
+    <resultMap id="UserListItemMap" type="com.multicampus.llmbackend.domain.user.dto.UserListItem">
+        <id     property="id"        column="id"/>
+        <result property="email"     column="email"/>
+        <result property="name"      column="name"/>
+        <result property="role"      column="role"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 동적 조건 절 (searchUsers / countUsers 공통) -->
+    <sql id="searchCondition">
+        <where>
+            <if test="req.email != null and req.email != ''">
+                AND u.email LIKE CONCAT('%', #{req.email}, '%')
+            </if>
+            <if test="req.name != null and req.name != ''">
+                AND u.name LIKE CONCAT('%', #{req.name}, '%')
+            </if>
+            <if test="req.role != null and req.role != ''">
+                AND u.role = #{req.role}
+            </if>
+        </where>
+    </sql>
+
+    <select id="searchUsers" resultMap="UserListItemMap">
+        SELECT u.id,
+               u.email,
+               u.name,
+               u.role,
+               u.created_at
+        FROM users u
+        <include refid="searchCondition"/>
+        ORDER BY u.created_at DESC
+        LIMIT #{req.size} OFFSET #{req.offset}
+    </select>
+
+    <select id="countUsers" resultType="int">
+        SELECT COUNT(*)
+        FROM users u
+        <include refid="searchCondition"/>
+    </select>
+
+</mapper>
