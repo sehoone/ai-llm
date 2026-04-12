@@ -1,6 +1,5 @@
 """This file contains the main application entry point."""
 
-import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import (
@@ -21,6 +20,7 @@ from langfuse import Langfuse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from src.chatbot.api.chatbot_api import agent
 from src.common.api.api import api_router
 from src.common.config import settings
 from src.common.limiter import limiter
@@ -37,16 +37,12 @@ load_dotenv()
 
 # Initialize Langfuse (optional - only if credentials are provided)
 langfuse = None
-langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY", "")
-langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY", "")
-langfuse_enabled = os.getenv("LANGFUSE_ENABLED", "true").lower() == "true"
-
-if langfuse_enabled and langfuse_public_key and langfuse_secret_key:
+if settings.langfuse_is_enabled:
     try:
         langfuse = Langfuse(
-            public_key=langfuse_public_key,
-            secret_key=langfuse_secret_key,
-            host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+            public_key=settings.LANGFUSE_PUBLIC_KEY,
+            secret_key=settings.LANGFUSE_SECRET_KEY,
+            host=settings.LANGFUSE_HOST,
         )
     except Exception as e:
         logger.warning("langfuse_initialization_failed", error=str(e))
@@ -63,6 +59,7 @@ async def lifespan(app: FastAPI):
         version=settings.VERSION,
         api_prefix=settings.API_V1_STR,
     )
+    await agent.create_graph()
     yield
     logger.info("application_shutdown")
 

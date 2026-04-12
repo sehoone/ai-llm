@@ -22,17 +22,8 @@ from src.chatbot.schemas.chat_schema import Message
 from src.common.services.graph import dump_messages
 from src.common.services.llm import LLMService
 
-import os
-
-_langfuse_enabled = (
-    os.getenv("LANGFUSE_ENABLED", "true").lower() == "true"
-    and os.getenv("LANGFUSE_PUBLIC_KEY", "")
-    and os.getenv("LANGFUSE_SECRET_KEY", "")
-)
-
-
 def _get_langfuse_callbacks():
-    if _langfuse_enabled:
+    if settings.langfuse_is_enabled:
         from langfuse.langchain import CallbackHandler
         return [CallbackHandler()]
     return []

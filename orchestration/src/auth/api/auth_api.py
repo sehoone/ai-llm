@@ -259,7 +259,15 @@ async def refresh_token(request: Request, token_data: RefreshTokenRequest):
     """
     try:
         # Verify refresh token
-        user_id = verify_token(token_data.refresh_token)
+        payload = verify_token(token_data.refresh_token)
+        if payload is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid refresh token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(
                 status_code=401,

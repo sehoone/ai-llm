@@ -1,5 +1,6 @@
 """LLM service for managing LLM calls with retries and fallback mechanisms."""
 
+import time
 from typing import (
     Any,
     Dict,
@@ -160,6 +161,11 @@ class LLMService:
     rate limit handling, and circular fallback through all available models.
     """
 
+    # Class-level resource cache shared across all LLMService instances
+    _resources_cache: List = []
+    _resources_cache_ts: float = 0.0
+    _RESOURCES_CACHE_TTL: float = 60.0  # seconds
+
     def __init__(self):
         """Initialize the LLM service."""
         self._llm: Optional[BaseChatModel] = None
@@ -266,6 +272,18 @@ class LLMService:
             )
             raise
 
+    async def _get_cached_resources(self) -> List[LLMResource]:
+        """Return active LLM resources, re-fetching from DB at most once per TTL period."""
+        now = time.monotonic()
+        if now - LLMService._resources_cache_ts > LLMService._RESOURCES_CACHE_TTL:
+            try:
+                all_resources = await database_service.get_llm_resources()
+                LLMService._resources_cache = list(all_resources)
+                LLMService._resources_cache_ts = now
+            except Exception as e:
+                logger.error("failed_to_fetch_llm_resources", error=str(e))
+        return LLMService._resources_cache
+
     def _create_llm_from_resource(self, resource: LLMResource, **kwargs) -> BaseChatModel:
         """Create an LLM client from a resource configuration."""
         
@@ -315,15 +333,9 @@ class LLMService:
         Raises:
             RuntimeError: If all models fail after retries
         """
-        # 1. Try to fetch resources from DB
-        db_resources = []
-        try:
-            # Note: This might block if database_service uses sync session.
-            all_resources = await database_service.get_llm_resources()
-            db_resources = [r for r in all_resources if r.is_active]
-        except Exception as e:
-            logger.error("failed_to_fetch_llm_resources", error=str(e))
-            db_resources = []
+        # 1. Try to fetch resources from DB (cached)
+        all_resources = await self._get_cached_resources()
+        db_resources = [r for r in all_resources if r.is_active]
 
         # 2. If DB resources exist, use them
         if db_resources:
@@ -452,28 +464,51 @@ class LLMService:
     ):
         """Stream response from the LLM.
 
+        Prioritizes DB-configured resources with fallback to registry, mirroring call().
+
         Args:
             messages: List of messages to send to the LLM
             model_name: Optional specific model to use
             **model_kwargs: Optional kwargs
-        
+
         Yields:
-             Chunks of the response
+            Chunks of the response
         """
-        # If user specifies a model, get it from registry
+        # 1. Try DB resources first (cached)
+        all_resources = await self._get_cached_resources()
+        db_resources = [r for r in all_resources if r.is_active]
+
+        if db_resources:
+            candidates = db_resources
+            if model_name:
+                matching = [r for r in db_resources if r.name == model_name]
+                if matching:
+                    candidates = matching + [r for r in db_resources if r.name != model_name]
+                else:
+                    logger.warning("requested_model_not_in_db", model_name=model_name)
+
+            for resource in candidates:
+                try:
+                    llm = self._create_llm_from_resource(resource, **model_kwargs)
+                    async for chunk in llm.astream(messages):
+                        yield chunk
+                    return
+                except Exception as e:
+                    logger.warning("db_resource_stream_failed", resource=resource.name, error=str(e))
+                    continue
+
+            logger.warning("all_db_resources_stream_failed_falling_back_to_registry")
+
+        # 2. Fallback to registry
         if model_name:
             try:
-                self._llm = LLMRegistry.get(model_name, **model_kwargs)
+                llm = LLMRegistry.get(model_name, **model_kwargs)
             except ValueError:
-                # Fallback to default if not found, or handle as needed
-                pass
+                llm = self._llm or LLMRegistry.LLMS[0]["llm"]
+        else:
+            llm = self._llm or LLMRegistry.LLMS[0]["llm"]
 
-        if self._llm is None:
-             # Initialize with default
-             default_name = LLMRegistry.LLMS[0]["name"]
-             self._llm = LLMRegistry.get(default_name)
-
-        async for chunk in self._llm.astream(messages, **model_kwargs):
+        async for chunk in llm.astream(messages):
             yield chunk
 
     def get_llm(self) -> Optional[BaseChatModel]:

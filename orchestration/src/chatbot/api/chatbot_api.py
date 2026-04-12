@@ -366,6 +366,7 @@ async def clear_chat_history(
         session = await get_owned_chat_session(session_id, user)
 
         await agent.clear_chat_history(session.id)
+        await database_service.delete_chat_messages(session.id)
         return {"message": "Chat history cleared successfully"}
     except Exception as e:
         logger.error("clear_chat_history_failed", session_id=session_id, error=str(e), exc_info=True)
