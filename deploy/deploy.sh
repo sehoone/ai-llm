@@ -30,8 +30,8 @@ if [ ! -f "$ADMIN_ENV_FILE" ]; then
 fi
 
 echo "Deploying all services for [$ENV] environment..."
-echo "  - API server  : http://localhost:8080/api"
-echo "  - Frontend    : http://localhost:8080"
+echo "  - API server  : http://localhost:8060/api"
+echo "  - Frontend    : http://localhost:8060"
 
 cd "$SCRIPT_DIR"
 
