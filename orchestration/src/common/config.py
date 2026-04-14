@@ -172,6 +172,7 @@ class Settings:
         # JWT
         self.JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")
         self.JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+        self.GRAPH_RESPONSE_TIMEOUT: int = int(os.getenv("GRAPH_RESPONSE_TIMEOUT", "120"))
         self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10"))
         self.JWT_REFRESH_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_MINUTES", "10080"))
 
@@ -220,6 +221,8 @@ class Settings:
             errors.append("JWT_SECRET_KEY must not be empty")
         if not self.OPENAI_API_KEY:
             errors.append("OPENAI_API_KEY must not be empty")
+        if not self.POSTGRES_PASSWORD:
+            errors.append("POSTGRES_PASSWORD must not be empty")
         if self.ENVIRONMENT in (Environment.PRODUCTION, Environment.STAGING) and "*" in self.ALLOWED_ORIGINS:
             errors.append("ALLOWED_ORIGINS must not contain '*' in production/staging — set explicit origins")
         if errors:

@@ -1,5 +1,8 @@
 """Database service — engine setup and unified repository interface."""
 
+import asyncio
+from urllib.parse import quote_plus
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 from sqlmodel import Session, create_engine, select
@@ -32,7 +35,7 @@ class DatabaseService(
             max_overflow = settings.POSTGRES_MAX_OVERFLOW
 
             connection_url = (
-                f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
+                f"postgresql://{quote_plus(settings.POSTGRES_USER)}:{quote_plus(settings.POSTGRES_PASSWORD)}"
                 f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
                 f"?options=-csearch_path%3D{settings.POSTGRES_SCHEMA},public"
             )
@@ -69,10 +72,13 @@ class DatabaseService(
 
     async def health_check(self) -> bool:
         """Return True if the database connection is healthy."""
-        try:
+        def _check() -> bool:
             with Session(self.engine) as session:
                 session.exec(select(1)).first()
                 return True
+
+        try:
+            return await asyncio.to_thread(_check)
         except Exception as e:
             logger.error("database_health_check_failed", error=str(e))
             return False

@@ -1,6 +1,7 @@
 """Custom middleware for tracking metrics and other cross-cutting concerns."""
 
 import time
+import uuid
 from typing import Callable
 
 from fastapi import Request
@@ -107,3 +108,14 @@ class LoggingContextMiddleware(BaseHTTPMiddleware):
         finally:
             # Always clear context after request is complete to avoid leaking to other requests
             clear_context()
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Attach a unique X-Request-ID to every request and response for log correlation."""
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        bind_context(request_id=request_id)
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response

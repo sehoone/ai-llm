@@ -17,7 +17,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langfuse import Langfuse
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from src.chatbot.api.chatbot_api import agent
@@ -29,6 +28,7 @@ from src.common.metrics import setup_metrics
 from src.common.middleware import (
     LoggingContextMiddleware,
     MetricsMiddleware,
+    RequestIDMiddleware,
 )
 from src.common.services.database import database_service
 
@@ -78,15 +78,27 @@ app = FastAPI(
 # Set up Prometheus metrics
 setup_metrics(app)
 
+# RequestID must be outermost so request_id is available in all downstream middleware/logs
+app.add_middleware(RequestIDMiddleware)
+
 # Add logging context middleware (must be added before other middleware to capture context)
 app.add_middleware(LoggingContextMiddleware)
 
 # Add custom metrics middleware
 app.add_middleware(MetricsMiddleware)
 
-# Set up rate limiter exception handler
+# Set up rate limiter exception handler with Retry-After header
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    retry_after = getattr(exc, "retry_after", 60)
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": f"Rate limit exceeded: {exc.detail}"},
+        headers={"Retry-After": str(retry_after)},
+    )
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 
 # Add validation exception handler
@@ -161,16 +173,21 @@ async def health_check(request: Request) -> Dict[str, Any]:
 
     # Check database connectivity
     db_healthy = await database_service.health_check()
+    graph_ready = agent._graph is not None
 
+    all_healthy = db_healthy and graph_ready
     response = {
-        "status": "healthy" if db_healthy else "degraded",
+        "status": "healthy" if all_healthy else "degraded",
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT.value,
-        "components": {"api": "healthy", "database": "healthy" if db_healthy else "unhealthy"},
+        "components": {
+            "api": "healthy",
+            "database": "healthy" if db_healthy else "unhealthy",
+            "langgraph": "ready" if graph_ready else "not_initialized",
+        },
         "timestamp": datetime.now().isoformat(),
     }
 
-    # If DB is unhealthy, set the appropriate status code
-    status_code = status.HTTP_200_OK if db_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    status_code = status.HTTP_200_OK if all_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
     return JSONResponse(content=response, status_code=status_code)

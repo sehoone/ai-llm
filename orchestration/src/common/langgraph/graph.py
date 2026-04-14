@@ -120,7 +120,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                     # 프로덕션: checkpointer 없이 진행 / 그 외: 예외 발생
                     checkpointer = None
                     if settings.ENVIRONMENT != Environment.PRODUCTION:
-                        raise Exception("Connection pool initialization failed")
+                        raise RuntimeError("Connection pool initialization failed")
 
                 self._graph = builder.compile(
                     checkpointer=checkpointer,
@@ -176,16 +176,17 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         relevant_memory = (await self._get_relevant_memory(user_id, messages[-1].content)) or "No relevant memory found."
 
         try:
-            response = await self._graph.ainvoke(
-                input={
-                    "messages": dump_messages(messages),
-                    "long_term_memory": relevant_memory,
-                    "is_deep_thinking": is_deep_thinking,
-                    "system_instructions": system_instructions,
-                    "rag_key": rag_key,
-                },
-                config=config,
-            )
+            async with asyncio.timeout(settings.GRAPH_RESPONSE_TIMEOUT):
+                response = await self._graph.ainvoke(
+                    input={
+                        "messages": dump_messages(messages),
+                        "long_term_memory": relevant_memory,
+                        "is_deep_thinking": is_deep_thinking,
+                        "system_instructions": system_instructions,
+                        "rag_key": rag_key,
+                    },
+                    config=config,
+                )
             task = asyncio.create_task(
                 self._update_long_term_memory(
                     user_id, convert_to_openai_messages(response["messages"]), config["metadata"]
@@ -239,33 +240,34 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         try:
             think_tag_sent = verify_tag_sent = answer_tag_sent = False
 
-            async for msg, metadata in self._graph.astream(
-                {
-                    "messages": dump_messages(messages),
-                    "long_term_memory": relevant_memory,
-                    "is_deep_thinking": is_deep_thinking,
-                    "system_instructions": system_instructions,
-                    "rag_key": rag_key,
-                },
-                config,
-                stream_mode="messages",
-            ):
-                try:
-                    node_name = metadata.get("langgraph_node")
-                    if is_deep_thinking:
-                        if node_name == "think" and not think_tag_sent:
-                            yield "[Deep Thinking - Analysis]\n"
-                            think_tag_sent = True
-                        elif node_name == "verify" and not verify_tag_sent:
-                            yield "[Deep Thinking - Verification]\n"
-                            verify_tag_sent = True
-                        elif node_name == "chat" and not answer_tag_sent:
-                            yield "[Deep Thinking - Answer]\n"
-                            answer_tag_sent = True
-                    yield msg.content
-                except Exception as token_error:
-                    logger.error("stream_token_processing_failed", error=str(token_error), session_id=session_id)
-                    continue
+            async with asyncio.timeout(settings.GRAPH_RESPONSE_TIMEOUT):
+                async for msg, metadata in self._graph.astream(
+                    {
+                        "messages": dump_messages(messages),
+                        "long_term_memory": relevant_memory,
+                        "is_deep_thinking": is_deep_thinking,
+                        "system_instructions": system_instructions,
+                        "rag_key": rag_key,
+                    },
+                    config,
+                    stream_mode="messages",
+                ):
+                    try:
+                        node_name = metadata.get("langgraph_node")
+                        if is_deep_thinking:
+                            if node_name == "think" and not think_tag_sent:
+                                yield "[Deep Thinking - Analysis]\n"
+                                think_tag_sent = True
+                            elif node_name == "verify" and not verify_tag_sent:
+                                yield "[Deep Thinking - Verification]\n"
+                                verify_tag_sent = True
+                            elif node_name == "chat" and not answer_tag_sent:
+                                yield "[Deep Thinking - Answer]\n"
+                                answer_tag_sent = True
+                        yield msg.content
+                    except Exception as token_error:
+                        logger.error("stream_token_processing_failed", error=str(token_error), session_id=session_id)
+                        continue
 
             state: StateSnapshot = await sync_to_async(self._graph.get_state)(config=config)
             if state.values and "messages" in state.values:
