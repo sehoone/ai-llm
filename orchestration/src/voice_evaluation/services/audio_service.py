@@ -149,9 +149,25 @@ class AudioService:
             return None
 
     def audio_to_base64(self, audio_data: bytes) -> str:
+        """Encode raw audio bytes to a Base64 string.
+
+        Args:
+            audio_data: Raw audio bytes.
+
+        Returns:
+            str: Base64-encoded audio string.
+        """
         return base64.b64encode(audio_data).decode("utf-8")
 
     def base64_to_audio(self, base64_string: str) -> bytes:
+        """Decode a Base64 string back to raw audio bytes.
+
+        Args:
+            base64_string: Base64-encoded audio string.
+
+        Returns:
+            bytes: Decoded audio bytes.
+        """
         return base64.b64decode(base64_string)
 
     async def assess_pronunciation(

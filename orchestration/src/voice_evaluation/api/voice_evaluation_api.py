@@ -30,12 +30,22 @@ class ConnectionManager:
         self.conversation_histories: Dict[WebSocket, List[Dict[str, str]]] = {}
 
     async def connect(self, websocket: WebSocket):
+        """Accept a new WebSocket connection and initialize its conversation history.
+
+        Args:
+            websocket: The incoming WebSocket connection.
+        """
         await websocket.accept()
         self.active_connections.append(websocket)
         self.conversation_histories[websocket] = []
         logger.info("client_connected", total_connections=len(self.active_connections))
 
     def disconnect(self, websocket: WebSocket):
+        """Remove a WebSocket connection and clean up its history.
+
+        Args:
+            websocket: The WebSocket connection to remove.
+        """
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         if websocket in self.conversation_histories:
@@ -43,9 +53,24 @@ class ConnectionManager:
         logger.info("client_disconnected", total_connections=len(self.active_connections))
 
     def get_history(self, websocket: WebSocket) -> List[Dict[str, str]]:
+        """Return the conversation history for a WebSocket connection.
+
+        Args:
+            websocket: The WebSocket connection.
+
+        Returns:
+            List[Dict[str, str]]: Message history (role/content dicts).
+        """
         return self.conversation_histories.get(websocket, [])
 
     def add_to_history(self, websocket: WebSocket, role: str, content: str):
+        """Append a message to a WebSocket connection's conversation history.
+
+        Args:
+            websocket: The WebSocket connection.
+            role: Message role (``"user"`` or ``"assistant"``).
+            content: Message content string.
+        """
         if websocket not in self.conversation_histories:
             self.conversation_histories[websocket] = []
         self.conversation_histories[websocket].append({"role": role, "content": content})

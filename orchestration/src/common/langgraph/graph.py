@@ -52,6 +52,14 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
     # ── Infrastructure ────────────────────────────────────────────────────────
 
     async def _get_connection_pool(self) -> Optional[AsyncConnectionPool]:
+        """Lazily create and return the shared async PostgreSQL connection pool.
+
+        Returns:
+            Optional[AsyncConnectionPool]: The pool, or None in production if creation fails.
+
+        Raises:
+            Exception: In non-production environments if pool creation fails.
+        """
         if self._connection_pool is None:
             try:
                 connection_url = (
@@ -129,6 +137,24 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
     ) -> list[dict]:
+        """Run the graph to completion and return all resulting messages.
+
+        Long-term memory is retrieved before invocation and updated asynchronously afterward.
+
+        Args:
+            messages: The conversation messages to process.
+            session_id: LangGraph thread ID used for checkpoint persistence.
+            user_id: Optional user ID for scoped long-term memory.
+            is_deep_thinking: Enable think → verify pre-processing nodes.
+            system_instructions: Optional custom system prompt override.
+            rag_key: Optional RAG key to inject retrieval context.
+
+        Returns:
+            list[dict]: Processed assistant and user messages from the completed run.
+
+        Raises:
+            Exception: If the graph invocation fails.
+        """
         if self._graph is None:
             self._graph = await self.create_graph()
 
@@ -165,6 +191,26 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
+        """Stream the graph's token output as an async generator.
+
+        Yields section headers for deep thinking nodes (Analysis, Verification, Answer)
+        before the actual content tokens. Long-term memory is updated asynchronously
+        after streaming completes.
+
+        Args:
+            messages: The conversation messages to process.
+            session_id: LangGraph thread ID used for checkpoint persistence.
+            user_id: Optional user ID for scoped long-term memory.
+            is_deep_thinking: Enable think → verify pre-processing nodes.
+            system_instructions: Optional custom system prompt override.
+            rag_key: Optional RAG key to inject retrieval context.
+
+        Yields:
+            str: Individual content tokens or section header strings.
+
+        Raises:
+            Exception: If the stream processing fails.
+        """
         if self._graph is None:
             self._graph = await self.create_graph()
 
@@ -214,6 +260,14 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
             raise
 
     async def get_chat_history(self, session_id: str) -> list[Message]:
+        """Retrieve the current message state for a session from the checkpoint.
+
+        Args:
+            session_id: The LangGraph thread ID.
+
+        Returns:
+            list[Message]: Processed messages stored in the checkpoint, or empty list.
+        """
         if self._graph is None:
             self._graph = await self.create_graph()
         state: StateSnapshot = await sync_to_async(self._graph.get_state)(
@@ -222,6 +276,14 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         return self._process_messages(state.values["messages"]) if state.values else []
 
     async def clear_chat_history(self, session_id: str) -> None:
+        """Delete all LangGraph checkpoint rows for a session from PostgreSQL.
+
+        Args:
+            session_id: The LangGraph thread ID to clear.
+
+        Raises:
+            Exception: If deletion fails for any checkpoint table.
+        """
         conn_pool = await self._get_connection_pool()
         try:
             async with conn_pool.connection() as conn:
@@ -239,6 +301,15 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _build_config(self, session_id: str, user_id: Optional[str]) -> dict:
+        """Build the LangGraph run configuration dict.
+
+        Args:
+            session_id: Used as the LangGraph ``thread_id`` for checkpoint scoping.
+            user_id: Attached to metadata for tracing and memory operations.
+
+        Returns:
+            dict: Config with ``configurable``, ``callbacks``, and ``metadata`` keys.
+        """
         return {
             "configurable": {"thread_id": session_id},
             "callbacks": _get_langfuse_callbacks(),
@@ -251,6 +322,17 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         }
 
     def _process_messages(self, messages: list[BaseMessage]) -> list[Message]:
+        """Convert LangChain BaseMessages to API-facing Message objects.
+
+        Filters out non-user/assistant messages, flattens structured content
+        blocks to plain text, and skips empty messages.
+
+        Args:
+            messages: Raw LangChain messages from the graph state.
+
+        Returns:
+            list[Message]: Cleaned messages ready for API responses.
+        """
         result = []
         for message in convert_to_openai_messages(messages):
             if message["role"] not in ("assistant", "user") or not message["content"]:

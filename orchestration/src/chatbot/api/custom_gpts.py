@@ -1,3 +1,9 @@
+"""Custom GPT CRUD and chat endpoints.
+
+Provides routes for managing user-defined GPT bots (create, list, get, update, delete),
+GPT session management, and chat interactions (non-streaming and streaming).
+"""
+
 import json
 import uuid
 from typing import List
@@ -33,6 +39,15 @@ async def create_custom_gpt(
     gpt_create: CustomGPTCreate,
     user: User = Depends(get_current_user),
 ):
+    """Create a new Custom GPT bot for the authenticated user.
+
+    Args:
+        gpt_create: GPT creation parameters (name, instructions, model, etc.).
+        user: The authenticated user.
+
+    Returns:
+        CustomGPTResponse: The created Custom GPT info.
+    """
     return await custom_gpt_service.create_gpt(gpt_create, user.id)
 
 
@@ -40,6 +55,14 @@ async def create_custom_gpt(
 async def list_custom_gpts(
     user: User = Depends(get_current_user),
 ):
+    """List all Custom GPTs owned by the authenticated user.
+
+    Args:
+        user: The authenticated user.
+
+    Returns:
+        List[CustomGPTResponse]: The user's Custom GPT bots.
+    """
     return await custom_gpt_service.list_gpts(user.id)
 
 
@@ -48,6 +71,20 @@ async def get_custom_gpt(
     gpt_id: str,
     user: User = Depends(get_current_user),
 ):
+    """Get a specific Custom GPT by ID.
+
+    Public GPTs are accessible to all users; private GPTs require ownership.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        user: The authenticated user.
+
+    Returns:
+        CustomGPTResponse: The Custom GPT info.
+
+    Raises:
+        HTTPException: 404 if not found, 403 if access denied.
+    """
     gpt = await custom_gpt_service.get_gpt(gpt_id)
     if not gpt:
         raise HTTPException(status_code=404, detail="Custom GPT not found")
@@ -62,6 +99,19 @@ async def update_custom_gpt(
     gpt_update: CustomGPTUpdate,
     user: User = Depends(get_current_user),
 ):
+    """Update a Custom GPT owned by the authenticated user.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        gpt_update: Fields to update.
+        user: The authenticated user (must be the owner).
+
+    Returns:
+        CustomGPTResponse: The updated Custom GPT info.
+
+    Raises:
+        HTTPException: 404 if not found or not owned by the user.
+    """
     gpt = await custom_gpt_service.update_gpt(gpt_id, gpt_update, user.id)
     if not gpt:
         raise HTTPException(status_code=404, detail="Custom GPT not found or access denied")
@@ -73,6 +123,18 @@ async def delete_custom_gpt(
     gpt_id: str,
     user: User = Depends(get_current_user),
 ):
+    """Delete a Custom GPT owned by the authenticated user.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        user: The authenticated user (must be the owner).
+
+    Returns:
+        dict: Success message.
+
+    Raises:
+        HTTPException: 404 if not found or not owned by the user.
+    """
     success = await custom_gpt_service.delete_gpt(gpt_id, user.id)
     if not success:
         raise HTTPException(status_code=404, detail="Custom GPT not found or access denied")
@@ -86,6 +148,18 @@ async def create_gpt_session(
     gpt_id: str,
     user: User = Depends(get_current_user),
 ):
+    """Create a new chat session for a Custom GPT.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        user: The authenticated user.
+
+    Returns:
+        GPTSessionResponse: The created session info.
+
+    Raises:
+        HTTPException: 404 if GPT not found, 403 if access denied.
+    """
     gpt = await custom_gpt_service.get_gpt(gpt_id)
     if not gpt:
         raise HTTPException(status_code=404, detail="Custom GPT not found")
@@ -102,6 +176,18 @@ async def list_gpt_sessions(
     gpt_id: str,
     user: User = Depends(get_current_user),
 ):
+    """List all sessions for a Custom GPT belonging to the authenticated user.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        user: The authenticated user.
+
+    Returns:
+        List[GPTSessionResponse]: The user's GPT sessions.
+
+    Raises:
+        HTTPException: 404 if GPT not found, 403 if access denied.
+    """
     gpt = await custom_gpt_service.get_gpt(gpt_id)
     if not gpt:
         raise HTTPException(status_code=404, detail="Custom GPT not found")
@@ -119,6 +205,17 @@ async def rename_gpt_session(
     name: str = Form(...),
     user: User = Depends(get_current_user),
 ):
+    """Rename a GPT session.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        session_id: The session ID to rename.
+        name: The new session name.
+        user: The authenticated user (must own the session).
+
+    Returns:
+        GPTSessionResponse: Updated session info.
+    """
     session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     updated = await database_service.update_gpt_session_name(session_id, name)
@@ -131,6 +228,16 @@ async def delete_gpt_session(
     session_id: str,
     user: User = Depends(get_current_user),
 ):
+    """Delete a GPT session and its chat history.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        session_id: The session ID to delete.
+        user: The authenticated user (must own the session).
+
+    Returns:
+        dict: Success message.
+    """
     session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     await agent.clear_chat_history(session_id)
@@ -146,6 +253,19 @@ async def gpt_chat(
     chat_request: GPTChatRequest,
     user: User = Depends(get_current_user),
 ):
+    """Send a message to a Custom GPT and receive a full response.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        chat_request: Chat request with messages, session_id, and options.
+        user: The authenticated user.
+
+    Returns:
+        ChatResponse: The complete assistant response.
+
+    Raises:
+        HTTPException: 404/403 if GPT access fails, 500 on internal error.
+    """
     gpt = await custom_gpt_service.get_gpt(gpt_id)
     if not gpt:
         raise HTTPException(status_code=404, detail="Custom GPT not found")
@@ -189,6 +309,19 @@ async def gpt_chat_stream(
     chat_request: GPTChatRequest,
     user: User = Depends(get_current_user),
 ):
+    """Send a message to a Custom GPT with a streaming response (SSE).
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        chat_request: Chat request with messages, session_id, and options.
+        user: The authenticated user.
+
+    Returns:
+        StreamingResponse: Server-sent events stream of response chunks.
+
+    Raises:
+        HTTPException: 404/403 if GPT access fails.
+    """
     gpt = await custom_gpt_service.get_gpt(gpt_id)
     if not gpt:
         raise HTTPException(status_code=404, detail="Custom GPT not found")
@@ -251,6 +384,16 @@ async def get_gpt_messages(
     session_id: str,
     user: User = Depends(get_current_user),
 ):
+    """Retrieve all messages for a GPT session.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        session_id: The GPT session ID.
+        user: The authenticated user (must own the session).
+
+    Returns:
+        ChatResponse: Flat list of user/assistant messages.
+    """
     session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     db_messages = await database_service.get_gpt_chat_messages(session.id)
@@ -267,6 +410,16 @@ async def clear_gpt_messages(
     session_id: str,
     user: User = Depends(get_current_user),
 ):
+    """Clear all messages for a GPT session.
+
+    Args:
+        gpt_id: The Custom GPT ID.
+        session_id: The GPT session ID.
+        user: The authenticated user (must own the session).
+
+    Returns:
+        dict: Success message.
+    """
     session = await get_owned_gpt_session(session_id, gpt_id, user)
 
     await agent.clear_chat_history(session.id)

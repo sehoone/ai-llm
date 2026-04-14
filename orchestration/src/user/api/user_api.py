@@ -1,3 +1,5 @@
+"""User management endpoints. Admin access required for all operations."""
+
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from src.user.schemas.user_schema import UserRead, UserCreate, UserUpdate
@@ -10,6 +12,11 @@ router = APIRouter()
 
 
 def _require_admin(user: User = Depends(get_current_user)) -> User:
+    """Dependency that restricts access to admin and superadmin users.
+
+    Raises:
+        HTTPException: 403 if the user does not have admin privileges.
+    """
     if user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
