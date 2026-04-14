@@ -136,8 +136,9 @@ class Settings:
         self.API_V1_STR: str = os.getenv("API_V1_STR", "/api/v1")
         self.DEBUG: bool = _getenv_bool("DEBUG", False)
 
-        # CORS
-        self.ALLOWED_ORIGINS: List[str] = _getenv_list("ALLOWED_ORIGINS", ["*"])
+        # CORS — production/staging must explicitly set ALLOWED_ORIGINS; development defaults to wildcard
+        _cors_default = ["*"] if _CURRENT_ENV == Environment.DEVELOPMENT else []
+        self.ALLOWED_ORIGINS: List[str] = _getenv_list("ALLOWED_ORIGINS", _cors_default)
 
         # Langfuse
         self.LANGFUSE_PUBLIC_KEY: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")
@@ -206,6 +207,23 @@ class Settings:
 
         # Apply environment-specific defaults for vars not explicitly set
         self._apply_env_defaults()
+
+        # Validate required settings (raises on critical misconfigurations)
+        self._validate_required_settings()
+
+    def _validate_required_settings(self) -> None:
+        """Raise ValueError for missing critical settings in non-test environments."""
+        if self.ENVIRONMENT == Environment.TEST:
+            return
+        errors: List[str] = []
+        if not self.JWT_SECRET_KEY:
+            errors.append("JWT_SECRET_KEY must not be empty")
+        if not self.OPENAI_API_KEY:
+            errors.append("OPENAI_API_KEY must not be empty")
+        if self.ENVIRONMENT in (Environment.PRODUCTION, Environment.STAGING) and "*" in self.ALLOWED_ORIGINS:
+            errors.append("ALLOWED_ORIGINS must not contain '*' in production/staging — set explicit origins")
+        if errors:
+            raise ValueError(f"Invalid configuration: {'; '.join(errors)}")
 
     def _apply_env_defaults(self) -> None:
         """Apply environment-specific defaults only when the env var was not set."""

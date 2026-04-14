@@ -52,7 +52,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
     # ── Infrastructure ────────────────────────────────────────────────────────
 
     async def _get_connection_pool(self) -> Optional[AsyncConnectionPool]:
-        """Lazily create and return the shared async PostgreSQL connection pool.
+        """AsyncPostgresSaver용 연결 풀. 최초 호출 시 생성 후 재사용.
 
         Returns:
             Optional[AsyncConnectionPool]: The pool, or None in production if creation fails.
@@ -71,6 +71,8 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                     connection_url,
                     open=False,
                     max_size=settings.POSTGRES_POOL_SIZE,
+                    # autocommit: checkpoint마다 즉시 커밋
+                    # prepare_threshold=None: pgbouncer 호환 (prepared statement 비활성화)
                     kwargs={"autocommit": True, "connect_timeout": 5, "prepare_threshold": None},
                 )
                 await self._connection_pool.open()
@@ -88,7 +90,17 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         return self._connection_pool
 
     async def create_graph(self) -> Optional[CompiledStateGraph]:
-        """Build and compile the LangGraph workflow (idempotent)."""
+        """LangGraph 워크플로 빌드 및 컴파일 (idempotent).
+
+        Checkpoint:
+        - 각 노드 완료 시 GraphState를 PostgreSQL에 자동 저장
+        - 식별 키: thread_id (= session_id) — 동일 thread_id 재호출 시 상태 복원
+        - setup()이 생성하는 테이블:
+            · checkpoints       — 노드별 전체 상태 스냅샷
+            · checkpoint_blobs  — 상태 직렬화 데이터
+            · checkpoint_writes — 노드 중간 쓰기 (내결함성용)
+        - DB 연결 실패 시 (프로덕션) checkpointer=None → 메모리 유지, 재시작 시 초기화
+        """
         if self._graph is None:
             try:
                 builder = StateGraph(GraphState)
@@ -101,9 +113,11 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
 
                 connection_pool = await self._get_connection_pool()
                 if connection_pool:
+                    # setup(): 체크포인트 테이블 생성 (이미 존재하면 스킵)
                     checkpointer = AsyncPostgresSaver(connection_pool)
                     await checkpointer.setup()
                 else:
+                    # 프로덕션: checkpointer 없이 진행 / 그 외: 예외 발생
                     checkpointer = None
                     if settings.ENVIRONMENT != Environment.PRODUCTION:
                         raise Exception("Connection pool initialization failed")
@@ -172,10 +186,15 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                 },
                 config=config,
             )
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._update_long_term_memory(
                     user_id, convert_to_openai_messages(response["messages"]), config["metadata"]
                 )
+            )
+            task.add_done_callback(
+                lambda t: logger.error("memory_update_failed", error=str(t.exception()), session_id=session_id)
+                if not t.cancelled() and t.exception()
+                else None
             )
             return self._process_messages(response["messages"])
         except Exception as e:
@@ -250,10 +269,15 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
 
             state: StateSnapshot = await sync_to_async(self._graph.get_state)(config=config)
             if state.values and "messages" in state.values:
-                asyncio.create_task(
+                task = asyncio.create_task(
                     self._update_long_term_memory(
                         user_id, convert_to_openai_messages(state.values["messages"]), config["metadata"]
                     )
+                )
+                task.add_done_callback(
+                    lambda t: logger.error("memory_update_failed", error=str(t.exception()), session_id=session_id)
+                    if not t.cancelled() and t.exception()
+                    else None
                 )
         except Exception as e:
             logger.error("stream_processing_failed", error=str(e), session_id=session_id)
@@ -285,9 +309,14 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
             Exception: If deletion fails for any checkpoint table.
         """
         conn_pool = await self._get_connection_pool()
+        if conn_pool is None:
+            raise RuntimeError("Connection pool is not available — cannot clear chat history")
+        _allowed_tables = set(settings.CHECKPOINT_TABLES)
         try:
             async with conn_pool.connection() as conn:
                 for table in settings.CHECKPOINT_TABLES:
+                    if table not in _allowed_tables:
+                        raise ValueError(f"Refusing to delete from unknown table: {table!r}")
                     try:
                         await conn.execute(f"DELETE FROM {table} WHERE thread_id = %s", (session_id,))
                         logger.info("checkpoint_table_cleared", table=table, session_id=session_id)

@@ -62,6 +62,9 @@ async def lifespan(app: FastAPI):
     await agent.create_graph()
     yield
     logger.info("application_shutdown")
+    if agent._connection_pool is not None:
+        await agent._connection_pool.close()
+        logger.info("connection_pool_closed")
 
 
 app = FastAPI(
@@ -123,8 +126,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID"],
 )
 
 # Include API router

@@ -21,6 +21,7 @@ from src.common.metrics import (
     http_request_duration_seconds,
     http_requests_total,
 )
+from src.common.logging import logger
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
@@ -90,9 +91,9 @@ class LoggingContextMiddleware(BaseHTTPMiddleware):
                         # This will be set by the dependency injection if the endpoint uses authentication
                         # We'll check after the request is processed
 
-                except JWTError:
-                    # Token is invalid, but don't fail the request - let the auth dependency handle it
-                    pass
+                except JWTError as e:
+                    # Token is invalid — let the auth dependency return 401; log for security monitoring
+                    logger.warning("jwt_decode_failed", error=str(e), path=request.url.path)
 
             # Process the request
             response = await call_next(request)
