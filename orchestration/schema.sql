@@ -154,3 +154,73 @@ CREATE TABLE IF NOT EXISTS custom_gpt (
 CREATE INDEX IF NOT EXISTS idx_custom_gpt_user_id ON custom_gpt(user_id);
 CREATE INDEX IF NOT EXISTS idx_custom_gpt_rag_key ON custom_gpt(rag_key);
 
+-- ── Workflow engine ───────────────────────────────────────────────────────────
+
+-- Workflow definitions (node/edge graph stored as JSONB)
+CREATE TABLE IF NOT EXISTS workflow (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    definition JSONB NOT NULL DEFAULT '{"nodes":[],"edges":[]}',
+    is_published BOOLEAN NOT NULL DEFAULT FALSE,
+    webhook_token TEXT,             -- NULL = disabled; set to a random token to enable
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_user_id ON workflow(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_updated_at ON workflow(updated_at DESC);
+
+-- Execution records (one per workflow run)
+CREATE TABLE IF NOT EXISTS workflow_execution (
+    id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending|running|completed|failed
+    input_data JSONB NOT NULL DEFAULT '{}',
+    output_data JSONB,
+    error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_execution_workflow_id ON workflow_execution(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_execution_user_id ON workflow_execution(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_execution_created_at ON workflow_execution(created_at DESC);
+
+-- Per-node execution records within a workflow run
+CREATE TABLE IF NOT EXISTS workflow_node_execution (
+    id TEXT PRIMARY KEY,
+    execution_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,        -- React Flow canvas node id
+    node_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending|running|completed|failed
+    input_data JSONB NOT NULL DEFAULT '{}',
+    output_data JSONB,
+    error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_node_execution_execution_id ON workflow_node_execution(execution_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_node_execution_created_at ON workflow_node_execution(created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_workflow_webhook_token ON workflow(webhook_token) WHERE webhook_token IS NOT NULL;
+
+-- Cron schedules for automated workflow triggers
+CREATE TABLE IF NOT EXISTS workflow_schedule (
+    id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    cron_expr TEXT NOT NULL,        -- "minute hour day month day_of_week"
+    input_data JSONB NOT NULL DEFAULT '{}',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    next_run_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_schedule_workflow_id ON workflow_schedule(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_schedule_user_id ON workflow_schedule(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_schedule_active ON workflow_schedule(is_active);
+

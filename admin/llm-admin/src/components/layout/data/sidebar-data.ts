@@ -6,6 +6,7 @@ import {
   Search,
   Settings,
   FileText,
+  Zap,
   // AudioWaveform,
   Command,
   Users,
@@ -81,6 +82,11 @@ export const sidebarData: SidebarData = {
               icon: Search,
             },
           ]
+        },
+        {
+          title: 'Workflows',
+          url: '/workflows',
+          icon: Zap,
         },
         {
           title: 'AI Voice Evaluation',

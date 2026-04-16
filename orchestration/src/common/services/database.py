@@ -13,6 +13,7 @@ from src.user.services.user_repository import UserRepositoryMixin
 from src.chatbot.services.session_repository import SessionRepositoryMixin
 from src.chatbot.services.gpt_repository import GPTRepositoryMixin
 from src.llm_resources.services.llm_resource_repository import LLMResourceRepositoryMixin
+from src.workflow.services.workflow_repository import WorkflowRepositoryMixin
 
 
 class DatabaseService(
@@ -20,6 +21,7 @@ class DatabaseService(
     SessionRepositoryMixin,
     GPTRepositoryMixin,
     LLMResourceRepositoryMixin,
+    WorkflowRepositoryMixin,
 ):
     """Unified database service.
 

@@ -31,6 +31,7 @@ from src.common.middleware import (
     RequestIDMiddleware,
 )
 from src.common.services.database import database_service
+from src.workflow.services.scheduler import workflow_scheduler
 
 # Load environment variables
 load_dotenv()
@@ -60,7 +61,9 @@ async def lifespan(app: FastAPI):
         api_prefix=settings.API_V1_STR,
     )
     await agent.create_graph()
+    workflow_scheduler.start()
     yield
+    workflow_scheduler.shutdown()
     logger.info("application_shutdown")
     if agent._connection_pool is not None:
         await agent._connection_pool.close()

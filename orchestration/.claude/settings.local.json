@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(head:*)",
+      "Bash(python:*)",
+      "Bash(uv run python -c ':*)",
+      "Bash(uv run:*)"
+    ]
+  }
+}
