@@ -118,7 +118,7 @@ export function NodePalette({ className }: NodePaletteProps) {
                     draggable
                     onDragStart={(e) => onDragStart(e, node.type)}
                     className={cn(
-                      'flex items-center gap-2.5 p-2 rounded-lg border cursor-grab active:cursor-grabbing select-none',
+                      'flex items-center gap-2.5 p-2 rounded-lg border cursor-default active:cursor-move select-none',
                       'hover:shadow-sm transition-shadow',
                       node.color
                     )}

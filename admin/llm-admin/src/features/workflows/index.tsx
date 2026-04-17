@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Zap, Edit, Trash2, Play, Globe } from 'lucide-react'
+import { Plus, Zap, Edit, Trash2, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,

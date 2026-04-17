@@ -64,6 +64,23 @@
   color-scheme: light !important;
 }
 
+/* grab/grabbing are OS cursors that appear white in dark mode — replace with always-visible alternatives */
+.react-flow__pane.draggable {
+  cursor: default !important;
+}
+.react-flow__pane.dragging {
+  cursor: move !important;
+}
+.react-flow__node.draggable {
+  cursor: default !important;
+}
+.react-flow__node.draggable.dragging {
+  cursor: move !important;
+}
+.react-flow__nodesselection-rect {
+  cursor: default !important;
+}
+
 /* styles.css */
 .CollapsibleContent {
   overflow: hidden;
