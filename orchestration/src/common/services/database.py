@@ -112,10 +112,8 @@ class DatabaseService(
         def _check() -> bool:
             with Session(self.engine) as session:
                 result = session.exec(select(1)).first()
-                # also verify schema exists
-                schema_exists = session.exec(
-                    text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = :s"),
-                    params={"s": settings.POSTGRES_SCHEMA},
+                schema_exists = session.execute(
+                    text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = :s").bindparams(s=settings.POSTGRES_SCHEMA)
                 ).first()
                 logger.info(
                     "database_health_check_ok",
