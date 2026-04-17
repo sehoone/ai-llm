@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { DirectionProvider as RdxDirProvider } from '@radix-ui/react-direction'
-import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
+import { setCookie, removeCookie } from '@/lib/cookies'
 
 export type Direction = 'ltr' | 'rtl'
 
@@ -19,9 +19,9 @@ type DirectionContextType = {
 
 const DirectionContext = createContext<DirectionContextType | null>(null)
 
-export function DirectionProvider({ children }: { children: React.ReactNode }) {
+export function DirectionProvider({ children, initialDir }: { children: React.ReactNode; initialDir?: string }) {
   const [dir, _setDir] = useState<Direction>(
-    () => (getCookie(DIRECTION_COOKIE_NAME) as Direction) || DEFAULT_DIRECTION
+    () => (initialDir as Direction) || DEFAULT_DIRECTION
   )
 
   useEffect(() => {

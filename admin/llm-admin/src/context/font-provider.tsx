@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { fonts } from '@/config/fonts'
-import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
+import { setCookie, removeCookie } from '@/lib/cookies'
 
 type Font = (typeof fonts)[number]
 
@@ -17,10 +17,9 @@ type FontContextType = {
 
 const FontContext = createContext<FontContextType | null>(null)
 
-export function FontProvider({ children }: { children: React.ReactNode }) {
+export function FontProvider({ children, initialFont }: { children: React.ReactNode; initialFont?: string }) {
   const [font, _setFont] = useState<Font>(() => {
-    const savedFont = getCookie(FONT_COOKIE_NAME)
-    return fonts.includes(savedFont as Font) ? (savedFont as Font) : fonts[0]
+    return fonts.includes(initialFont as Font) ? (initialFont as Font) : fonts[0]
   })
 
   useEffect(() => {

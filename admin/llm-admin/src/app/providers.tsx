@@ -14,7 +14,14 @@ import { toast } from 'sonner'
 import { AxiosError } from 'axios'
 import { logger } from '@/lib/logger'
 
-export function Providers({ children }: { children: React.ReactNode }) {
+interface ProvidersProps {
+  children: React.ReactNode
+  initialTheme?: string
+  initialFont?: string
+  initialDir?: string
+}
+
+export function Providers({ children, initialTheme, initialFont, initialDir }: ProvidersProps) {
   const [queryClient] = React.useState(() => new QueryClient({
     defaultOptions: {
       queries: {
@@ -45,9 +52,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <DirectionProvider>
-        <FontProvider>
-          <ThemeProvider defaultTheme='light' storageKey='vite-ui-theme'>
+      <DirectionProvider initialDir={initialDir}>
+        <FontProvider initialFont={initialFont}>
+          <ThemeProvider defaultTheme='light' storageKey='vite-ui-theme' initialTheme={initialTheme}>
             <Suspense fallback={null}>
               <NavigationProgress />
             </Suspense>
