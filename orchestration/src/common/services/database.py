@@ -3,9 +3,10 @@
 import asyncio
 from urllib.parse import quote_plus
 
+from sqlalchemy import event
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, create_engine, select, text
 
 from src.common.config import Environment, settings
 from src.common.logging import logger
@@ -36,6 +37,17 @@ class DatabaseService(
             pool_size = settings.POSTGRES_POOL_SIZE
             max_overflow = settings.POSTGRES_MAX_OVERFLOW
 
+            logger.info(
+                "database_connecting",
+                host=settings.POSTGRES_HOST,
+                port=settings.POSTGRES_PORT,
+                db=settings.POSTGRES_DB,
+                schema=settings.POSTGRES_SCHEMA,
+                user=settings.POSTGRES_USER,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+            )
+
             connection_url = (
                 f"postgresql://{quote_plus(settings.POSTGRES_USER)}:{quote_plus(settings.POSTGRES_PASSWORD)}"
                 f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
@@ -52,6 +64,8 @@ class DatabaseService(
                 pool_recycle=1800,
             )
 
+            self._register_pool_events()
+
             logger.info(
                 "database_initialized",
                 environment=settings.ENVIRONMENT.value,
@@ -63,10 +77,31 @@ class DatabaseService(
             if settings.ENVIRONMENT != Environment.PRODUCTION:
                 raise
 
+    def _register_pool_events(self):
+        @event.listens_for(self.engine, "connect")
+        def on_connect(dbapi_conn, connection_record):
+            logger.info("db_pool_new_connection", status="opened")
+
+        @event.listens_for(self.engine, "checkout")
+        def on_checkout(dbapi_conn, connection_record, connection_proxy):
+            logger.debug("db_pool_checkout", status="acquired")
+
+        @event.listens_for(self.engine, "checkin")
+        def on_checkin(dbapi_conn, connection_record):
+            logger.debug("db_pool_checkin", status="returned")
+
+        @event.listens_for(self.engine, "invalidate")
+        def on_invalidate(dbapi_conn, connection_record, exception):
+            logger.warning("db_pool_connection_invalidated", error=str(exception) if exception else None)
+
     def get_db_session(self):
         """Yield a database session for use as a FastAPI dependency."""
-        with Session(self.engine) as session:
-            yield session
+        try:
+            with Session(self.engine) as session:
+                yield session
+        except SQLAlchemyError as e:
+            logger.error("db_session_error", error=str(e))
+            raise
 
     def get_session_maker(self) -> Session:
         """Return a new database session (for non-dependency use)."""
@@ -76,13 +111,31 @@ class DatabaseService(
         """Return True if the database connection is healthy."""
         def _check() -> bool:
             with Session(self.engine) as session:
-                session.exec(select(1)).first()
+                result = session.exec(select(1)).first()
+                # also verify schema exists
+                schema_exists = session.exec(
+                    text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = :s"),
+                    params={"s": settings.POSTGRES_SCHEMA},
+                ).first()
+                logger.info(
+                    "database_health_check_ok",
+                    ping=result,
+                    schema=settings.POSTGRES_SCHEMA,
+                    schema_exists=schema_exists is not None,
+                )
                 return True
 
         try:
             return await asyncio.to_thread(_check)
         except Exception as e:
-            logger.error("database_health_check_failed", error=str(e))
+            logger.error(
+                "database_health_check_failed",
+                error=str(e),
+                host=settings.POSTGRES_HOST,
+                port=settings.POSTGRES_PORT,
+                db=settings.POSTGRES_DB,
+                schema=settings.POSTGRES_SCHEMA,
+            )
             return False
 
 

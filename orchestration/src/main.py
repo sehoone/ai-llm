@@ -60,6 +60,10 @@ async def lifespan(app: FastAPI):
         version=settings.VERSION,
         api_prefix=settings.API_V1_STR,
     )
+    db_ok = await database_service.health_check()
+    if not db_ok:
+        logger.error("startup_aborted_db_unreachable")
+        raise RuntimeError("Database is not reachable at startup")
     await agent.create_graph()
     workflow_scheduler.start()
     yield
