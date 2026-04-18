@@ -27,7 +27,9 @@ class EndNode(BaseNode):
     node_type = "end"
 
     async def execute(self, inputs: dict[str, Any], config: dict[str, Any], ctx: "ExecutionContext") -> dict[str, Any]:
-        outputs_config: list[dict] = config.get("outputs", [])
+        # `inputs` is the already-resolved version of the node config.
+        # Each entry in outputs has its `value` template already substituted.
+        outputs_config: list[dict] = inputs.get("outputs", [])
 
         if not outputs_config:
             # No explicit mapping — pass through all inputs
@@ -36,10 +38,10 @@ class EndNode(BaseNode):
 
         result: dict[str, Any] = {}
         for output_def in outputs_config:
-            name = output_def["name"]
-            # value is a template string resolved by the engine before calling execute,
-            # so by the time we reach here it's already in `inputs`
-            result[name] = inputs.get(name)
+            name = output_def.get("name")
+            value = output_def.get("value")
+            if name:
+                result[name] = value
 
         logger.info("end_node_executed", output_count=len(result))
         return result

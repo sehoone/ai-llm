@@ -19,6 +19,7 @@ from src.workflow.api.workflow_api import router as workflow_router
 from src.workflow.api.execution_api import router as execution_router
 from src.workflow.api.webhook_api import router as webhook_mgmt_router, webhook_router
 from src.workflow.api.schedule_api import router as schedule_router
+from src.workflow.api.endpoint_api import router as endpoint_mgmt_router, run_router
 from src.common.logging import logger
 
 api_router = APIRouter()
@@ -38,6 +39,9 @@ api_router.include_router(execution_router, prefix="/workflows", tags=["workflow
 api_router.include_router(webhook_mgmt_router, prefix="/workflows", tags=["workflow-webhooks"])
 api_router.include_router(schedule_router, prefix="/workflows", tags=["workflow-schedules"])
 api_router.include_router(webhook_router, prefix="/webhooks", tags=["webhooks"])
+api_router.include_router(endpoint_mgmt_router, prefix="/workflows", tags=["workflow-endpoints"])
+# catch-all — must be registered last to avoid shadowing other routes
+api_router.include_router(run_router, prefix="/run", tags=["dynamic-api"])
 
 
 @api_router.get("/health")

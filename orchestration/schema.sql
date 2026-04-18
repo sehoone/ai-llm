@@ -224,3 +224,21 @@ CREATE INDEX IF NOT EXISTS idx_workflow_schedule_workflow_id ON workflow_schedul
 CREATE INDEX IF NOT EXISTS idx_workflow_schedule_user_id ON workflow_schedule(user_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_schedule_active ON workflow_schedule(is_active);
 
+-- Dynamic API endpoint bindings (path+method → workflow)
+CREATE TABLE IF NOT EXISTS workflow_endpoint (
+    id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    path TEXT NOT NULL,                    -- URL suffix after /api/v1/run/
+    method TEXT NOT NULL DEFAULT 'POST',   -- GET | POST | PUT | PATCH | DELETE
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_endpoint_path_method UNIQUE (path, method)
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_workflow_id ON workflow_endpoint(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_user_id ON workflow_endpoint(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_path_method ON workflow_endpoint(path, method) WHERE is_active = TRUE;
+

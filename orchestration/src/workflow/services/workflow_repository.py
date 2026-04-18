@@ -1,4 +1,4 @@
-"""Repository mixin for Workflow, Execution, and Schedule DB operations."""
+"""Repository mixin for Workflow, Execution, Schedule, and Endpoint DB operations."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
+from src.workflow.models.endpoint_model import WorkflowEndpoint
 from src.workflow.models.execution_model import NodeExecution, WorkflowExecution
 from src.workflow.models.schedule_model import WorkflowSchedule
 from src.workflow.models.workflow_model import Workflow
@@ -141,4 +142,64 @@ class WorkflowRepositoryMixin:
 
     def delete_schedule(self, db: Session, schedule: WorkflowSchedule) -> None:
         db.delete(schedule)
+        db.commit()
+
+    # ── Endpoint CRUD ─────────────────────────────────────────────────────────
+
+    def create_endpoint(
+        self,
+        db: Session,
+        workflow_id: str,
+        user_id: int,
+        path: str,
+        method: str,
+        description: str,
+        is_active: bool = True,
+    ) -> WorkflowEndpoint:
+        endpoint = WorkflowEndpoint(
+            id=str(uuid.uuid4()),
+            workflow_id=workflow_id,
+            user_id=user_id,
+            path=path,
+            method=method,
+            description=description,
+            is_active=is_active,
+        )
+        db.add(endpoint)
+        db.commit()
+        db.refresh(endpoint)
+        return endpoint
+
+    def get_endpoint(self, db: Session, endpoint_id: str) -> Optional[WorkflowEndpoint]:
+        return db.get(WorkflowEndpoint, endpoint_id)
+
+    def get_endpoint_by_path(self, db: Session, path: str, method: str) -> Optional[WorkflowEndpoint]:
+        stmt = (
+            select(WorkflowEndpoint)
+            .where(WorkflowEndpoint.path == path)
+            .where(WorkflowEndpoint.method == method)
+            .where(WorkflowEndpoint.is_active == True)  # noqa: E712
+        )
+        return db.exec(stmt).first()
+
+    def list_endpoints(self, db: Session, workflow_id: str) -> list[WorkflowEndpoint]:
+        stmt = (
+            select(WorkflowEndpoint)
+            .where(WorkflowEndpoint.workflow_id == workflow_id)
+            .order_by(WorkflowEndpoint.created_at.desc())
+        )
+        return list(db.exec(stmt).all())
+
+    def update_endpoint(self, db: Session, endpoint: WorkflowEndpoint, **fields) -> WorkflowEndpoint:
+        for key, value in fields.items():
+            if value is not None:
+                setattr(endpoint, key, value)
+        endpoint.updated_at = datetime.now(UTC)
+        db.add(endpoint)
+        db.commit()
+        db.refresh(endpoint)
+        return endpoint
+
+    def delete_endpoint(self, db: Session, endpoint: WorkflowEndpoint) -> None:
+        db.delete(endpoint)
         db.commit()

@@ -99,6 +99,18 @@ export interface NodeType {
   output_schema: Record<string, any>
 }
 
+export interface WorkflowEndpoint {
+  id: string
+  workflow_id: string
+  user_id: number
+  path: string
+  method: string
+  is_active: boolean
+  description: string
+  created_at: string
+  updated_at: string
+}
+
 // ── SSE Event Types ───────────────────────────────────────────────────────────
 
 export type SSEEvent =
@@ -198,6 +210,33 @@ export const workflowApi = {
 
   deleteSchedule: async (workflowId: string, scheduleId: string): Promise<void> => {
     await api.delete(`/api/v1/workflows/${workflowId}/schedules/${scheduleId}`)
+  },
+
+  // Dynamic API endpoint CRUD
+  listEndpoints: async (workflowId: string): Promise<WorkflowEndpoint[]> => {
+    const res = await api.get(`/api/v1/workflows/${workflowId}/endpoints`)
+    return res.data
+  },
+
+  createEndpoint: async (
+    workflowId: string,
+    data: { path: string; method: string; description?: string; is_active?: boolean }
+  ): Promise<WorkflowEndpoint> => {
+    const res = await api.post(`/api/v1/workflows/${workflowId}/endpoints`, data)
+    return res.data
+  },
+
+  updateEndpoint: async (
+    workflowId: string,
+    endpointId: string,
+    data: Partial<{ path: string; method: string; description: string; is_active: boolean }>
+  ): Promise<WorkflowEndpoint> => {
+    const res = await api.put(`/api/v1/workflows/${workflowId}/endpoints/${endpointId}`, data)
+    return res.data
+  },
+
+  deleteEndpoint: async (workflowId: string, endpointId: string): Promise<void> => {
+    await api.delete(`/api/v1/workflows/${workflowId}/endpoints/${endpointId}`)
   },
 
   // SSE streaming execution
