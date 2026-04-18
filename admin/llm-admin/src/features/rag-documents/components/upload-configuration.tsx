@@ -1,4 +1,4 @@
-import { Input } from '@/components/ui/input'
+import { useMemo } from 'react'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -7,18 +7,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { RagGroup, RagKey } from '@/api/rag-groups'
 
 interface UploadConfigurationProps {
   ragType: 'user_isolated' | 'chatbot_shared' | 'natural_search'
-  setRagType: (
-    value: 'user_isolated' | 'chatbot_shared' | 'natural_search'
-  ) => void
+  setRagType: (value: 'user_isolated' | 'chatbot_shared' | 'natural_search') => void
   ragKey: string
   setRagKey: (value: string) => void
   ragGroup: string
   setRagGroup: (value: string) => void
   tags: string
   setTags: (value: string) => void
+  groups: RagGroup[]
+  keys: RagKey[]
 }
 
 export function UploadConfiguration({
@@ -30,63 +31,122 @@ export function UploadConfiguration({
   setRagGroup,
   tags,
   setTags,
+  groups,
+  keys,
 }: UploadConfigurationProps) {
+  const filteredKeys = useMemo(
+    () => (ragGroup ? keys.filter((k) => k.rag_group === ragGroup) : keys),
+    [keys, ragGroup]
+  )
+
+  const handleGroupChange = (value: string) => {
+    setRagGroup(value)
+    setRagKey('')
+  }
+
+  const handleKeyChange = (value: string) => {
+    setRagKey(value)
+    const found = keys.find((k) => k.rag_key === value)
+    if (found) setRagType(found.rag_type as 'user_isolated' | 'chatbot_shared' | 'natural_search')
+  }
+
+  const selectedGroup = groups.find((g) => g.name === ragGroup)
+
   return (
     <div className='grid gap-4 md:grid-cols-2'>
+      {/* Category */}
+      <div className='space-y-2'>
+        <Label>카테고리 *</Label>
+        {groups.length > 0 ? (
+          <Select value={ragGroup} onValueChange={handleGroupChange}>
+            <SelectTrigger>
+              <SelectValue placeholder='카테고리 선택' />
+            </SelectTrigger>
+            <SelectContent>
+              {groups.map((g) => (
+                <SelectItem key={g.id} value={g.name}>
+                  <span className='flex items-center gap-2'>
+                    <span className='inline-block w-2.5 h-2.5 rounded-full' style={{ backgroundColor: g.color }} />
+                    {g.name}
+                    <span className='text-muted-foreground text-xs'>({g.key_count}컬렉션 · {g.doc_count}문서)</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <input
+            placeholder='카테고리 이름 입력'
+            value={ragGroup}
+            onChange={(e) => setRagGroup(e.target.value)}
+            className='flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+          />
+        )}
+        <p className='text-xs text-muted-foreground'>
+          {groups.length === 0 ? '카테고리 관리 탭에서 카테고리를 먼저 생성하세요.' : '컬렉션을 묶는 카테고리를 선택합니다.'}
+        </p>
+      </div>
+
+      {/* Collection */}
+      <div className='space-y-2'>
+        <Label>컬렉션 *</Label>
+        {filteredKeys.length > 0 ? (
+          <Select value={ragKey} onValueChange={handleKeyChange} disabled={!ragGroup}>
+            <SelectTrigger>
+              <SelectValue placeholder={ragGroup ? 'RAG 키 선택' : '그룹을 먼저 선택하세요'} />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredKeys.map((k) => (
+                <SelectItem key={k.id} value={k.rag_key}>
+                  <span className='flex items-center gap-2'>
+                    <span className='font-mono'>{k.rag_key}</span>
+                    <span className='text-muted-foreground text-xs'>({k.doc_count}문서)</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <input
+            placeholder={ragGroup ? '컬렉션 ID 입력 (신규 생성)' : '카테고리를 먼저 선택하세요'}
+            value={ragKey}
+            onChange={(e) => setRagKey(e.target.value)}
+            disabled={!ragGroup}
+            required
+            className='flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50'
+          />
+        )}
+        <p className='text-xs text-muted-foreground'>
+          {selectedGroup && filteredKeys.length === 0
+            ? `"${selectedGroup.name}" 카테고리에 컬렉션이 없습니다. 컬렉션 관리 탭에서 추가하세요.`
+            : '기존 컬렉션을 선택하면 같은 컬렉션에 문서가 추가됩니다.'}
+        </p>
+      </div>
+
+      {/* Type */}
       <div className='space-y-2 md:col-span-2'>
-        <Label htmlFor='rag_type'>RAG Type</Label>
-        <Select
-          value={ragType}
-          onValueChange={(val: never) => setRagType(val)}
-        >
+        <Label>RAG Type</Label>
+        <Select value={ragType} onValueChange={(val: never) => setRagType(val)}>
           <SelectTrigger>
-            <SelectValue placeholder='Select type' />
+            <SelectValue placeholder='타입 선택' />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='natural_search'>
-              Natural Search (Knowledge Base)
-            </SelectItem>
-            <SelectItem value='user_isolated'>
-              User Isolated (Private)
-            </SelectItem>
-            <SelectItem value='chatbot_shared'>
-              Chatbot Shared (Global)
-            </SelectItem>
+            <SelectItem value='natural_search'>Natural Search (Knowledge Base)</SelectItem>
+            <SelectItem value='user_isolated'>User Isolated (Private)</SelectItem>
+            <SelectItem value='chatbot_shared'>Chatbot Shared (Global)</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className='space-y-2'>
-        <Label htmlFor='rag_key'>RAG Key</Label>
-        <Input
-          id='rag_key'
-          placeholder='e.g. project-x-docs'
-          value={ragKey}
-          onChange={(e) => setRagKey(e.target.value)}
-          required
-        />
-        <p className='text-xs text-muted-foreground'>
-          Unique identifier for this collection of documents.
-        </p>
-      </div>
-
-      <div className='space-y-2'>
-        <Label htmlFor='rag_group'>RAG Group</Label>
-        <Input
-          id='rag_group'
-          placeholder='Optional (e.g. engineering)'
-          value={ragGroup}
-          onChange={(e) => setRagGroup(e.target.value)}
-        />
-      </div>
-
+      {/* Tags */}
       <div className='space-y-2 md:col-span-2'>
         <Label htmlFor='tags'>Tags</Label>
-        <Input
+        <input
           id='tags'
-          placeholder='Comma separated tags'
+          placeholder='쉼표로 구분 (예: manual, v2, 2024)'
           value={tags}
           onChange={(e) => setTags(e.target.value)}
+          className='flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
         />
       </div>
     </div>

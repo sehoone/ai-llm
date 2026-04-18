@@ -154,6 +154,73 @@ CREATE TABLE IF NOT EXISTS custom_gpt (
 CREATE INDEX IF NOT EXISTS idx_custom_gpt_user_id ON custom_gpt(user_id);
 CREATE INDEX IF NOT EXISTS idx_custom_gpt_rag_key ON custom_gpt(rag_key);
 
+-- ── Agent system ─────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS agent (
+    id          TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    name        VARCHAR(100) NOT NULL,
+    description TEXT,
+    system_prompt      TEXT,
+    welcome_message    TEXT,
+    model              VARCHAR(100) NOT NULL DEFAULT 'gpt-4o',
+    temperature        FLOAT NOT NULL DEFAULT 0.7,
+    max_tokens         INTEGER NOT NULL DEFAULT 2000,
+    rag_keys           TEXT[] NOT NULL DEFAULT '{}',
+    rag_groups         TEXT[] NOT NULL DEFAULT '{}',
+    rag_search_k       INTEGER NOT NULL DEFAULT 5,
+    rag_enabled        BOOLEAN NOT NULL DEFAULT FALSE,
+    tools_enabled      JSON NOT NULL DEFAULT '[]',
+    is_published       BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active          BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_user_id ON agent(user_id);
+
+CREATE TABLE IF NOT EXISTS agent_session (
+    id          TEXT PRIMARY KEY,
+    agent_id    TEXT NOT NULL REFERENCES agent(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL,
+    name        TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_session_agent_id ON agent_session(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_session_user_id ON agent_session(user_id);
+
+-- Migration: add rag_groups column to existing agent tables
+ALTER TABLE agent ADD COLUMN IF NOT EXISTS rag_groups TEXT[] NOT NULL DEFAULT '{}';
+
+-- ── RAG group / key config ────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS rag_group_config (
+    id          TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    name        VARCHAR(100) NOT NULL,
+    description TEXT,
+    color       VARCHAR(20) NOT NULL DEFAULT '#6366f1',
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_rag_group_user_name UNIQUE (user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_group_config_user_id ON rag_group_config(user_id);
+
+CREATE TABLE IF NOT EXISTS rag_key_config (
+    id          TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    rag_key     VARCHAR(200) NOT NULL,
+    rag_group   VARCHAR(100) NOT NULL,
+    description TEXT,
+    rag_type    VARCHAR(50) NOT NULL DEFAULT 'chatbot_shared',
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_rag_key_user UNIQUE (user_id, rag_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_key_config_user_id ON rag_key_config(user_id);
+CREATE INDEX IF NOT EXISTS idx_rag_key_config_rag_group ON rag_key_config(rag_group);
+
 -- ── Workflow engine ───────────────────────────────────────────────────────────
 
 -- Workflow definitions (node/edge graph stored as JSONB)
