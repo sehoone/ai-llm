@@ -54,13 +54,13 @@ export function UploadConfiguration({
 
   return (
     <div className='grid gap-4 md:grid-cols-2'>
-      {/* Category */}
+      {/* Group */}
       <div className='space-y-2'>
-        <Label>카테고리 *</Label>
+        <Label>그룹 *</Label>
         {groups.length > 0 ? (
           <Select value={ragGroup} onValueChange={handleGroupChange}>
             <SelectTrigger>
-              <SelectValue placeholder='카테고리 선택' />
+              <SelectValue placeholder='그룹 선택' />
             </SelectTrigger>
             <SelectContent>
               {groups.map((g) => (
@@ -68,7 +68,7 @@ export function UploadConfiguration({
                   <span className='flex items-center gap-2'>
                     <span className='inline-block w-2.5 h-2.5 rounded-full' style={{ backgroundColor: g.color }} />
                     {g.name}
-                    <span className='text-muted-foreground text-xs'>({g.key_count}컬렉션 · {g.doc_count}문서)</span>
+                    <span className='text-muted-foreground text-xs'>({g.key_count}인덱스 · {g.doc_count}문서)</span>
                   </span>
                 </SelectItem>
               ))}
@@ -76,20 +76,20 @@ export function UploadConfiguration({
           </Select>
         ) : (
           <input
-            placeholder='카테고리 이름 입력'
+            placeholder='그룹 이름 입력'
             value={ragGroup}
             onChange={(e) => setRagGroup(e.target.value)}
             className='flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
           />
         )}
         <p className='text-xs text-muted-foreground'>
-          {groups.length === 0 ? '카테고리 관리 탭에서 카테고리를 먼저 생성하세요.' : '컬렉션을 묶는 카테고리를 선택합니다.'}
+          {groups.length === 0 ? '그룹 관리 탭에서 그룹을 먼저 생성하세요.' : '인덱스를 묶는 그룹을 선택합니다.'}
         </p>
       </div>
 
       {/* Collection */}
       <div className='space-y-2'>
-        <Label>컬렉션 *</Label>
+        <Label>인덱스 *</Label>
         {filteredKeys.length > 0 ? (
           <Select value={ragKey} onValueChange={handleKeyChange} disabled={!ragGroup}>
             <SelectTrigger>
@@ -108,7 +108,7 @@ export function UploadConfiguration({
           </Select>
         ) : (
           <input
-            placeholder={ragGroup ? '컬렉션 ID 입력 (신규 생성)' : '카테고리를 먼저 선택하세요'}
+            placeholder={ragGroup ? '인덱스 ID 입력 (신규 생성)' : '그룹을 먼저 선택하세요'}
             value={ragKey}
             onChange={(e) => setRagKey(e.target.value)}
             disabled={!ragGroup}
@@ -118,8 +118,8 @@ export function UploadConfiguration({
         )}
         <p className='text-xs text-muted-foreground'>
           {selectedGroup && filteredKeys.length === 0
-            ? `"${selectedGroup.name}" 카테고리에 컬렉션이 없습니다. 컬렉션 관리 탭에서 추가하세요.`
-            : '기존 컬렉션을 선택하면 같은 컬렉션에 문서가 추가됩니다.'}
+            ? `"${selectedGroup.name}" 그룹에 인덱스가 없습니다. 인덱스 관리 탭에서 추가하세요.`
+            : '기존 인덱스를 선택하면 같은 인덱스에 문서가 추가됩니다.'}
         </p>
       </div>
 

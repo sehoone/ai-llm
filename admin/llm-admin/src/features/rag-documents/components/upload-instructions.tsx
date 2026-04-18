@@ -13,7 +13,7 @@ export function UploadInstructions() {
           텍스트 파일입니다.
         </p>
         <p>
-          <strong>RAG Key:</strong> 문서 컬렉션의 주요 식별자입니다. "자연어
+          <strong>RAG Key:</strong> RAG 인덱스의 주요 식별자입니다. "자연어
           검색" 페이지에서 이 키를 사용하여 문서 내를 검색할 수 있습니다.
         </p>
         <p>

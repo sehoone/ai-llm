@@ -16,10 +16,8 @@ export default function NaturalSearch() {
   const [results, setResults] = useState<RAGSearchResult[]>([])
   const [hasStarted, setHasStarted] = useState(false)
   
-  const [ragKey, setRagKey] = useState('')
-
   const [ragGroup, setRagGroup] = useState('')
-  const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('natural_search')
+  const [systemPrompt, setSystemPrompt] = useState('')
   const [query, setQuery] = useState('')
   const [model, setModel] = useState<LlmModel>(DEFAULT_LLM_MODEL)
 
@@ -36,12 +34,12 @@ export default function NaturalSearch() {
     try {
         await ragApi.naturalLanguageSearchStream(
             {
-                rag_type: ragType,
+                rag_type: 'natural_search',
                 query: query,
-                rag_key: ragKey,
-                rag_group: ragGroup,
+                rag_group: ragGroup || undefined,
                 limit: 5,
-                model: model
+                model: model,
+                system_prompt: systemPrompt || undefined
             },
             (json) => {
                 if (json.type === 'sources') {
@@ -78,12 +76,10 @@ export default function NaturalSearch() {
       <SearchConfiguration
         model={model}
         setModel={setModel}
-        ragType={ragType}
-        setRagType={setRagType}
-        ragKey={ragKey}
-        setRagKey={setRagKey}
         ragGroup={ragGroup}
         setRagGroup={setRagGroup}
+        systemPrompt={systemPrompt}
+        setSystemPrompt={setSystemPrompt}
       />
 
       <SearchInput

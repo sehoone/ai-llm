@@ -14,18 +14,20 @@ interface UploadFormProps {
   onSuccess?: () => void
   groups?: RagGroup[]
   keys?: RagKey[]
+  defaultGroup?: string
+  defaultKey?: string
   /** @deprecated use groups/keys */
   availableKeys?: string[]
   /** @deprecated use groups/keys */
   availableGroups?: string[]
 }
 
-export function UploadForm({ onSuccess, groups = [], keys = [] }: UploadFormProps) {
+export function UploadForm({ onSuccess, groups = [], keys = [], defaultGroup = '', defaultKey = '' }: UploadFormProps) {
   const [loading, setLoading] = useState(false)
   const [file, setFile] = useState<File | null>(null)
 
-  const [ragKey, setRagKey] = useState('')
-  const [ragGroup, setRagGroup] = useState('')
+  const [ragKey, setRagKey] = useState(defaultKey)
+  const [ragGroup, setRagGroup] = useState(defaultGroup)
   const [ragType, setRagType] = useState<'user_isolated' | 'chatbot_shared' | 'natural_search'>('natural_search')
   const [tags, setTags] = useState('')
 

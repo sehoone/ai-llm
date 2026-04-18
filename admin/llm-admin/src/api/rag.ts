@@ -22,6 +22,17 @@ export interface NaturalLanguageSearchParams {
   rag_group?: string
   limit?: number
   model?: string
+  system_prompt?: string
+}
+
+export interface RagGroupResponse {
+  id: string
+  name: string
+  description?: string
+  color: string
+  key_count: number
+  doc_count: number
+  created_at: string
 }
 
 export interface DocumentUploadParams {
@@ -48,6 +59,11 @@ export interface DocumentDetailResponse extends DocumentResponse {
 }
 
 export const ragApi = {
+  getRagGroups: async (): Promise<RagGroupResponse[]> => {
+    const response = await api.get<RagGroupResponse[]>('/api/v1/rag/groups')
+    return response.data
+  },
+
   uploadDocument: async (params: DocumentUploadParams) => {
     const formData = new FormData()
     formData.append('file', params.file)
@@ -119,6 +135,7 @@ export const ragApi = {
     if (params.rag_group) formData.append('rag_group', params.rag_group)
     if (params.limit) formData.append('limit', params.limit.toString())
     if (params.model) formData.append('model', params.model)
+    if (params.system_prompt) formData.append('system_prompt', params.system_prompt)
 
     let buffer = '';
     let seenBytes = 0;

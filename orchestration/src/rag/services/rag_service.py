@@ -324,14 +324,9 @@ class RAGService:
 
             # Search for similar chunks in all RAGs of the group
             with Session(self.db_service.engine) as session:
-                # Build query based on rag_type
-                if rag_type == "user_isolated":
-                    # User-specific search
-                    if not user_id:
-                        logger.error("user_id_required_for_user_isolated_rag")
-                        return []
+                if user_id:
                     query_str = """
-                    SELECT 
+                    SELECT
                         re.id,
                         re.doc_id,
                         re.rag_key,
@@ -342,7 +337,7 @@ class RAGService:
                         1 - (re.embedding <=> CAST(:query_embedding AS vector)) as similarity
                     FROM rag_embedding re
                     JOIN document d ON re.doc_id = d.id
-                    WHERE d.user_id = :user_id AND re.rag_group = :rag_group AND re.rag_type = :rag_type
+                    WHERE d.user_id = :user_id AND re.rag_group = :rag_group
                     ORDER BY re.embedding <=> CAST(:query_embedding AS vector)
                     LIMIT :limit
                     """
@@ -351,15 +346,13 @@ class RAGService:
                         params={
                             "user_id": user_id,
                             "rag_group": rag_group,
-                            "rag_type": rag_type,
                             "query_embedding": embedding_str,
                             "limit": limit,
                         }
                     ).all()
-                else:  # chatbot_shared
-                    # Global search (no user filter)
+                else:
                     query_str = """
-                    SELECT 
+                    SELECT
                         re.id,
                         re.doc_id,
                         re.rag_key,
@@ -370,7 +363,7 @@ class RAGService:
                         1 - (re.embedding <=> CAST(:query_embedding AS vector)) as similarity
                     FROM rag_embedding re
                     JOIN document d ON re.doc_id = d.id
-                    WHERE re.rag_group = :rag_group AND re.rag_type = :rag_type
+                    WHERE re.rag_group = :rag_group
                     ORDER BY re.embedding <=> CAST(:query_embedding AS vector)
                     LIMIT :limit
                     """
@@ -378,7 +371,6 @@ class RAGService:
                         text(query_str),
                         params={
                             "rag_group": rag_group,
-                            "rag_type": rag_type,
                             "query_embedding": embedding_str,
                             "limit": limit,
                         }
@@ -550,7 +542,8 @@ Context from documents:
         rag_group: Optional[str] = None,
         user_id: Optional[int] = None,
         limit: int = 5,
-        model: str = "gpt-4o-mini"
+        model: str = "gpt-4o-mini",
+        system_prompt: Optional[str] = None,
     ):
         """Stream search results and LLM summary.
         
@@ -563,8 +556,7 @@ Context from documents:
         elif rag_key:
             results = await self.search_rag(rag_key, rag_type, user_id, query, limit)
         else:
-            yield json.dumps({"type": "error", "data": "No RAG key or group provided."})
-            return
+            results = []
 
         # Prepare context (moved logic here to reuse)
         context_str = ""
@@ -588,13 +580,14 @@ Context from documents:
         yield json.dumps({"type": "sources", "data": safe_results})
 
         # 3. Call LLM Streaming
-        system_prompt = (
+        default_system_prompt = (
             "You are a helpful assistant serving as a search engine summarizer. "
             "Given the user query and the following retrieved document excerpts, provide a concise and accurate summary answer. "
             "If context is provided, prioritize it for your answer and cite sources by [Source X]. "
             "If no context is provided or the information is not in the context, answer based on your general knowledge "
             "but indicate that the answer is not from the retrieved documents."
         )
+        system_prompt = system_prompt or default_system_prompt
         
         user_message = f"Query: {query}\n\nContext:\n{context_str if context_str else 'No relevant documents found.'}"
 

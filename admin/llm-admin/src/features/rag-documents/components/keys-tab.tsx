@@ -68,7 +68,7 @@ function CollectionFormDialog({ open, onClose, initial, groups, onSave }: Collec
           description: description.trim() || undefined,
           rag_type: ragType,
         })
-        toast.success('컬렉션이 수정되었습니다')
+        toast.success('인덱스가 수정되었습니다')
       } else {
         await ragGroupApi.createKey({
           rag_key: ragKey.trim(),
@@ -76,7 +76,7 @@ function CollectionFormDialog({ open, onClose, initial, groups, onSave }: Collec
           description: description.trim() || undefined,
           rag_type: ragType,
         })
-        toast.success('컬렉션이 생성되었습니다')
+        toast.success('인덱스가 생성되었습니다')
       }
       onSave()
       onClose()
@@ -92,21 +92,21 @@ function CollectionFormDialog({ open, onClose, initial, groups, onSave }: Collec
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className='max-w-md'>
         <DialogHeader>
-          <DialogTitle>{initial ? '컬렉션 수정' : '컬렉션 생성'}</DialogTitle>
+          <DialogTitle>{initial ? '인덱스 수정' : '인덱스 생성'}</DialogTitle>
         </DialogHeader>
         <div className='flex flex-col gap-4 py-2'>
           <div className='flex flex-col gap-1.5'>
-            <Label>컬렉션 ID *</Label>
+            <Label>인덱스 ID *</Label>
             <Input
               value={ragKey}
               onChange={(e) => setRagKey(e.target.value)}
               placeholder='예: product-docs-v1'
               disabled={!!initial}
             />
-            <p className='text-xs text-muted-foreground'>문서 컬렉션의 고유 식별자입니다.</p>
+            <p className='text-xs text-muted-foreground'>RAG 인덱스의 고유 식별자입니다.</p>
           </div>
           <div className='flex flex-col gap-1.5'>
-            <Label>카테고리 *</Label>
+            <Label>그룹 *</Label>
             {groups.length > 0 ? (
               <select
                 className='flex h-9 w-full items-center rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring'
@@ -121,7 +121,7 @@ function CollectionFormDialog({ open, onClose, initial, groups, onSave }: Collec
               <Input
                 value={ragGroup}
                 onChange={(e) => setRagGroup(e.target.value)}
-                placeholder='카테고리 이름'
+                placeholder='그룹 이름'
               />
             )}
           </div>
@@ -142,7 +142,7 @@ function CollectionFormDialog({ open, onClose, initial, groups, onSave }: Collec
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder='컬렉션 설명 (선택)'
+              placeholder='인덱스 설명 (선택)'
               rows={2}
             />
           </div>
@@ -171,7 +171,7 @@ function DeleteCollectionDialog({ open, onClose, collection, onDeleted }: Delete
     setDeleting(true)
     try {
       await ragGroupApi.deleteKey(collection.id, deleteDocs)
-      toast.success(deleteDocs ? '컬렉션과 문서가 삭제되었습니다' : '컬렉션이 삭제되었습니다')
+      toast.success(deleteDocs ? '인덱스와 문서가 삭제되었습니다' : '인덱스가 삭제되었습니다')
       onDeleted()
       onClose()
     } catch (e) {
@@ -186,9 +186,9 @@ function DeleteCollectionDialog({ open, onClose, collection, onDeleted }: Delete
     <AlertDialog open={open} onOpenChange={(o) => !o && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>컬렉션 삭제</AlertDialogTitle>
+          <AlertDialogTitle>인덱스 삭제</AlertDialogTitle>
           <AlertDialogDescription>
-            <strong>{collection.rag_key}</strong> 컬렉션을 삭제합니다.
+            <strong>{collection.rag_key}</strong> 인덱스를 삭제합니다.
           </AlertDialogDescription>
           {collection.doc_count > 0 && (
             <div className='flex items-center gap-2 rounded-md border p-3 mt-2'>
@@ -216,39 +216,39 @@ function DeleteCollectionDialog({ open, onClose, collection, onDeleted }: Delete
 
 export function KeysTab({ keys, groups, onRefresh }: KeysTabProps) {
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
+  const [groupFilter, setGroupFilter] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [editCollection, setEditCollection] = useState<RagKey | null>(null)
   const [deleteCollection, setDeleteCollection] = useState<RagKey | null>(null)
 
   const filtered = keys.filter((k) => {
     const matchSearch = !search || k.rag_key.includes(search)
-    const matchCategory = !categoryFilter || k.rag_group === categoryFilter
-    return matchSearch && matchCategory
+    const matchGroup = !groupFilter || k.rag_group === groupFilter
+    return matchSearch && matchGroup
   })
 
   return (
     <div className='flex flex-col gap-4'>
       <div className='flex items-center gap-3'>
         <Input
-          placeholder='컬렉션 검색'
+          placeholder='인덱스 검색'
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className='h-8 w-[200px]'
         />
         <select
           className='flex h-8 w-[160px] items-center rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring'
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
+          value={groupFilter}
+          onChange={(e) => setGroupFilter(e.target.value)}
         >
-          <option value=''>전체 카테고리</option>
+          <option value=''>전체 그룹</option>
           {groups.map((g) => (
             <option key={g.id} value={g.name}>{g.name}</option>
           ))}
         </select>
         <span className='text-sm text-muted-foreground ml-auto'>{filtered.length}개</span>
         <Button size='sm' onClick={() => setCreateOpen(true)}>
-          <Plus className='h-4 w-4 mr-1' />컬렉션 추가
+          <Plus className='h-4 w-4 mr-1' />인덱스 추가
         </Button>
       </div>
 
@@ -256,8 +256,8 @@ export function KeysTab({ keys, groups, onRefresh }: KeysTabProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>컬렉션 ID</TableHead>
-              <TableHead>카테고리</TableHead>
+              <TableHead>인덱스 ID</TableHead>
+              <TableHead>그룹</TableHead>
               <TableHead>타입</TableHead>
               <TableHead>문서</TableHead>
               <TableHead>설명</TableHead>
@@ -268,7 +268,7 @@ export function KeysTab({ keys, groups, onRefresh }: KeysTabProps) {
             {filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className='text-center text-muted-foreground py-8'>
-                  컬렉션이 없습니다
+                  인덱스가 없습니다
                 </TableCell>
               </TableRow>
             ) : (

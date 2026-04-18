@@ -43,7 +43,7 @@ export function DocumentsFilter({
         value={ragGroup}
         onChange={(e) => setRagGroup(e.target.value)}
       >
-        <option value=''>전체 카테고리</option>
+        <option value=''>전체 그룹</option>
         {availableGroups.map((g) => (
           <option key={g} value={g}>{g}</option>
         ))}

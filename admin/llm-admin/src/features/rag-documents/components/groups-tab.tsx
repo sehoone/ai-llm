@@ -39,7 +39,7 @@ const COLOR_PRESETS = [
   '#3b82f6', '#64748b',
 ]
 
-function CategoryFormDialog({
+function GroupFormDialog({
   open,
   onClose,
   initial,
@@ -61,10 +61,10 @@ function CategoryFormDialog({
     try {
       if (initial) {
         await ragGroupApi.updateGroup(initial.id, { name: name.trim(), description: description.trim() || undefined, color })
-        toast.success('카테고리가 수정되었습니다')
+        toast.success('그룹이 수정되었습니다')
       } else {
         await ragGroupApi.createGroup({ name: name.trim(), description: description.trim() || undefined, color })
-        toast.success('카테고리가 생성되었습니다')
+        toast.success('그룹이 생성되었습니다')
       }
       onSave()
       onClose()
@@ -80,16 +80,16 @@ function CategoryFormDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className='max-w-md'>
         <DialogHeader>
-          <DialogTitle>{initial ? '카테고리 수정' : '카테고리 생성'}</DialogTitle>
+          <DialogTitle>{initial ? '그룹 수정' : '그룹 생성'}</DialogTitle>
         </DialogHeader>
         <div className='flex flex-col gap-4 py-2'>
           <div className='flex flex-col gap-1.5'>
             <Label>이름 *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='카테고리 이름' />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='그룹 이름' />
           </div>
           <div className='flex flex-col gap-1.5'>
             <Label>설명</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder='카테고리 설명 (선택)' rows={2} />
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder='그룹 설명 (선택)' rows={2} />
           </div>
           <div className='flex flex-col gap-2'>
             <Label>색상</Label>
@@ -114,7 +114,7 @@ function CategoryFormDialog({
   )
 }
 
-function CategoryRow({ group, onRefresh }: { group: RagGroup; onRefresh: () => void }) {
+function GroupRow({ group, onRefresh }: { group: RagGroup; onRefresh: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const [collections, setCollections] = useState<RagKey[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -142,7 +142,7 @@ function CategoryRow({ group, onRefresh }: { group: RagGroup; onRefresh: () => v
     setDeleting(true)
     try {
       await ragGroupApi.deleteGroup(group.id)
-      toast.success('카테고리가 삭제되었습니다')
+      toast.success('그룹이 삭제되었습니다')
       onRefresh()
     } catch (e) {
       logger.error(e)
@@ -168,7 +168,7 @@ function CategoryRow({ group, onRefresh }: { group: RagGroup; onRefresh: () => v
           </div>
           <div className='flex gap-2 shrink-0'>
             <Badge variant='secondary' className='text-xs gap-1'>
-              <Layers className='h-3 w-3' />{group.key_count} 컬렉션
+              <Layers className='h-3 w-3' />{group.key_count} 인덱스
             </Badge>
             <Badge variant='secondary' className='text-xs gap-1'>
               <FileText className='h-3 w-3' />{group.doc_count} 문서
@@ -187,7 +187,7 @@ function CategoryRow({ group, onRefresh }: { group: RagGroup; onRefresh: () => v
         {expanded && (
           <div className='border-t divide-y'>
             {collections.length === 0 ? (
-              <div className='px-8 py-3 text-sm text-muted-foreground'>컬렉션이 없습니다</div>
+              <div className='px-8 py-3 text-sm text-muted-foreground'>인덱스가 없습니다</div>
             ) : (
               collections.map((col) => (
                 <div key={col.id} className='flex items-center gap-3 px-8 py-2.5'>
@@ -207,7 +207,7 @@ function CategoryRow({ group, onRefresh }: { group: RagGroup; onRefresh: () => v
         )}
       </div>
 
-      <CategoryFormDialog
+      <GroupFormDialog
         open={editOpen}
         onClose={() => setEditOpen(false)}
         initial={group}
@@ -217,9 +217,9 @@ function CategoryRow({ group, onRefresh }: { group: RagGroup; onRefresh: () => v
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>카테고리 삭제</AlertDialogTitle>
+            <AlertDialogTitle>그룹 삭제</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{group.name}</strong> 카테고리를 삭제합니다. 하위 컬렉션 설정이 함께 삭제되며 문서는 보존됩니다.
+              <strong>{group.name}</strong> 그룹을 삭제합니다. 하위 인덱스 설정이 함께 삭제되며 문서는 보존됩니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -241,26 +241,26 @@ export function GroupsTab({ groups, onRefresh }: GroupsTabProps) {
     <div className='flex flex-col gap-4'>
       <div className='flex items-center justify-between'>
         <p className='text-sm text-muted-foreground'>
-          {groups.length}개 카테고리 · 총 {groups.reduce((s, g) => s + g.doc_count, 0)}개 문서
+          {groups.length}개 그룹 · 총 {groups.reduce((s, g) => s + g.doc_count, 0)}개 문서
         </p>
         <Button size='sm' onClick={() => setCreateOpen(true)}>
-          <Plus className='h-4 w-4 mr-1' />카테고리 추가
+          <Plus className='h-4 w-4 mr-1' />그룹 추가
         </Button>
       </div>
 
       {groups.length === 0 ? (
         <div className='rounded-lg border border-dashed p-10 text-center text-muted-foreground text-sm'>
-          카테고리가 없습니다. 카테고리를 추가하여 컬렉션을 구조화하세요.
+          그룹이 없습니다. 그룹을 추가하여 인덱스를 구조화하세요.
         </div>
       ) : (
         <div className='flex flex-col gap-2'>
           {groups.map((g) => (
-            <CategoryRow key={g.id} group={g} onRefresh={onRefresh} />
+            <GroupRow key={g.id} group={g} onRefresh={onRefresh} />
           ))}
         </div>
       )}
 
-      <CategoryFormDialog
+      <GroupFormDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSave={onRefresh}

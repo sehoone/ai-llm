@@ -9,18 +9,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
 import { Upload } from 'lucide-react'
 import { ragApi, type DocumentResponse, type DocumentDetailResponse } from '@/api/rag'
 import { ragGroupApi, type RagGroup, type RagKey } from '@/api/rag-groups'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 import { UploadForm } from './components/upload-form'
-import { DocumentsFilter } from './components/documents-filter'
 import { DocumentsTable } from './components/documents-table'
 import { DocumentViewDialog } from './components/document-view-dialog'
-import { GroupsTab } from './components/groups-tab'
-import { KeysTab } from './components/keys-tab'
+import { TreePanel, type SelectedNode } from './components/tree-panel'
 
 export default function RagDocuments() {
   const [documents, setDocuments] = useState<DocumentResponse[]>([])
@@ -34,19 +32,14 @@ export default function RagDocuments() {
   const [isOpen, setIsOpen] = useState(false)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
 
-  const [ragKey, setRagKey] = useState('')
-  const [ragGroup, setRagGroup] = useState('')
-  const [ragType, setRagType] = useState<string>('')
-
-  const availableGroups = useMemo(
-    () => [...new Set(documents.map((d) => d.rag_group))].sort(),
-    [documents]
-  )
+  const [selected, setSelected] = useState<SelectedNode>({ type: 'all' })
+  const [search, setSearch] = useState('')
+  const [ragType, setRagType] = useState('')
 
   const fetchDocuments = async () => {
     setLoading(true)
     try {
-      const docs = await ragApi.getDocuments(ragKey || undefined, ragType || undefined)
+      const docs = await ragApi.getDocuments(undefined, ragType || undefined)
       setDocuments(docs)
     } catch (error) {
       logger.error(error)
@@ -72,10 +65,17 @@ export default function RagDocuments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const filteredDocuments = useMemo(
-    () => (ragGroup ? documents.filter((d) => d.rag_group === ragGroup) : documents),
-    [documents, ragGroup]
-  )
+  const filteredDocuments = useMemo(() => {
+    let docs = documents
+    if (selected.type === 'group') docs = docs.filter((d) => d.rag_group === selected.groupName)
+    if (selected.type === 'index') docs = docs.filter((d) => d.rag_key === selected.indexKey)
+    if (search) docs = docs.filter((d) =>
+      d.filename.toLowerCase().includes(search.toLowerCase()) ||
+      d.rag_key.includes(search)
+    )
+    if (ragType) docs = docs.filter((d) => d.rag_type === ragType)
+    return docs
+  }, [documents, selected, search, ragType])
 
   const handleDelete = async (id: number) => {
     if (!confirm('이 문서를 삭제하시겠습니까?')) return
@@ -121,6 +121,12 @@ export default function RagDocuments() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
+  const uploadDefaults = useMemo(() => {
+    if (selected.type === 'group') return { defaultGroup: selected.groupName }
+    if (selected.type === 'index') return { defaultGroup: selected.groupName, defaultKey: selected.indexKey }
+    return {}
+  }, [selected])
+
   return (
     <div className='flex flex-col gap-4 p-4 md:p-8'>
       <div className='flex items-center justify-between'>
@@ -134,44 +140,50 @@ export default function RagDocuments() {
         </Button>
       </div>
 
-      <Tabs defaultValue='documents'>
-        <TabsList>
-          <TabsTrigger value='documents'>문서</TabsTrigger>
-          <TabsTrigger value='groups'>카테고리 관리</TabsTrigger>
-          <TabsTrigger value='keys'>컬렉션 관리</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value='documents' className='mt-4'>
-          <DocumentsFilter
-            ragKey={ragKey}
-            setRagKey={setRagKey}
-            ragGroup={ragGroup}
-            setRagGroup={setRagGroup}
-            ragType={ragType}
-            setRagType={setRagType}
-            onApplyFilters={fetchDocuments}
-            availableGroups={availableGroups}
+      <div className='flex border rounded-lg overflow-hidden' style={{ minHeight: '600px' }}>
+        {/* Left: Tree */}
+        <div className='w-56 shrink-0 border-r bg-muted/20'>
+          <TreePanel
+            groups={groups}
+            keys={keys}
+            selected={selected}
+            onSelect={setSelected}
+            onRefresh={fetchGroupsAndKeys}
           />
-          <div className='mt-4'>
-            <DocumentsTable
-              documents={filteredDocuments}
-              loading={loading}
-              deletingId={deletingId}
-              onDelete={handleDelete}
-              onView={handleView}
-              formatFileSize={formatFileSize}
+        </div>
+
+        {/* Right: Documents */}
+        <div className='flex-1 flex flex-col p-4 gap-3 min-w-0'>
+          <div className='flex items-center gap-2'>
+            <Input
+              placeholder='파일명 / RAG Key 검색'
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className='h-8 w-[220px]'
             />
+            <select
+              className='flex h-8 w-[160px] items-center rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring'
+              value={ragType}
+              onChange={(e) => setRagType(e.target.value)}
+            >
+              <option value=''>전체 타입</option>
+              <option value='user_isolated'>User Isolated</option>
+              <option value='chatbot_shared'>Chatbot Shared</option>
+              <option value='natural_search'>Natural Search</option>
+            </select>
+            <span className='text-sm text-muted-foreground ml-auto'>{filteredDocuments.length}개</span>
           </div>
-        </TabsContent>
 
-        <TabsContent value='groups' className='mt-4'>
-          <GroupsTab groups={groups} onRefresh={fetchGroupsAndKeys} />
-        </TabsContent>
-
-        <TabsContent value='keys' className='mt-4'>
-          <KeysTab keys={keys} groups={groups} onRefresh={fetchGroupsAndKeys} />
-        </TabsContent>
-      </Tabs>
+          <DocumentsTable
+            documents={filteredDocuments}
+            loading={loading}
+            deletingId={deletingId}
+            onDelete={handleDelete}
+            onView={handleView}
+            formatFileSize={formatFileSize}
+          />
+        </div>
+      </div>
 
       <DocumentViewDialog
         isOpen={isOpen}
@@ -194,6 +206,7 @@ export default function RagDocuments() {
             onSuccess={handleUploadSuccess}
             groups={groups}
             keys={keys}
+            {...uploadDefaults}
           />
         </DialogContent>
       </Dialog>

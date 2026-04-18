@@ -432,14 +432,12 @@ async def natural_language_search(
     rag_group: str = Form(None),
     limit: int = Form(default=5),
     model: str = Form(default="gpt-4o-mini"),
+    system_prompt: str = Form(None),
     user: User = Depends(get_current_user),
 ):
     """Perform natural language search with LLM summary (Streaming)."""
     try:
         _validate_rag_type(rag_type)
-
-        if not rag_key and not rag_group:
-             rag_group = "default"
 
         # Validate inputs
         query = sanitize_string(query)
@@ -458,7 +456,8 @@ async def natural_language_search(
                 rag_group=rag_group,
                 user_id=user.id if rag_type == "user_isolated" else None,
                 limit=limit,
-                model=model
+                model=model,
+                system_prompt=system_prompt,
             ):
                 yield f"{chunk}\n"
 
