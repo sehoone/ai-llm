@@ -11,6 +11,7 @@ import {
   Command,
   Users,
   Key,
+  BrainCog,
   // GalleryVerticalEnd,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -54,6 +55,11 @@ export const sidebarData: SidebarData = {
               title: 'Chats',
               url: '/chats',
               icon: MessagesSquare,
+            },
+            {
+              title: 'Agents',
+              url: '/agents',
+              icon: BrainCog,
             },
             {
               title: 'My GPTs',
