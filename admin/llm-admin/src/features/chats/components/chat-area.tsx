@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { type FileAttachment, type Message } from '@/types/chat-api'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
@@ -171,7 +171,7 @@ const AssistantMessage = ({ content }: { content: string }) => {
     );
 }
 
-export function ChatArea({ messages, isLoading }: ChatAreaProps) {
+export const ChatArea = memo(function ChatArea({ messages, isLoading }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -269,4 +269,4 @@ export function ChatArea({ messages, isLoading }: ChatAreaProps) {
       </div>
     </div>
   )
-}
+})

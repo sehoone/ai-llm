@@ -104,12 +104,12 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         if self._graph is None:
             try:
                 builder = StateGraph(GraphState)
-                builder.add_node("chat", self._chat, ends=["tool_call", END])
+                builder.add_node("chat", self._chat, ends=["tool_call", "verify", END])
                 builder.add_node("tool_call", self._tool_call, ends=["chat"])
-                builder.add_node("think", self._think, ends=["verify", "chat"])
-                builder.add_node("verify", self._verify, ends=["chat"])
+                builder.add_node("think", self._think, ends=["chat"])
+                builder.add_node("verify", self._verify, ends=["chat", END])
                 builder.add_conditional_edges(START, self._route_start)
-                builder.set_finish_point("chat")
+                builder.set_finish_point("verify")
 
                 connection_pool = await self._get_connection_pool()
                 if connection_pool:
