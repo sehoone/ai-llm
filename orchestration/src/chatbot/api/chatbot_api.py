@@ -29,7 +29,7 @@ from src.common.logging import logger
 from src.common.metrics import llm_stream_duration_seconds
 from src.user.models.user_model import User
 from src.common.services.database import database_service
-from src.chatbot.schemas.admin_schema import ChatHistoryResponse
+from src.chatbot.schemas.admin_schema import ChatHistoryResponse, ChatHistoryListResponse
 from src.chatbot.schemas.chat_schema import (
     ALL_SUPPORTED_TYPES,
     AttachmentMeta,
@@ -419,40 +419,45 @@ async def download_attachment(
     )
 
 
-@router.get("/history/all", response_model=List[ChatHistoryResponse], summary="전체 대화 이력 조회", description="모든 사용자의 대화 이력을 조회합니다. (관리자용)")
+@router.get("/history/all", response_model=ChatHistoryListResponse, summary="전체 대화 이력 조회", description="모든 사용자의 대화 이력을 조회합니다. (관리자용)")
 async def get_all_chat_history(
     request: Request,
-    limit: int = 100,
+    limit: int = 20,
     offset: int = 0,
+    search: str = "",
     user: User = Depends(require_admin),
 ):
-    """Get all chat history for all users.
+    """Get all chat history for all users with server-side pagination and search.
 
     Args:
         request: The FastAPI request object.
         limit: Max records to return.
         offset: Records to skip.
+        search: Keyword to filter across question, answer, user email, and session name.
         user: The authenticated admin user.
 
     Returns:
-        List[ChatHistoryResponse]: List of chat histories with attachment metadata.
+        ChatHistoryListResponse: Paginated chat histories with total count.
     """
     try:
-        history = await database_service.get_all_chat_history(limit=limit, offset=offset)
+        result = await database_service.get_all_chat_history(limit=limit, offset=offset, search=search)
 
-        message_ids = [h["id"] for h in history]
+        message_ids = [h["id"] for h in result["items"]]
         attachments_by_msg = await database_service.get_attachments_by_message_ids(message_ids) if message_ids else {}
 
-        return [
-            ChatHistoryResponse(
-                **h,
-                attachments=[
-                    AttachmentMeta(id=a.id, filename=a.filename, content_type=a.content_type, file_size=a.file_size)
-                    for a in attachments_by_msg.get(h["id"], [])
-                ],
-            )
-            for h in history
-        ]
+        return ChatHistoryListResponse(
+            items=[
+                ChatHistoryResponse(
+                    **h,
+                    attachments=[
+                        AttachmentMeta(id=a.id, filename=a.filename, content_type=a.content_type, file_size=a.file_size)
+                        for a in attachments_by_msg.get(h["id"], [])
+                    ],
+                )
+                for h in result["items"]
+            ],
+            total=result["total"],
+        )
     except Exception as e:
         logger.error("get_all_chat_history_failed", error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

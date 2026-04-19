@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger'
 import api from './axios'
 import type {
   AttachmentMeta,
+  ChatHistoryListResponse,
   ChatHistoryResponse,
   ChatRequest,
   ChatResponse,
@@ -16,9 +17,9 @@ const CHATBOT_BASE = '/api/v1/chatbot'
 
 export const chatService = {
   // Admin Operations
-  getAllChatHistory: async (limit = 100, offset = 0): Promise<ChatHistoryResponse[]> => {
-    const response = await api.get<ChatHistoryResponse[]>(`${CHATBOT_BASE}/history/all`, {
-      params: { limit, offset }
+  getAllChatHistory: async (limit = 10, offset = 0, search = ''): Promise<ChatHistoryListResponse> => {
+    const response = await api.get<ChatHistoryListResponse>(`${CHATBOT_BASE}/history/all`, {
+      params: { limit, offset, search: search || undefined }
     })
     return response.data
   },

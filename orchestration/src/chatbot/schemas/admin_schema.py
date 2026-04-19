@@ -14,3 +14,8 @@ class ChatHistoryResponse(BaseModel):
     created_at: datetime
     session_name: Optional[str] = None
     attachments: List[AttachmentMeta] = []
+
+
+class ChatHistoryListResponse(BaseModel):
+    items: List[ChatHistoryResponse]
+    total: int

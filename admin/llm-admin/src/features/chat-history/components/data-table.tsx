@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 
 interface DataTableProps<TData, TValue> {
@@ -31,6 +32,7 @@ export function DataTable<TData, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState({})
+  const [globalFilter, setGlobalFilter] = useState('')
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -41,13 +43,24 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: 'includesString',
     state: {
       rowSelection,
+      globalFilter,
     },
   })
 
   return (
     <div className='space-y-4'>
+      <div className='flex items-center'>
+        <Input
+          placeholder='Search questions, answers, users, sessions...'
+          value={globalFilter}
+          onChange={(e) => setGlobalFilter(e.target.value)}
+          className='max-w-sm'
+        />
+      </div>
       <div className='rounded-md border'>
         <Table>
           <TableHeader>
@@ -98,23 +111,28 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div className='flex items-center justify-end space-x-2 py-4'>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
+      <div className='flex items-center justify-between py-4'>
+        <p className='text-sm text-muted-foreground'>
+          {table.getFilteredRowModel().rows.length} result(s)
+        </p>
+        <div className='flex items-center space-x-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     </div>
   )

@@ -159,19 +159,40 @@ class SessionRepositoryMixin:
                 logger.info("chat_messages_deleted", session_id=session_id)
         await asyncio.to_thread(_sync)
 
-    async def get_all_chat_history(self, limit: int = 100, offset: int = 0) -> List[dict]:
+    async def get_all_chat_history(self, limit: int = 20, offset: int = 0, search: str = "") -> dict:
         """Retrieve paginated chat history across all users (admin use).
 
         Args:
             limit: Maximum number of records to return.
             offset: Number of records to skip.
+            search: Optional keyword to filter by question, answer, email, or session name.
 
         Returns:
-            List[dict]: Chat message records joined with session and user info.
+            dict: {"items": [...], "total": int}
         """
         def _sync():
+            from sqlalchemy import func, or_
             with Session(self.engine) as db:
-                statement = (
+                search_filter = None
+                if search:
+                    pattern = f"%{search}%"
+                    search_filter = or_(
+                        ChatMessage.question.ilike(pattern),
+                        ChatMessage.answer.ilike(pattern),
+                        User.email.ilike(pattern),
+                        ChatSession.name.ilike(pattern),
+                    )
+
+                count_stmt = (
+                    select(func.count(ChatMessage.id))
+                    .join(ChatSession, ChatMessage.session_id == ChatSession.id)
+                    .join(User, ChatSession.user_id == User.id)
+                )
+                if search_filter is not None:
+                    count_stmt = count_stmt.where(search_filter)
+                total = db.exec(count_stmt).one()
+
+                data_stmt = (
                     select(ChatMessage, ChatSession, User)
                     .join(ChatSession, ChatMessage.session_id == ChatSession.id)
                     .join(User, ChatSession.user_id == User.id)
@@ -179,8 +200,11 @@ class SessionRepositoryMixin:
                     .offset(offset)
                     .limit(limit)
                 )
-                results = db.exec(statement).all()
-                return [
+                if search_filter is not None:
+                    data_stmt = data_stmt.where(search_filter)
+                results = db.exec(data_stmt).all()
+
+                items = [
                     {
                         "id": msg.id,
                         "session_id": msg.session_id,
@@ -192,6 +216,7 @@ class SessionRepositoryMixin:
                     }
                     for msg, chat_session, user in results
                 ]
+                return {"items": items, "total": total}
         return await asyncio.to_thread(_sync)
 
     async def get_chat_message_by_id(self, message_id: int) -> Optional[dict]:

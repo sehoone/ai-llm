@@ -5,31 +5,33 @@ import { type ChatHistoryResponse } from '@/types/chat-api'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { DataTableColumnHeader } from '@/components/data-table'
 import { ArrowRight, Paperclip } from 'lucide-react'
 
-export const columns: ColumnDef<ChatHistoryResponse>[] = [
+export const chatHistoryColumns: ColumnDef<ChatHistoryResponse>[] = [
   {
     accessorKey: 'created_at',
-    header: 'Date',
+    header: ({ column }) => <DataTableColumnHeader column={column} title='Date' />,
     cell: ({ row }) => {
       const date = new Date(row.getValue('created_at'))
-      return <div className="text-nowrap">{format(date, 'yyyy-MM-dd HH:mm:ss')}</div>
+      return <div className='text-nowrap'>{format(date, 'yyyy-MM-dd HH:mm:ss')}</div>
     },
   },
   {
     accessorKey: 'user_email',
-    header: 'User',
+    header: ({ column }) => <DataTableColumnHeader column={column} title='User' />,
   },
   {
     accessorKey: 'session_name',
     header: 'Session',
+    enableSorting: false,
     cell: ({ row }) => {
       const name = row.getValue('session_name') as string
       const id = row.original.session_id
       return (
-        <div className="flex flex-col">
-          <span className="font-medium">{name || 'No Name'}</span>
-          <span className="text-xs text-muted-foreground">{id.substring(0, 8)}...</span>
+        <div className='flex flex-col'>
+          <span className='font-medium'>{name || 'No Name'}</span>
+          <span className='text-xs text-muted-foreground'>{id.substring(0, 8)}...</span>
         </div>
       )
     },
@@ -37,16 +39,17 @@ export const columns: ColumnDef<ChatHistoryResponse>[] = [
   {
     accessorKey: 'question',
     header: 'Question',
+    enableSorting: false,
     cell: ({ row }) => {
       const attachments = row.original.attachments ?? []
       return (
-        <div className="flex items-center gap-2 max-w-[300px]">
-          <span className="truncate" title={row.getValue('question')}>
+        <div className='flex items-center gap-2 max-w-[300px]'>
+          <span className='truncate' title={row.getValue('question')}>
             {row.getValue('question')}
           </span>
           {attachments.length > 0 && (
-            <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
-              <Paperclip className="h-3 w-3" />
+            <span className='flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground'>
+              <Paperclip className='h-3 w-3' />
               {attachments.length}
             </span>
           )}
@@ -57,9 +60,10 @@ export const columns: ColumnDef<ChatHistoryResponse>[] = [
   {
     accessorKey: 'answer',
     header: 'Answer',
+    enableSorting: false,
     cell: ({ row }) => {
-       return (
-        <div className="max-w-[400px] truncate" title={row.getValue('answer')}>
+      return (
+        <div className='max-w-[400px] truncate' title={row.getValue('answer')}>
           {row.getValue('answer')}
         </div>
       )
@@ -69,10 +73,10 @@ export const columns: ColumnDef<ChatHistoryResponse>[] = [
     id: 'actions',
     cell: ({ row }) => {
       return (
-        <Button variant="ghost" size="icon" asChild>
+        <Button variant='ghost' size='icon' asChild>
           <Link href={`/chat-history/${row.original.id}`}>
-            <ArrowRight className="h-4 w-4" />
-            <span className="sr-only">View detail</span>
+            <ArrowRight className='h-4 w-4' />
+            <span className='sr-only'>View detail</span>
           </Link>
         </Button>
       )

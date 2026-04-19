@@ -55,3 +55,8 @@ export interface ChatHistoryResponse {
   session_name: string | null
   attachments: AttachmentMeta[]
 }
+
+export interface ChatHistoryListResponse {
+  items: ChatHistoryResponse[]
+  total: number
+}
