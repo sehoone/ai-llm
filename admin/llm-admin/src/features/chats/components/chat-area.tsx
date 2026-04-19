@@ -1,11 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
-import { type Message } from '@/types/chat-api'
+import { type FileAttachment, type Message } from '@/types/chat-api'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, ChevronDown, ChevronRight, User, BrainCircuit, CheckCircle2, Loader2, FileText, Image as ImageIcon } from 'lucide-react'
+import { Bot, ChevronDown, ChevronRight, User, BrainCircuit, CheckCircle2, Loader2, FileText, Image as ImageIcon, Download } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { markdownComponents } from '@/components/markdown-components'
+import { chatService } from '@/api/chat'
+
+const downloadInline = (file: FileAttachment) => {
+  const byteCharacters = atob(file.data)
+  const byteArray = new Uint8Array(byteCharacters.length)
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteArray[i] = byteCharacters.charCodeAt(i)
+  }
+  const blob = new Blob([byteArray], { type: file.content_type })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 interface ChatAreaProps {
   messages: Message[]
@@ -178,17 +202,50 @@ export function ChatArea({ messages, isLoading }: ChatAreaProps) {
               <div className='prose break-words dark:prose-invert max-w-none'>
                 {message.role === 'user' ? (
                   <div className="space-y-2">
-                     <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                     {message.files && message.files.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                            {message.files.map((file, i) => (
-                                <div key={i} className="flex items-center gap-2 p-2 bg-background border rounded-md text-sm text-muted-foreground w-fit max-w-full">
-                                    {file.content_type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
-                                    <span className="truncate max-w-[200px]" title={file.filename}>{file.filename}</span>
-                                </div>
-                            ))}
-                        </div>
-                     )}
+                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+
+                    {/* Realtime: files sent with base64 (before history reload) */}
+                    {message.files && message.files.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {message.files.map((file, i) => (
+                          <div key={i} className="flex items-center gap-2 p-2 bg-background border rounded-md text-sm text-muted-foreground w-fit max-w-full">
+                            {file.content_type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
+                            <span className="truncate max-w-[180px]" title={file.filename}>{file.filename}</span>
+                            <button
+                              type="button"
+                              onClick={() => downloadInline(file)}
+                              className="ml-1 hover:text-foreground transition-colors"
+                              title="다운로드"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* History: attachment metadata (after page reload) */}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {message.attachments.map((att) => (
+                          <div key={att.id} className="flex items-center gap-2 p-2 bg-background border rounded-md text-sm text-muted-foreground w-fit max-w-full">
+                            {att.content_type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
+                            <div className="flex flex-col min-w-0">
+                              <span className="truncate max-w-[180px] leading-tight" title={att.filename}>{att.filename}</span>
+                              <span className="text-xs opacity-60">{formatBytes(att.file_size)}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => chatService.downloadAttachment(att)}
+                              className="ml-1 hover:text-foreground transition-colors"
+                              title="다운로드"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <AssistantMessage content={message.content} />

@@ -100,6 +100,20 @@ CREATE TABLE chat_message (
 
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message(session_id);
 
+CREATE TABLE chat_attachment (
+    id SERIAL PRIMARY KEY,
+    message_id INTEGER NOT NULL REFERENCES chat_message(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    storage_path TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_attachment_message_id ON chat_attachment(message_id);
+CREATE INDEX IF NOT EXISTS idx_chat_attachment_session_id ON chat_attachment(session_id);
+
 CREATE TABLE gpt_chat_message (
     id SERIAL PRIMARY KEY,
     session_id TEXT NOT NULL,

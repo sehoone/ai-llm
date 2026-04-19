@@ -2,6 +2,7 @@
 import { logger } from '@/lib/logger'
 import api from './axios'
 import type {
+  AttachmentMeta,
   ChatHistoryResponse,
   ChatRequest,
   ChatResponse,
@@ -82,6 +83,20 @@ export const chatService = {
     await api.delete(`${CHATBOT_BASE}/messages`, {
       params: { session_id: sessionId },
     })
+  },
+
+  downloadAttachment: async (attachment: AttachmentMeta): Promise<void> => {
+    const response = await api.get(`${CHATBOT_BASE}/attachments/${attachment.id}`, {
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(response.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = attachment.filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   },
 
   // Note: Streaming needs special handling, we'll expose a URL generator or fetch directly in component

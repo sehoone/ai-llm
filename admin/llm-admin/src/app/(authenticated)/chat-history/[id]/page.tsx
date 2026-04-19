@@ -4,13 +4,64 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { chatService } from '@/api/chat'
-import { type ChatHistoryResponse } from '@/types/chat-api'
+import { type AttachmentMeta, type ChatHistoryResponse } from '@/types/chat-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Calendar, User, MessageCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, Download, FileText, Image as ImageIcon, Paperclip, User, MessageCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import { logger } from '@/lib/logger'
+import { toast } from 'sonner'
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function AttachmentItem({ attachment }: { attachment: AttachmentMeta }) {
+  const [downloading, setDownloading] = useState(false)
+
+  const handleDownload = async () => {
+    try {
+      setDownloading(true)
+      await chatService.downloadAttachment(attachment)
+    } catch (err) {
+      logger.error('Download failed', err)
+      toast.error('다운로드에 실패했습니다')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+      <div className="flex items-center gap-2 min-w-0">
+        {attachment.content_type.startsWith('image/') ? (
+          <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium" title={attachment.filename}>
+            {attachment.filename}
+          </p>
+          <p className="text-xs text-muted-foreground">{formatBytes(attachment.file_size)}</p>
+        </div>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 shrink-0"
+        onClick={handleDownload}
+        disabled={downloading}
+        title="다운로드"
+      >
+        <Download className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  )
+}
 
 export default function ChatHistoryDetailPage() {
   const params = useParams()
@@ -89,10 +140,23 @@ export default function ChatHistoryDetailPage() {
                 질문
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-2">
+            <CardContent className="pt-3 space-y-3">
               <div className="whitespace-pre-wrap text-sm leading-relaxed">
                 {data.question}
               </div>
+              {data.attachments && data.attachments.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <Paperclip className="h-3 w-3" />
+                    첨부파일 ({data.attachments.length})
+                  </p>
+                  <div className="space-y-1">
+                    {data.attachments.map((att) => (
+                      <AttachmentItem key={att.id} attachment={att} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

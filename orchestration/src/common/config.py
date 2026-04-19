@@ -176,6 +176,9 @@ class Settings:
         self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10"))
         self.JWT_REFRESH_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_MINUTES", "10080"))
 
+        # File uploads
+        self.UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+
         # Logging
         self.LOG_DIR: Path = Path(os.getenv("LOG_DIR", "logs"))
         self.LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

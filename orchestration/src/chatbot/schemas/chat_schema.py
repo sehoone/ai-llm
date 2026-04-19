@@ -65,6 +65,15 @@ class FileAttachment(BaseModel):
         return base64.b64decode(self.data).decode("utf-8")
 
 
+class AttachmentMeta(BaseModel):
+    """Attachment metadata returned in message history (no file data)."""
+
+    id: int = Field(..., description="Attachment ID for download")
+    filename: str = Field(..., description="Original filename")
+    content_type: str = Field(..., description="MIME type")
+    file_size: int = Field(..., description="File size in bytes")
+
+
 class Message(BaseModel):
     """Message model for chat endpoint.
 
@@ -78,7 +87,8 @@ class Message(BaseModel):
 
     role: Literal["user", "assistant", "system"] = Field(..., description="The role of the message sender")
     content: str = Field(..., description="The content of the message", min_length=1, max_length=50000)
-    files: Optional[List[FileAttachment]] = Field(default=None, description="Optional file attachments")
+    files: Optional[List[FileAttachment]] = Field(default=None, description="File attachments (realtime, base64)")
+    attachments: Optional[List[AttachmentMeta]] = Field(default=None, description="Attachment metadata (history)")
 
     @field_validator("content")
     @classmethod

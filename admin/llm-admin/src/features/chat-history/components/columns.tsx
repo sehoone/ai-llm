@@ -5,7 +5,7 @@ import { type ChatHistoryResponse } from '@/types/chat-api'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Paperclip } from 'lucide-react'
 
 export const columns: ColumnDef<ChatHistoryResponse>[] = [
   {
@@ -38,9 +38,18 @@ export const columns: ColumnDef<ChatHistoryResponse>[] = [
     accessorKey: 'question',
     header: 'Question',
     cell: ({ row }) => {
+      const attachments = row.original.attachments ?? []
       return (
-        <div className="max-w-[300px] truncate" title={row.getValue('question')}>
-          {row.getValue('question')}
+        <div className="flex items-center gap-2 max-w-[300px]">
+          <span className="truncate" title={row.getValue('question')}>
+            {row.getValue('question')}
+          </span>
+          {attachments.length > 0 && (
+            <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
+              <Paperclip className="h-3 w-3" />
+              {attachments.length}
+            </span>
+          )}
         </div>
       )
     },

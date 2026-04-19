@@ -12,6 +12,7 @@ from src.common.config import Environment, settings
 from src.common.logging import logger
 from src.user.services.user_repository import UserRepositoryMixin
 from src.chatbot.services.session_repository import SessionRepositoryMixin
+from src.chatbot.services.attachment_repository import AttachmentRepositoryMixin
 from src.chatbot.services.gpt_repository import GPTRepositoryMixin
 from src.llm_resources.services.llm_resource_repository import LLMResourceRepositoryMixin
 from src.workflow.services.workflow_repository import WorkflowRepositoryMixin
@@ -20,6 +21,7 @@ from src.workflow.services.workflow_repository import WorkflowRepositoryMixin
 class DatabaseService(
     UserRepositoryMixin,
     SessionRepositoryMixin,
+    AttachmentRepositoryMixin,
     GPTRepositoryMixin,
     LLMResourceRepositoryMixin,
     WorkflowRepositoryMixin,
