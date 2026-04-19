@@ -103,13 +103,19 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         """
         if self._graph is None:
             try:
+                # 플로우:
+                #   일반:        START → chat → END
+                #   툴 호출:     START → chat → tool_call → chat → ... → END
+                #   딥씽킹:      START → think → chat → verify → END (품질 충족)
+                #                                  ↑         ↓ (품질 미달 + 피드백, 최대 2회)
+                #                                  └─────────┘
                 builder = StateGraph(GraphState)
-                builder.add_node("chat", self._chat, ends=["tool_call", "verify", END])
-                builder.add_node("tool_call", self._tool_call, ends=["chat"])
-                builder.add_node("think", self._think, ends=["chat"])
-                builder.add_node("verify", self._verify, ends=["chat", END])
-                builder.add_conditional_edges(START, self._route_start)
-                builder.set_finish_point("verify")
+                builder.add_node("chat", self._chat, ends=["tool_call", "verify", END]) # chat: 메인 LLM 응답 노드. 툴 호출 감지 시 tool_call, 딥씽킹 시 verify, 그 외 END
+                builder.add_node("tool_call", self._tool_call, ends=["chat"]) # tool_call: 툴 실행 후 항상 chat으로 복귀
+                builder.add_node("think", self._think, ends=["chat"]) # think: 응답 전략 수립 (딥씽킹 전용). 항상 chat으로 넘김
+                builder.add_node("verify", self._verify, ends=["chat", END]) # verify: 응답 품질 평가. 승인 시 END, 미달 시 피드백과 함께 chat으로 재요청
+                builder.add_conditional_edges(START, self._route_start) # _route_start: is_deep_thinking 또는 질문 복잡도에 따라 think 또는 chat으로 분기
+                builder.set_finish_point("verify") # verify가 END를 직접 결정하므로 verify를 종료 가능 노드로 지정
 
                 connection_pool = await self._get_connection_pool()
                 if connection_pool:
