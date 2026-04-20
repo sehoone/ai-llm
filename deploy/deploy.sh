@@ -30,8 +30,9 @@ if [ ! -f "$ADMIN_ENV_FILE" ]; then
 fi
 
 echo "Deploying all services for [$ENV] environment..."
-echo "  - API server  : http://localhost:8060/api"
 echo "  - Frontend    : http://localhost:8060"
+echo "  - API server  : http://localhost:8060/api"
+echo "  - Langfuse    : http://localhost:8067"
 
 cd "$SCRIPT_DIR"
 
@@ -39,4 +40,6 @@ APP_ENV=$ENV docker compose --env-file "$ORCH_ENV_FILE" up -d --build
 
 echo ""
 echo "All services started successfully."
+echo "  - Langfuse 초기 설정: http://localhost:8067 에서 계정 생성 후"
+echo "    API Keys 메뉴에서 Public/Secret key를 .env.production에 입력하세요."
 echo "  docker compose -f $SCRIPT_DIR/docker-compose.yml ps"

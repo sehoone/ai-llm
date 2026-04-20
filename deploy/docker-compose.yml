@@ -88,6 +88,30 @@ services:
       - app-network
     restart: always
 
+  # ─────────────────────────────────────────────
+  # Langfuse (LLM 관찰/추적)
+  #   http://1.1.1.1:8067  → Langfuse UI
+  # ─────────────────────────────────────────────
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: langfuse
+    ports:
+      - "8067:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/langfuse
+      - NEXTAUTH_URL=${LANGFUSE_NEXTAUTH_URL:-http://localhost:8067}
+      - NEXTAUTH_SECRET=${LANGFUSE_NEXTAUTH_SECRET}
+      - SALT=${LANGFUSE_SALT}
+      - ENCRYPTION_KEY=${LANGFUSE_ENCRYPTION_KEY}
+      - TELEMETRY_ENABLED=false
+      - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=false
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: always
+
 networks:
   app-network:
     driver: bridge
