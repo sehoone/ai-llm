@@ -47,7 +47,7 @@ export interface UpdateKeyData {
   rag_type?: string
 }
 
-const BASE = '/api/v1/rag'
+const BASE = 'v1/rag'
 
 export const ragGroupApi = {
   // Groups

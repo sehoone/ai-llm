@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api', // Default to /api if not set
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL || ''}/api/`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -58,10 +58,7 @@ export const refreshAccessToken = async () => {
     }
 
     // Call refresh endpoint
-    const response = await axios.post(
-      (process.env.NEXT_PUBLIC_API_URL || '') + '/api/v1/auth/refresh',
-      { refresh_token: refreshToken }
-    );
+    const response = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken });
 
     const { access_token, refresh_token, expires_at } = response.data;
 

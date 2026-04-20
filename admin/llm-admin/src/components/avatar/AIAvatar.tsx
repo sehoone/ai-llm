@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import api from '@/api/axios';
 import { logger } from '@/lib/logger';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -39,22 +40,16 @@ export default function AIAvatar({ isTalking, textToSpeak, onSpeechStart, onSpee
       try {
         setStatus('Initializing Avatar...');
         
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
         // 1. Get Tokens
         const [avatarTokenRes, speechTokenRes] = await Promise.all([
-            fetch(`${API_URL}/api/azure-avatar-token`),
-            fetch(`${API_URL}/api/speech-token`)
+            api.get('azure-avatar-token'),
+            api.get('speech-token'),
         ]);
 
         if (aborted) return;
 
-        if (!avatarTokenRes.ok || !speechTokenRes.ok) {
-            throw new Error(`Failed to fetch tokens: ${avatarTokenRes.status} ${speechTokenRes.status}`);
-        }
-
-        const avatarTokenData = await avatarTokenRes.json();
-        const speechTokenData = await speechTokenRes.json();
+        const avatarTokenData = avatarTokenRes.data;
+        const speechTokenData = speechTokenRes.data;
 
         // 2. Setup WebRTC
         // Follow the working sample's pattern: Use the first URL from the list

@@ -68,70 +68,70 @@ export interface RagGroupInfo {
 export const agentApi = {
   // ── CRUD ──────────────────────────────────────────────────────────────────
   getAll: async (): Promise<Agent[]> => {
-    const response = await api.get<Agent[]>('/api/v1/agents/')
+    const response = await api.get<Agent[]>('v1/agents/')
     return response.data
   },
 
   get: async (id: string): Promise<Agent> => {
-    const response = await api.get<Agent>(`/api/v1/agents/${id}`)
+    const response = await api.get<Agent>(`v1/agents/${id}`)
     return response.data
   },
 
   create: async (data: CreateAgentData): Promise<Agent> => {
-    const response = await api.post<Agent>('/api/v1/agents/', data)
+    const response = await api.post<Agent>('v1/agents/', data)
     return response.data
   },
 
   update: async (id: string, data: UpdateAgentData): Promise<Agent> => {
-    const response = await api.put<Agent>(`/api/v1/agents/${id}`, data)
+    const response = await api.put<Agent>(`v1/agents/${id}`, data)
     return response.data
   },
 
   delete: async (id: string): Promise<void> => {
-    await api.delete(`/api/v1/agents/${id}`)
+    await api.delete(`v1/agents/${id}`)
   },
 
   togglePublish: async (id: string): Promise<Agent> => {
-    const response = await api.post<Agent>(`/api/v1/agents/${id}/publish`)
+    const response = await api.post<Agent>(`v1/agents/${id}/publish`)
     return response.data
   },
 
   // ── RAG keys / groups ─────────────────────────────────────────────────────
   getRagKeys: async (): Promise<RagKeyInfo[]> => {
-    const response = await api.get<RagKeyInfo[]>('/api/v1/agents/rag-keys')
+    const response = await api.get<RagKeyInfo[]>('v1/agents/rag-keys')
     return response.data
   },
 
   getRagGroups: async (): Promise<RagGroupInfo[]> => {
-    const response = await api.get<RagGroupInfo[]>('/api/v1/agents/rag-groups')
+    const response = await api.get<RagGroupInfo[]>('v1/agents/rag-groups')
     return response.data
   },
 
   // ── Sessions ──────────────────────────────────────────────────────────────
   createSession: async (agentId: string): Promise<AgentSession> => {
-    const response = await api.post<AgentSession>(`/api/v1/agents/${agentId}/sessions`)
+    const response = await api.post<AgentSession>(`v1/agents/${agentId}/sessions`)
     return response.data
   },
 
   getSessions: async (agentId: string): Promise<AgentSession[]> => {
-    const response = await api.get<AgentSession[]>(`/api/v1/agents/${agentId}/sessions`)
+    const response = await api.get<AgentSession[]>(`v1/agents/${agentId}/sessions`)
     return response.data
   },
 
   renameSession: async (agentId: string, sessionId: string, name: string): Promise<AgentSession> => {
     const formData = new FormData()
     formData.append('name', name)
-    const response = await api.patch<AgentSession>(`/api/v1/agents/${agentId}/sessions/${sessionId}/name`, formData)
+    const response = await api.patch<AgentSession>(`v1/agents/${agentId}/sessions/${sessionId}/name`, formData)
     return response.data
   },
 
   deleteSession: async (agentId: string, sessionId: string): Promise<void> => {
-    await api.delete(`/api/v1/agents/${agentId}/sessions/${sessionId}`)
+    await api.delete(`v1/agents/${agentId}/sessions/${sessionId}`)
   },
 
   // ── Messages ──────────────────────────────────────────────────────────────
   getMessages: async (agentId: string, sessionId: string): Promise<Message[]> => {
-    const response = await api.get<{ messages: Message[] }>(`/api/v1/agents/${agentId}/messages`, {
+    const response = await api.get<{ messages: Message[] }>(`v1/agents/${agentId}/messages`, {
       params: { session_id: sessionId },
     })
     return response.data.messages
@@ -152,7 +152,7 @@ export const agentApi = {
       let buffer = ''
       let processedIndex = 0
 
-      await api.post(`/api/v1/agents/${agentId}/chat/stream`, request, {
+      await api.post(`v1/agents/${agentId}/chat/stream`, request, {
         onDownloadProgress: (progressEvent) => {
           const xhr = progressEvent.event?.target as any
           if (!xhr) return

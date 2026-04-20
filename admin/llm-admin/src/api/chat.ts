@@ -13,7 +13,7 @@ import type {
 } from '@/types/chat-api'
 
 // const AUTH_BASE = '/api/v1/auth'
-const CHATBOT_BASE = '/api/v1/chatbot'
+const CHATBOT_BASE = 'v1/chatbot'
 
 export const chatService = {
   // Admin Operations

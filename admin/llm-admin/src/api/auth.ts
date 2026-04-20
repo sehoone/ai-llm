@@ -13,7 +13,7 @@ export interface LoginResponse {
 }
 
 export const login = async (data: Omit<LoginRequest, 'grant_type'>): Promise<LoginResponse> => {
-  const response = await api.post<LoginResponse>('/api/v1/auth/login', {
+  const response = await api.post<LoginResponse>('v1/auth/login', {
     ...data,
     grant_type: 'password',
   });
@@ -21,7 +21,7 @@ export const login = async (data: Omit<LoginRequest, 'grant_type'>): Promise<Log
 };
 
 export const refreshToken = async (token: string): Promise<LoginResponse> => {
-  const response = await api.post<LoginResponse>('/api/v1/auth/refresh', {
+  const response = await api.post<LoginResponse>('v1/auth/refresh', {
     refresh_token: token,
   });
   return response.data;

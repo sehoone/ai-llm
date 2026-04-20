@@ -60,7 +60,7 @@ export interface DocumentDetailResponse extends DocumentResponse {
 
 export const ragApi = {
   getRagGroups: async (): Promise<RagGroupResponse[]> => {
-    const response = await api.get<RagGroupResponse[]>('/api/v1/rag/groups')
+    const response = await api.get<RagGroupResponse[]>('v1/rag/groups')
     return response.data
   },
 
@@ -73,7 +73,7 @@ export const ragApi = {
     if (params.tags) formData.append('tags', params.tags)
 
     const response = await api.post<DocumentResponse>(
-        '/api/v1/rag/upload',
+        'v1/rag/upload',
         formData,
         {
             headers: {
@@ -89,17 +89,17 @@ export const ragApi = {
       if (rag_key) params.append('rag_key', rag_key)
       if (rag_type) params.append('rag_type', rag_type)
       
-      const response = await api.get<DocumentResponse[]>(`/api/v1/rag/documents?${params.toString()}`)
+      const response = await api.get<DocumentResponse[]>(`v1/rag/documents?${params.toString()}`)
       return response.data
   },
 
   getDocument: async (id: number) => {
-    const response = await api.get<DocumentDetailResponse>(`/api/v1/rag/documents/${id}`)
+    const response = await api.get<DocumentDetailResponse>(`v1/rag/documents/${id}`)
     return response.data
   },
 
   deleteDocument: async (id: number) => {
-    await api.delete(`/api/v1/rag/documents/${id}`)
+    await api.delete(`v1/rag/documents/${id}`)
   },
 
   naturalLanguageSearch: async (params: NaturalLanguageSearchParams) => {
@@ -112,7 +112,7 @@ export const ragApi = {
     if (params.model) formData.append('model', params.model)
 
     const response = await api.post<NaturalLanguageSearchResponse>(
-      '/api/v1/rag/natural-language-search',
+      'v1/rag/natural-language-search',
       formData,
       {
         headers: {
@@ -141,7 +141,7 @@ export const ragApi = {
     let seenBytes = 0;
 
     try {
-        await api.post('/api/v1/rag/natural-language-search', formData, {
+        await api.post('v1/rag/natural-language-search', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },

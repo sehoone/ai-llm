@@ -16,16 +16,16 @@ export interface CreateApiKeyRequest {
 }
 
 export const getApiKeys = async (): Promise<ApiKey[]> => {
-  const response = await api.get<ApiKey[]>('/api/v1/api-keys/')
+  const response = await api.get<ApiKey[]>('v1/api-keys/')
   return response.data
 }
 
 export const createApiKey = async (data: CreateApiKeyRequest): Promise<ApiKey> => {
-  const response = await api.post<ApiKey>('/api/v1/api-keys/', data)
+  const response = await api.post<ApiKey>('v1/api-keys/', data)
   return response.data
 }
 
 export const revokeApiKey = async (id: number): Promise<ApiKey> => {
-  const response = await api.delete<ApiKey>(`/api/v1/api-keys/${id}`)
+  const response = await api.delete<ApiKey>(`v1/api-keys/${id}`)
   return response.data
 }

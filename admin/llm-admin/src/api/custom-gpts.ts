@@ -46,61 +46,61 @@ export interface GPTChatRequest {
 export const customGptApi = {
   // ── CRUD ─────────────────────────────────────────────────────────────────
   create: async (data: CreateCustomGPTData) => {
-    const response = await api.post<CustomGPT>('/api/v1/gpts/', data)
+    const response = await api.post<CustomGPT>('v1/gpts/', data)
     return response.data
   },
 
   getAll: async () => {
-    const response = await api.get<CustomGPT[]>('/api/v1/gpts/')
+    const response = await api.get<CustomGPT[]>('v1/gpts/')
     return response.data
   },
 
   get: async (id: string) => {
-    const response = await api.get<CustomGPT>(`/api/v1/gpts/${id}`)
+    const response = await api.get<CustomGPT>(`v1/gpts/${id}`)
     return response.data
   },
 
   update: async (id: string, data: UpdateCustomGPTData) => {
-    const response = await api.put<CustomGPT>(`/api/v1/gpts/${id}`, data)
+    const response = await api.put<CustomGPT>(`v1/gpts/${id}`, data)
     return response.data
   },
 
   delete: async (id: string) => {
-    await api.delete(`/api/v1/gpts/${id}`)
+    await api.delete(`v1/gpts/${id}`)
   },
 
   // ── Session management ────────────────────────────────────────────────────
   createSession: async (gptId: string): Promise<GPTSession> => {
-    const response = await api.post<GPTSession>(`/api/v1/gpts/${gptId}/sessions`)
+    const response = await api.post<GPTSession>(`v1/gpts/${gptId}/sessions`)
     return response.data
   },
 
   getSessions: async (gptId: string): Promise<GPTSession[]> => {
-    const response = await api.get<GPTSession[]>(`/api/v1/gpts/${gptId}/sessions`)
+    const response = await api.get<GPTSession[]>(`v1/gpts/${gptId}/sessions`)
     return response.data
   },
 
   renameSession: async (gptId: string, sessionId: string, name: string): Promise<GPTSession> => {
     const formData = new FormData()
     formData.append('name', name)
-    const response = await api.patch<GPTSession>(`/api/v1/gpts/${gptId}/sessions/${sessionId}/name`, formData)
+    const response = await api.patch<GPTSession>(`v1/gpts/${gptId}/sessions/${sessionId}/name`, formData)
     return response.data
   },
 
   deleteSession: async (gptId: string, sessionId: string): Promise<void> => {
-    await api.delete(`/api/v1/gpts/${gptId}/sessions/${sessionId}`)
+    await api.delete(`v1/gpts/${gptId}/sessions/${sessionId}`)
   },
 
   // ── Messages ──────────────────────────────────────────────────────────────
   getMessages: async (gptId: string, sessionId: string): Promise<Message[]> => {
-    const response = await api.get<ChatResponse>(`/api/v1/gpts/${gptId}/messages`, {
+    const response = await api.get<ChatResponse>(`v1/gpts/${gptId}/messages`, {
       params: { session_id: sessionId },
     })
     return response.data.messages
   },
 
   clearMessages: async (gptId: string, sessionId: string): Promise<void> => {
-    await api.delete(`/api/v1/gpts/${gptId}/messages`, {
+    await api.delete(`v1/gpts/${gptId}/messages`, {
       params: { session_id: sessionId },
     })
   },
@@ -120,7 +120,7 @@ export const customGptApi = {
       let buffer = ''
       let processedIndex = 0
 
-      await api.post(`/api/v1/gpts/${gptId}/chat/stream`, request, {
+      await api.post(`v1/gpts/${gptId}/chat/stream`, request, {
         onDownloadProgress: (progressEvent) => {
           const xhr = progressEvent.event?.target as any
           if (!xhr) return
