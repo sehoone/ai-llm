@@ -12,6 +12,7 @@ from typing import (
     Optional,
 )
 
+from langchain_community.chat_models import ChatLiteLLM
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
@@ -261,29 +262,39 @@ class LLMService:
     # ── LLM factory ───────────────────────────────────────────────────────────
 
     def _create_llm_from_resource(self, resource: LLMResource, **kwargs) -> BaseChatModel:
-        """Create an LLM client from a DB resource config, applying any bound tools."""
-        config: Dict[str, Any] = {
+        """Create a ChatLiteLLM client from a DB resource config.
+
+        LiteLLM unifies Azure / OpenAI / Anthropic / Google / Ollama under one interface.
+        model_id format follows LiteLLM conventions:
+          azure/<deployment_name>, anthropic/<model>, gemini/<model>, ollama/<model>, <model>
+        """
+        provider = resource.provider
+
+        if provider == "azure":
+            model_id = f"azure/{resource.deployment_name}"
+        elif provider == "anthropic":
+            model_id = f"anthropic/{resource.model_name or resource.name}"
+        elif provider == "google":
+            model_id = f"gemini/{resource.model_name or resource.name}"
+        elif provider == "ollama":
+            model_id = f"ollama/{resource.model_name or resource.name}"
+        else:  # openai, other
+            model_id = resource.model_name or resource.deployment_name or resource.name
+
+        params: Dict[str, Any] = {
             "api_key": resource.api_key,
+            "api_base": resource.api_base,
             "max_tokens": settings.MAX_TOKENS,
             "temperature": settings.DEFAULT_LLM_TEMPERATURE,
         }
-        config.update(kwargs)
 
-        if resource.provider == "azure":
-            llm: BaseChatModel = AzureChatOpenAI(
-                azure_deployment=resource.deployment_name,
-                api_version=resource.api_version,
-                azure_endpoint=resource.api_base,
-                **config,
-            )
-        else:
-            llm = ChatOpenAI(
-                model=resource.deployment_name or resource.model_name or resource.name,
-                base_url=resource.api_base,
-                **config,
-            )
+        if provider == "azure" and resource.api_version:
+            params["api_version"] = resource.api_version
 
-        # Re-apply tools that were bound via bind_tools()
+        params.update(kwargs)
+
+        llm: BaseChatModel = ChatLiteLLM(model=model_id, **params)
+
         if self._bound_tools:
             llm = llm.bind_tools(self._bound_tools)
 
@@ -308,7 +319,7 @@ class LLMService:
     @retry(
         stop=stop_after_attempt(settings.MAX_LLM_CALL_RETRIES),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIError)),
+        retry=retry_if_exception_type((APITimeoutError, APIError)),
         before_sleep=before_sleep_log(logger, "WARNING"),
         reraise=True,
     )
@@ -316,6 +327,8 @@ class LLMService:
         self, llm: BaseChatModel, messages: List[BaseMessage], config: Optional[Dict] = None
     ) -> BaseMessage:
         """Invoke a given LLM with automatic retry on transient errors.
+
+        RateLimitError is NOT retried — the caller immediately fails over to the next resource.
 
         Args:
             llm: The LLM instance to invoke (passed explicitly — stateless).
@@ -329,7 +342,10 @@ class LLMService:
             response = await llm.ainvoke(messages, config=config)
             logger.debug("llm_call_successful", message_count=len(messages))
             return response
-        except (RateLimitError, APITimeoutError, APIError) as e:
+        except RateLimitError as e:
+            logger.warning("llm_rate_limit_immediate_failover", error_type=type(e).__name__, error=str(e))
+            raise
+        except (APITimeoutError, APIError) as e:
             logger.warning("llm_call_failed_retrying", error_type=type(e).__name__, error=str(e))
             raise
         except OpenAIError as e:
