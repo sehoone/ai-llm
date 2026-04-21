@@ -22,7 +22,7 @@ def _require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-@router.get("/", response_model=List[UserRead])
+@router.get("", response_model=List[UserRead])
 async def get_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1),
@@ -35,7 +35,7 @@ async def get_users(
     return users
 
 
-@router.post("/", response_model=UserRead)
+@router.post("", response_model=UserRead)
 async def create_user_endpoint(
     user_in: UserCreate,
     current_user: User = Depends(_require_admin),
