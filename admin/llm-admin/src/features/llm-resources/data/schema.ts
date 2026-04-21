@@ -3,6 +3,7 @@ import { z } from "zod"
 export const llmResourceSchema = z.object({
   id: z.number().optional(),
   name: z.string().min(1, { message: "Name is required" }),
+  model_name: z.string().optional(),
   provider: z.string().min(1, { message: "Provider is required" }),
   api_base: z.string().url({ message: "Invalid URL" }),
   api_key: z.string().min(1, { message: "API Key is required" }),
@@ -10,6 +11,7 @@ export const llmResourceSchema = z.object({
   api_version: z.string().optional(),
   region: z.string().optional(),
   priority: z.coerce.number().default(0),
+  weight: z.coerce.number().min(1).default(1),
   is_active: z.boolean().default(true),
   created_at: z.string().optional(),
 })

@@ -4,6 +4,7 @@ from mem0 import AsyncMemory
 
 from src.common.config import settings
 from src.common.logging import logger
+from src.common.services.database import database_service
 
 
 class MemoryMixin:
@@ -12,9 +13,30 @@ class MemoryMixin:
     Requires ``self.memory`` (Optional[AsyncMemory]) set to ``None`` by the host class.
     """
 
+    async def _resolve_llm_resource_config(self, model_name: str) -> dict:
+        """Return api_key (and optionally openai_base_url) from DB LLM resources for *model_name*."""
+        try:
+            all_resources = await database_service.get_llm_resources()
+            active = [r for r in all_resources if r.is_active]
+            resource = (
+                next((r for r in active if r.model_name == model_name), None)
+                or next((r for r in active if r.deployment_name == model_name), None)
+                or (active[0] if active else None)
+            )
+            if resource:
+                cfg = {"api_key": resource.api_key}
+                if resource.api_base:
+                    cfg["openai_base_url"] = resource.api_base
+                return cfg
+        except Exception as e:
+            logger.warning("failed_to_resolve_llm_resource_config", model_name=model_name, error=str(e))
+        return {}
+
     async def _long_term_memory(self) -> AsyncMemory:
         """Lazily initialize and return the AsyncMemory instance."""
         if self.memory is None:
+            llm_cfg = await self._resolve_llm_resource_config(settings.LONG_TERM_MEMORY_MODEL)
+            embedder_cfg = await self._resolve_llm_resource_config(settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
             self.memory = await AsyncMemory.from_config(
                 config_dict={
                     "vector_store": {
@@ -30,11 +52,11 @@ class MemoryMixin:
                     },
                     "llm": {
                         "provider": "openai",
-                        "config": {"model": settings.LONG_TERM_MEMORY_MODEL},
+                        "config": {"model": settings.LONG_TERM_MEMORY_MODEL, **llm_cfg},
                     },
                     "embedder": {
                         "provider": "openai",
-                        "config": {"model": settings.LONG_TERM_MEMORY_EMBEDDER_MODEL},
+                        "config": {"model": settings.LONG_TERM_MEMORY_EMBEDDER_MODEL, **embedder_cfg},
                     },
                 }
             )

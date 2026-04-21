@@ -4,6 +4,7 @@ from datetime import datetime
 
 class LLMResourceBase(BaseModel):
     name: str
+    model_name: Optional[str] = None
     provider: str
     api_base: str
     api_key: str
@@ -11,6 +12,7 @@ class LLMResourceBase(BaseModel):
     api_version: Optional[str] = None
     region: Optional[str] = None
     priority: int = 0
+    weight: int = 1
     is_active: bool = True
 
 class LLMResourceCreate(LLMResourceBase):
@@ -18,6 +20,7 @@ class LLMResourceCreate(LLMResourceBase):
 
 class LLMResourceUpdate(BaseModel):
     name: Optional[str] = None
+    model_name: Optional[str] = None
     provider: Optional[str] = None
     api_base: Optional[str] = None
     api_key: Optional[str] = None
@@ -25,6 +28,7 @@ class LLMResourceUpdate(BaseModel):
     api_version: Optional[str] = None
     region: Optional[str] = None
     priority: Optional[int] = None
+    weight: Optional[int] = None
     is_active: Optional[bool] = None
 
 class LLMResourceResponse(LLMResourceBase):

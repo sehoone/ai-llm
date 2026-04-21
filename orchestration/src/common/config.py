@@ -163,11 +163,9 @@ class Settings:
         # Long-term memory
         self.LONG_TERM_MEMORY_MODEL: str = os.getenv("LONG_TERM_MEMORY_MODEL", "gpt-4o-mini")
         self.LONG_TERM_MEMORY_EMBEDDER_MODEL: str = os.getenv(
-            "LONG_TERM_MEMORY_EMBEDDER_MODEL", "text-embedding-3-small"
+            "LONG_TERM_MEMORY_EMBEDDER_MODEL", "text-embedding-ada-002"
         )
-        self.LONG_TERM_MEMORY_COLLECTION_NAME: str = os.getenv(
-            "LONG_TERM_MEMORY_COLLECTION_NAME", "longterm_memory"
-        )
+        self.LONG_TERM_MEMORY_COLLECTION_NAME: str = os.getenv("LONG_TERM_MEMORY_COLLECTION_NAME", "longterm_memory")
 
         # JWT
         self.JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")

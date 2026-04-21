@@ -156,6 +156,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         is_deep_thinking: bool = False,
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
+        model_name: Optional[str] = None,
     ) -> list[dict]:
         """Run the graph to completion and return all resulting messages.
 
@@ -186,6 +187,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                 response = await self._graph.ainvoke(
                     input={
                         "messages": dump_messages(messages),
+                        "model_name": model_name,
                         "long_term_memory": relevant_memory,
                         "is_deep_thinking": is_deep_thinking,
                         "system_instructions": system_instructions,
@@ -216,6 +218,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         is_deep_thinking: bool = False,
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
+        model_name: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Stream the graph's token output as an async generator.
 
@@ -250,6 +253,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                 async for msg, metadata in self._graph.astream(
                     {
                         "messages": dump_messages(messages),
+                        "model_name": model_name,
                         "long_term_memory": relevant_memory,
                         "is_deep_thinking": is_deep_thinking,
                         "system_instructions": system_instructions,

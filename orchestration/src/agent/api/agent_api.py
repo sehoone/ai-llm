@@ -219,6 +219,7 @@ async def chat_stream(
                 is_deep_thinking=chat_request.is_deep_thinking,
                 system_instructions=agent.system_prompt,
                 rag_key=None,
+                model_name=agent.model,
             ):
                 full_response += chunk
                 yield f"data: {json.dumps(StreamResponse(content=chunk, done=False).model_dump(), ensure_ascii=False)}\n\n"

@@ -69,12 +69,8 @@ class NodesMixin:
 
     async def _chat(self, state: GraphState, config: RunnableConfig) -> Command:
         """Main chat node — calls the LLM and routes to tool_call or END."""
+        model_name = state.model_name or settings.DEFAULT_LLM_MODEL
         current_llm = self.llm_service.get_llm()
-        model_name = (
-            current_llm.model_name
-            if current_llm and hasattr(current_llm, "model_name")
-            else settings.DEFAULT_LLM_MODEL
-        )
 
         if state.system_instructions:
             system_prompt = (
@@ -95,7 +91,7 @@ class NodesMixin:
 
         try:
             with llm_inference_duration_seconds.labels(model=model_name).time():
-                response_message = await self.llm_service.call(messages)
+                response_message = await self.llm_service.call(messages, model_name=state.model_name, config=config)
 
             response_message = process_llm_response(response_message)
 
@@ -146,7 +142,7 @@ class NodesMixin:
         messages = prepare_messages(state.messages, current_llm, _THINKING_PROMPT)
 
         try:
-            response = await self.llm_service.call(messages)
+            response = await self.llm_service.call(messages, model_name=state.model_name, config=config)
             content = _DEEP_THINKING_TAG_RE.sub("", str(response.content))
             response.content = f"[Deep Thinking - Analysis]\n{content}\n\n"
             return Command(update={"messages": [response]}, goto="verify")
@@ -167,7 +163,7 @@ class NodesMixin:
         messages = prepare_messages(state.messages, current_llm, _VERIFY_PROMPT)
 
         try:
-            response = await self.llm_service.call(messages)
+            response = await self.llm_service.call(messages, model_name=state.model_name, config=config)
             raw = _DEEP_THINKING_TAG_RE.sub("", str(response.content)).strip()
 
             try:

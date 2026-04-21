@@ -104,8 +104,8 @@ class LoopNode(BaseNode):
             messages.append(SystemMessage(content=system))
         messages.append(HumanMessage(content=prompt))
 
-        service = LLMService(model=model)
-        response = await service.call(messages)
+        service = LLMService()
+        response = await service.call(messages, model_name=model)
         return response.content if hasattr(response, "content") else str(response)
 
     async def _process_http(

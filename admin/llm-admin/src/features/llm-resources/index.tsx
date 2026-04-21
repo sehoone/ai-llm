@@ -106,9 +106,11 @@ export default function LLMResources() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Model Name</TableHead>
                 <TableHead>Provider</TableHead>
                 <TableHead>Region</TableHead>
                 <TableHead>Priority</TableHead>
+                <TableHead>Weight</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -117,9 +119,11 @@ export default function LLMResources() {
               {resources.map((resource) => (
                 <TableRow key={resource.id}>
                   <TableCell className="font-medium">{resource.name}</TableCell>
+                  <TableCell>{resource.model_name || '-'}</TableCell>
                   <TableCell>{resource.provider}</TableCell>
                   <TableCell>{resource.region || '-'}</TableCell>
                   <TableCell>{resource.priority}</TableCell>
+                  <TableCell>{resource.weight ?? 1}</TableCell>
                   <TableCell>{resource.is_active ? 'Active' : 'Inactive'}</TableCell>
                    <TableCell className="text-right space-x-2">
                       <Button variant="outline" size="sm" onClick={() => handleEdit(resource)}>Edit</Button>
@@ -129,7 +133,7 @@ export default function LLMResources() {
               ))}
               {resources.length === 0 && (
                   <TableRow>
-                      <TableCell colSpan={6} className="text-center h-24">No resources found.</TableCell>
+                      <TableCell colSpan={8} className="text-center h-24">No resources found.</TableCell>
                   </TableRow>
               )}
             </TableBody>
