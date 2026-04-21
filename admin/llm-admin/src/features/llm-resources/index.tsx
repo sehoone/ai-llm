@@ -106,6 +106,7 @@ export default function LLMResources() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Model Name</TableHead>
                 <TableHead>Provider</TableHead>
                 <TableHead>Region</TableHead>
@@ -119,6 +120,7 @@ export default function LLMResources() {
               {resources.map((resource) => (
                 <TableRow key={resource.id}>
                   <TableCell className="font-medium">{resource.name}</TableCell>
+                  <TableCell>{resource.resource_type ?? 'chat'}</TableCell>
                   <TableCell>{resource.model_name || '-'}</TableCell>
                   <TableCell>{resource.provider}</TableCell>
                   <TableCell>{resource.region || '-'}</TableCell>
@@ -133,7 +135,7 @@ export default function LLMResources() {
               ))}
               {resources.length === 0 && (
                   <TableRow>
-                      <TableCell colSpan={8} className="text-center h-24">No resources found.</TableCell>
+                      <TableCell colSpan={9} className="text-center h-24">No resources found.</TableCell>
                   </TableRow>
               )}
             </TableBody>

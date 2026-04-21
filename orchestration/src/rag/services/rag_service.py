@@ -5,7 +5,6 @@ import json
 from typing import List, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import OpenAIEmbeddings
 from sqlmodel import (
     Session,
     text,
@@ -14,6 +13,7 @@ from sqlmodel import (
 from src.common.config import settings
 from src.common.logging import logger
 from src.common.services.database import database_service
+from src.common.services.embedding import embedding_service
 from src.common.services.llm import llm_service
 from src.chatbot.schemas.chat_schema import Message
 
@@ -25,24 +25,11 @@ class RAGService:
         """Initialize RAG service."""
         self.db_service = database_service
         self.llm_service = llm_service
-        self._embeddings: Optional[OpenAIEmbeddings] = None
+        self.embedding_service = embedding_service
         self.chunk_size = 500  # Characters per chunk
         self.chunk_overlap = 100  # Overlap between chunks
         self.max_file_size = 10 * 1024 * 1024  # 10MB max file size
         self.max_chunks_per_batch = 3  # Reduced from 5 to save memory
-
-    async def _get_embeddings(self) -> OpenAIEmbeddings:
-        """Get or initialize OpenAI embeddings.
-
-        Returns:
-            OpenAIEmbeddings: Embeddings instance
-        """
-        if self._embeddings is None:
-            self._embeddings = OpenAIEmbeddings(
-                model="text-embedding-3-small",
-                api_key=settings.OPENAI_API_KEY,
-            )
-        return self._embeddings
 
     def _chunk_text(self, text: str) -> List[str]:
         """Split text into overlapping chunks.
@@ -116,9 +103,6 @@ class RAGService:
                 content_size_mb=content_size / (1024 * 1024),
             )
 
-            # Get embeddings instance
-            embeddings = await self._get_embeddings()
-
             # Process chunks in smaller batches to save memory
             batch_size = self.max_chunks_per_batch
             for i in range(0, chunk_count, batch_size):
@@ -133,7 +117,7 @@ class RAGService:
 
                 # Get embeddings for batch
                 try:
-                    batch_embeddings = await embeddings.aembed_documents(batch)
+                    batch_embeddings = await self.embedding_service.aembed_documents(batch, model_name=settings.DEFAULT_EMBEDDING_MODEL)
                 except Exception as e:
                     logger.error(
                         "failed_to_embed_batch",
@@ -223,8 +207,7 @@ class RAGService:
         """
         try:
             # Get query embedding
-            embeddings = await self._get_embeddings()
-            query_embedding = await embeddings.aembed_query(query)
+            query_embedding = await self.embedding_service.aembed_query(query, model_name=settings.DEFAULT_EMBEDDING_MODEL)
             embedding_str = f"[{','.join(map(str, query_embedding))}]"
 
             # Search for similar chunks
@@ -318,8 +301,7 @@ class RAGService:
         """
         try:
             # Get query embedding
-            embeddings = await self._get_embeddings()
-            query_embedding = await embeddings.aembed_query(query)
+            query_embedding = await self.embedding_service.aembed_query(query, model_name=settings.DEFAULT_EMBEDDING_MODEL)
             embedding_str = f"[{','.join(map(str, query_embedding))}]"
 
             # Search for similar chunks in all RAGs of the group

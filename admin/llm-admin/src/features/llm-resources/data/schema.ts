@@ -3,6 +3,7 @@ import { z } from "zod"
 export const llmResourceSchema = z.object({
   id: z.number().optional(),
   name: z.string().min(1, { message: "Name is required" }),
+  resource_type: z.enum(["chat", "embedding"]).default("chat"),
   model_name: z.string().optional(),
   provider: z.string().min(1, { message: "Provider is required" }),
   api_base: z.string().url({ message: "Invalid URL" }),

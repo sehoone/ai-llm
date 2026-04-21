@@ -160,6 +160,9 @@ class Settings:
         self.AZURE_SPEECH_KEY: str = os.getenv("AZURE_SPEECH_KEY", "")
         self.AZURE_SPEECH_REGION: str = os.getenv("AZURE_SPEECH_REGION", "")
 
+        # Embedding
+        self.DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "text-embedding-3-small")
+
         # Long-term memory
         self.LONG_TERM_MEMORY_MODEL: str = os.getenv("LONG_TERM_MEMORY_MODEL", "gpt-4o-mini")
         self.LONG_TERM_MEMORY_EMBEDDER_MODEL: str = os.getenv(

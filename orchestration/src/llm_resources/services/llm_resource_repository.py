@@ -27,6 +27,23 @@ class LLMResourceRepositoryMixin:
                 return db.exec(select(LLMResource).order_by(LLMResource.priority.desc())).all()
         return await asyncio.to_thread(_sync)
 
+    async def get_embedding_resources(self) -> List[LLMResource]:
+        """Return active embedding resources ordered by priority (highest first).
+
+        Returns:
+            List[LLMResource]: Embedding resource configurations.
+        """
+        def _sync():
+            with Session(self.engine) as db:
+                stmt = (
+                    select(LLMResource)
+                    .where(LLMResource.resource_type == "embedding")
+                    .where(LLMResource.is_active == True)
+                    .order_by(LLMResource.priority.desc())
+                )
+                return db.exec(stmt).all()
+        return await asyncio.to_thread(_sync)
+
     async def get_llm_resource(self, id: int) -> Optional[LLMResource]:
         """Retrieve a single LLM resource by primary key.
 

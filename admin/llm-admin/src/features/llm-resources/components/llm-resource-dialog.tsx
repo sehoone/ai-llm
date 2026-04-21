@@ -39,6 +39,7 @@ interface LLMResourceDialogProps {
 
 const DEFAULT_VALUES = {
   name: '',
+  resource_type: 'chat' as const,
   model_name: '',
   provider: 'openai',
   api_base: '',
@@ -106,6 +107,29 @@ export function LLMResourceDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-4'>
+
+            {/* Resource Type */}
+            <FormField
+              control={form.control}
+              name='resource_type'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Resource Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Select type' />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value='chat'>Chat (LLM)</SelectItem>
+                      <SelectItem value='embedding'>Embedding</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Provider */}
             <FormField

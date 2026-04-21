@@ -128,6 +128,7 @@ CREATE INDEX IF NOT EXISTS idx_gpt_chat_message_session_id ON gpt_chat_message(s
 CREATE TABLE IF NOT EXISTS llm_resource (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
+    resource_type TEXT NOT NULL DEFAULT 'chat',
     model_name TEXT,
     provider TEXT NOT NULL,
     api_base TEXT NOT NULL,
@@ -143,10 +144,12 @@ CREATE TABLE IF NOT EXISTS llm_resource (
 
 CREATE INDEX IF NOT EXISTS idx_llm_resource_name ON llm_resource(name);
 CREATE INDEX IF NOT EXISTS idx_llm_resource_model_name ON llm_resource(model_name);
+CREATE INDEX IF NOT EXISTS idx_llm_resource_resource_type ON llm_resource(resource_type);
 
--- Migration: add model_name and weight columns to existing llm_resource tables
+-- Migration: add columns to existing llm_resource tables
 ALTER TABLE llm_resource ADD COLUMN IF NOT EXISTS model_name TEXT;
 ALTER TABLE llm_resource ADD COLUMN IF NOT EXISTS weight INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE llm_resource ADD COLUMN IF NOT EXISTS resource_type TEXT NOT NULL DEFAULT 'chat';
 
 -- Create api_key table
 CREATE TABLE IF NOT EXISTS api_key (

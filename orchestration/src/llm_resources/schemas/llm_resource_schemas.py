@@ -4,6 +4,7 @@ from datetime import datetime
 
 class LLMResourceBase(BaseModel):
     name: str
+    resource_type: str = "chat"
     model_name: Optional[str] = None
     provider: str
     api_base: str
@@ -20,6 +21,7 @@ class LLMResourceCreate(LLMResourceBase):
 
 class LLMResourceUpdate(BaseModel):
     name: Optional[str] = None
+    resource_type: Optional[str] = None
     model_name: Optional[str] = None
     provider: Optional[str] = None
     api_base: Optional[str] = None
