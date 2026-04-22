@@ -101,8 +101,12 @@ class ApiKeyService:
         """
         statement = select(ApiKey).where(ApiKey.key == token, ApiKey.is_active == True)
         key = session.exec(statement).first()
-        if key and key.expires_at and key.expires_at < datetime.now(UTC):
-            return None
+        if key and key.expires_at:
+            expires_at = key.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            if expires_at < datetime.now(UTC):
+                return None
         return key
 
 api_key_service = ApiKeyService()

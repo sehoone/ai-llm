@@ -88,12 +88,15 @@ class SessionRepositoryMixin:
                 return True
         return await asyncio.to_thread(_sync)
 
-    async def update_session_name(self, session_id: str, title: str) -> None:
+    async def update_session_name(self, session_id: str, title: str) -> Optional[ChatSession]:
         """Update the display name of a chat session.
 
         Args:
             session_id: The session identifier.
             title: The new name to set.
+
+        Returns:
+            Optional[ChatSession]: The updated session, or None if not found.
         """
         def _sync():
             with Session(self.engine) as db:
@@ -104,10 +107,12 @@ class SessionRepositoryMixin:
                     db.commit()
                     db.refresh(chat_session)
                     logger.info("session_name_updated", session_id=session_id, new_title=title)
+                    return chat_session
                 else:
                     logger.warning("session_not_found_for_update", session_id=session_id)
+                    return None
         try:
-            await asyncio.to_thread(_sync)
+            return await asyncio.to_thread(_sync)
         except Exception as e:
             logger.error("update_session_name_failed", session_id=session_id, error=str(e))
             raise

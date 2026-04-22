@@ -1,6 +1,5 @@
 """This file contains the sanitization utilities for the application."""
 
-import html
 import re
 from typing import (
     Any,
@@ -12,7 +11,10 @@ from typing import (
 
 
 def sanitize_string(value: str) -> str:
-    """Sanitize a string to prevent XSS and other injection attacks.
+    """Remove dangerous content from a string.
+
+    Strips <script> tags and null bytes. Does NOT HTML-encode — encoding is
+    the responsibility of the render layer, not the storage layer.
 
     Args:
         value: The string to sanitize
@@ -20,15 +22,11 @@ def sanitize_string(value: str) -> str:
     Returns:
         str: The sanitized string
     """
-    # Convert to string if not already
     if not isinstance(value, str):
         value = str(value)
 
-    # HTML escape to prevent XSS
-    value = html.escape(value)
-
-    # Remove any script tags that might have been escaped
-    value = re.sub(r"&lt;script.*?&gt;.*?&lt;/script&gt;", "", value, flags=re.DOTALL)
+    # Strip script tags (raw, not HTML-encoded)
+    value = re.sub(r"<script.*?</script>", "", value, flags=re.DOTALL | re.IGNORECASE)
 
     # Remove null bytes
     value = value.replace("\0", "")

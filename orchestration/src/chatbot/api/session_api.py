@@ -81,9 +81,11 @@ async def update_session_name(
         session = await get_owned_chat_session(sanitized_session_id, user)
 
         # Update the session name
-        session = await database_service.update_session_name(sanitized_session_id, sanitized_name)
+        updated = await database_service.update_session_name(sanitized_session_id, sanitized_name)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Session not found")
 
-        return SessionResponse(session_id=sanitized_session_id, name=session.name)
+        return SessionResponse(session_id=sanitized_session_id, name=updated.name)
     except ValueError as ve:
         logger.error("session_update_validation_failed", error=str(ve), session_id=session_id, exc_info=True)
         raise HTTPException(status_code=422, detail=str(ve))
