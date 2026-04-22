@@ -1,7 +1,7 @@
 'use client';
 
-import ConversationChat from '@/components/chat/ConversationChat';
-import VoiceInput from '@/components/voice/VoiceInput';
+import ConversationChat from '@/components/chat/conversation-chat';
+import VoiceInput from '@/components/voice/voice-input';
 import { type ConversationMessage } from '@/types/conversation';
 
 type RecognitionControls = {

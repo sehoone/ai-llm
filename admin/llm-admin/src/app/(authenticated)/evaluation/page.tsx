@@ -2,13 +2,13 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useWebSocket } from '@/hooks/websocket/useWebSocket';
-import EvaluationHeader from './components/EvaluationHeader';
-import EvaluationSection from './components/EvaluationSection';
-import PronunciationDebugPanel from '@/components/debug/PronunciationDebugPanel';
+import { useWebSocket } from '@/hooks/websocket/use-websocket';
+import EvaluationHeader from './components/evaluation-header';
+import EvaluationSection from './components/evaluation-section';
+import PronunciationDebugPanel from '@/components/debug/pronunciation-debug-panel';
 import { type ConversationMessage } from '@/types/conversation';
-import VoiceInput from '@/components/voice/VoiceInput';
-import ConversationChat from '@/components/chat/ConversationChat';
+import VoiceInput from '@/components/voice/voice-input';
+import ConversationChat from '@/components/chat/conversation-chat';
 import { logger } from '@/lib/logger';
 
 type ScreenMode = 'exam' | 'evaluation';

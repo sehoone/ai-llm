@@ -20,20 +20,20 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { workflowApi, type Workflow, type SSEEvent } from '@/api/workflows'
-import { NodePalette } from './components/NodePalette'
-import { ConfigPanel } from './components/ConfigPanel'
-import { ExecutionPanel, type ExecutionLog } from './components/ExecutionPanel'
-import { RunDialog } from './components/RunDialog'
-import { StartNode } from './components/nodes/StartNode'
-import { EndNode } from './components/nodes/EndNode'
-import { LLMNode } from './components/nodes/LLMNode'
-import { ConditionNode } from './components/nodes/ConditionNode'
-import { RAGNode } from './components/nodes/RAGNode'
-import { HTTPNode } from './components/nodes/HTTPNode'
-import { CodeNode } from './components/nodes/CodeNode'
-import { ToolNode } from './components/nodes/ToolNode'
-import { LoopNode } from './components/nodes/LoopNode'
-import { SettingsDrawer } from './components/SettingsDrawer'
+import { NodePalette } from './components/node-palette'
+import { ConfigPanel } from './components/config-panel'
+import { ExecutionPanel, type ExecutionLog } from './components/execution-panel'
+import { RunDialog } from './components/run-dialog'
+import { StartNode } from './components/nodes/start-node'
+import { EndNode } from './components/nodes/end-node'
+import { LLMNode } from './components/nodes/llm-node'
+import { ConditionNode } from './components/nodes/condition-node'
+import { RAGNode } from './components/nodes/rag-node'
+import { HTTPNode } from './components/nodes/http-node'
+import { CodeNode } from './components/nodes/code-node'
+import { ToolNode } from './components/nodes/tool-node'
+import { LoopNode } from './components/nodes/loop-node'
+import { SettingsDrawer } from './components/settings-drawer'
 import { Header } from '@/components/layout/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -178,7 +178,6 @@ export function WorkflowEditor({ workflowId }: WorkflowEditorProps) {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const definition = { nodes, edges } as any
       if (workflow) {
         const updated = await workflowApi.update(workflow.id, { name: workflowName, definition })

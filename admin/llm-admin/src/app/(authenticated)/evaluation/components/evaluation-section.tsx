@@ -1,6 +1,6 @@
 'use client';
 
-import EvaluationResult from '@/components/evaluation/EvaluationResult';
+import EvaluationResult from '@/components/evaluation/evaluation-result';
 import { type ConversationMessage } from '@/types/conversation';
 
 type EvaluationSectionProps = {

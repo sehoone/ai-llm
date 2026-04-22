@@ -1,6 +1,6 @@
 'use client';
 
-import { useAudioRecorder } from '@/hooks/audio/useAudioRecorder';
+import { useAudioRecorder } from '@/hooks/audio/use-audio-recorder';
 import { useEffect } from 'react';
 
 interface AudioRecorderProps {

@@ -1,6 +1,6 @@
 import type { NodeProps } from '@xyflow/react'
 import { Wrench } from 'lucide-react'
-import { BaseNodeWrapper } from './BaseNode'
+import { BaseNodeWrapper } from './base-node'
 import type { ExecutionStatus } from '@/api/workflows'
 
 const TOOL_LABELS: Record<string, string> = {

@@ -1,6 +1,6 @@
 import type { NodeProps } from '@xyflow/react'
 import { Sparkles } from 'lucide-react'
-import { BaseNodeWrapper } from './BaseNode'
+import { BaseNodeWrapper } from './base-node'
 import type { ExecutionStatus } from '@/api/workflows'
 
 interface LLMNodeData {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useAudioCaptureWithSTT } from '@/hooks/audio/useAudioCaptureWithSTT';
+import { useAudioCaptureWithSTT } from '@/hooks/audio/use-audio-capture-with-stt';
 import { logger } from '@/lib/logger';
 
 interface VoiceInputProps {

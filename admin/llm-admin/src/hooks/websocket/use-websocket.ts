@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { WebSocketClient } from '@/utils/websocket';
 import { type ConversationResponse, type ConversationMessage } from '@/types/conversation';
-import { setGlobalAssessmentData } from '@/components/debug/PronunciationDebugPanel';
+import { setGlobalAssessmentData } from '@/components/debug/pronunciation-debug-panel';
 import { logger } from '@/lib/logger';
 
 export function useWebSocket(url?: string) {

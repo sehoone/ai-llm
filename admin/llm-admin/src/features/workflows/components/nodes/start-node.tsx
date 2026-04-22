@@ -1,6 +1,6 @@
 import type { NodeProps } from '@xyflow/react'
 import { Play } from 'lucide-react'
-import { BaseNodeWrapper } from './BaseNode'
+import { BaseNodeWrapper } from './base-node'
 import type { ExecutionStatus } from '@/api/workflows'
 
 interface StartNodeData {
