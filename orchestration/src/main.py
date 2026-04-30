@@ -7,6 +7,7 @@ from typing import (
     Dict,
 )
 
+import litellm
 from dotenv import load_dotenv
 from fastapi import (
     FastAPI,
@@ -32,6 +33,10 @@ from src.common.middleware import (
 )
 from src.common.services.database import database_service
 from src.workflow.services.scheduler import workflow_scheduler
+
+# Suppress LiteLLM internal debug/verbose output
+litellm.set_verbose = False
+litellm.suppress_debug_info = True
 
 # Load environment variables
 load_dotenv()

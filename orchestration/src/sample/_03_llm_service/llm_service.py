@@ -27,7 +27,7 @@ from enum import Enum
 from itertools import groupby
 from typing import Dict, List, Optional
 
-from langchain_community.chat_models import ChatLiteLLM
+from langchain_litellm import ChatLiteLLM
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from openai import APIError, APITimeoutError, RateLimitError

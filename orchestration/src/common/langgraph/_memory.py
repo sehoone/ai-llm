@@ -13,30 +13,62 @@ class MemoryMixin:
     Requires ``self.memory`` (Optional[AsyncMemory]) set to ``None`` by the host class.
     """
 
-    async def _resolve_llm_resource_config(self, model_name: str) -> dict:
-        """Return api_key (and optionally openai_base_url) from DB LLM resources for *model_name*."""
+    async def _resolve_llm_resource(self, model_name: str):
+        """Return the best-matching active chat LLM resource for *model_name*, or None."""
         try:
             all_resources = await database_service.get_llm_resources()
-            active = [r for r in all_resources if r.is_active]
-            resource = (
+            active = [r for r in all_resources if r.is_active and r.resource_type != "embedding"]
+            return (
                 next((r for r in active if r.model_name == model_name), None)
                 or next((r for r in active if r.deployment_name == model_name), None)
                 or (active[0] if active else None)
             )
-            if resource:
-                cfg = {"api_key": resource.api_key}
-                if resource.api_base:
-                    cfg["openai_base_url"] = resource.api_base
-                return cfg
         except Exception as e:
-            logger.warning("failed_to_resolve_llm_resource_config", model_name=model_name, error=str(e))
-        return {}
+            logger.warning("failed_to_resolve_llm_resource", model_name=model_name, error=str(e))
+        return None
+
+    async def _resolve_embedding_resource(self, model_name: str):
+        """Return the best-matching active embedding resource for *model_name*, or None."""
+        try:
+            embedding_resources = await database_service.get_embedding_resources()
+            return (
+                next((r for r in embedding_resources if r.model_name == model_name), None)
+                or next((r for r in embedding_resources if r.deployment_name == model_name), None)
+                or (embedding_resources[0] if embedding_resources else None)
+            )
+        except Exception as e:
+            logger.warning("failed_to_resolve_embedding_resource", model_name=model_name, error=str(e))
+        return None
+
+    def _build_mem0_component_config(self, resource, model_name: str) -> dict:
+        """Return a mem0ai LLM/embedder component config dict for the given resource."""
+        if resource is None:
+            return {"provider": "openai", "config": {"model": model_name}}
+
+        provider = (resource.provider or "openai").lower()
+        if provider == "azure":
+            deployment = resource.deployment_name or resource.model_name or model_name
+            azure_kwargs = {
+                "api_key": resource.api_key,
+                "azure_deployment": deployment,
+                "azure_endpoint": resource.api_base,
+            }
+            if resource.api_version:
+                azure_kwargs["api_version"] = resource.api_version
+            return {"provider": "azure_openai", "config": {"model": deployment, "azure_kwargs": azure_kwargs}}
+
+        cfg = {"model": model_name, "api_key": resource.api_key}
+        if resource.api_base:
+            cfg["openai_base_url"] = resource.api_base
+        return {"provider": "openai", "config": cfg}
 
     async def _long_term_memory(self) -> AsyncMemory:
         """Lazily initialize and return the AsyncMemory instance."""
         if self.memory is None:
-            llm_cfg = await self._resolve_llm_resource_config(settings.LONG_TERM_MEMORY_MODEL)
-            embedder_cfg = await self._resolve_llm_resource_config(settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
+            llm_resource = await self._resolve_llm_resource(settings.LONG_TERM_MEMORY_MODEL)
+            embedder_resource = await self._resolve_embedding_resource(settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
+            llm_cfg = self._build_mem0_component_config(llm_resource, settings.LONG_TERM_MEMORY_MODEL)
+            embedder_cfg = self._build_mem0_component_config(embedder_resource, settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
             self.memory = await AsyncMemory.from_config(
                 config_dict={
                     "vector_store": {
@@ -50,14 +82,8 @@ class MemoryMixin:
                             "port": settings.POSTGRES_PORT,
                         },
                     },
-                    "llm": {
-                        "provider": "openai",
-                        "config": {"model": settings.LONG_TERM_MEMORY_MODEL, **llm_cfg},
-                    },
-                    "embedder": {
-                        "provider": "openai",
-                        "config": {"model": settings.LONG_TERM_MEMORY_EMBEDDER_MODEL, **embedder_cfg},
-                    },
+                    "llm": llm_cfg,
+                    "embedder": embedder_cfg,
                 }
             )
         return self.memory
