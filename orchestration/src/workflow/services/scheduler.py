@@ -16,7 +16,9 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlmodel import Session
 
 from src.common.logging import logger
+from src.common.metrics import scheduled_workflow_failures_total
 from src.common.services.database import database_service
+from src.workflow.models.execution_model import ExecutionStatus
 from src.workflow.models.schedule_model import WorkflowSchedule
 from src.workflow.services.executor.engine import workflow_engine
 
@@ -51,28 +53,31 @@ class WorkflowScheduler:
         try:
             self._scheduler.remove_job(schedule_id)
         except Exception:
-            pass  # not found — already gone
+            logger.debug("schedule_job_not_found_on_remove", schedule_id=schedule_id)
 
     def pause_schedule(self, schedule_id: str) -> None:
         try:
             self._scheduler.pause_job(schedule_id)
         except Exception:
-            pass
+            logger.warning("schedule_job_pause_failed", schedule_id=schedule_id, exc_info=True)
 
     def resume_schedule(self, schedule_id: str) -> None:
         try:
             self._scheduler.resume_job(schedule_id)
         except Exception:
-            pass
+            logger.warning("schedule_job_resume_failed", schedule_id=schedule_id, exc_info=True)
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _load_all_from_db(self) -> None:
-        with Session(database_service.engine) as db:
-            schedules = database_service.list_all_active_schedules(db)
-        for sched in schedules:
-            self._upsert_job(sched)
-        logger.info("workflow_schedules_loaded", count=len(schedules))
+        try:
+            with Session(database_service.engine) as db:
+                schedules = database_service.list_all_active_schedules(db)
+            for sched in schedules:
+                self._upsert_job(sched)
+            logger.info("workflow_schedules_loaded", count=len(schedules))
+        except Exception:
+            logger.error("workflow_schedules_load_failed", exc_info=True)
 
     def _upsert_job(self, schedule: WorkflowSchedule) -> None:
         try:
@@ -121,13 +126,22 @@ async def _fire_workflow(workflow_id: str, user_id: int, input_data: dict[str, A
             if not workflow:
                 logger.warning("scheduled_workflow_not_found", workflow_id=workflow_id)
                 return
-            await workflow_engine.execute(
+            execution = await workflow_engine.execute(
                 workflow=workflow,
                 input_data=input_data,
                 user_id=user_id,
                 db=db,
             )
+        if execution.status == ExecutionStatus.FAILED:
+            scheduled_workflow_failures_total.labels(workflow_id=workflow_id).inc()
+            logger.error(
+                "scheduled_workflow_execution_failed",
+                workflow_id=workflow_id,
+                execution_id=execution.id,
+                error=execution.error,
+            )
     except Exception as exc:
+        scheduled_workflow_failures_total.labels(workflow_id=workflow_id).inc()
         logger.error("scheduled_workflow_failed", workflow_id=workflow_id, error=str(exc), exc_info=True)
 
 

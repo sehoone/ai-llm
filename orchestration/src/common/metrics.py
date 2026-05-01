@@ -16,9 +16,6 @@ http_request_duration_seconds = Histogram(
 # Database metrics
 db_connections = Gauge("db_connections", "Number of active database connections")
 
-# Custom business metrics
-orders_processed = Counter("orders_processed_total", "Total number of orders processed")
-
 llm_inference_duration_seconds = Histogram(
     "llm_inference_duration_seconds",
     "Time spent processing LLM inference",
@@ -26,13 +23,24 @@ llm_inference_duration_seconds = Histogram(
     buckets=[0.1, 0.3, 0.5, 1.0, 2.0, 5.0]
 )
 
-
-
 llm_stream_duration_seconds = Histogram(
     "llm_stream_duration_seconds",
     "Time spent processing LLM stream inference",
     ["model"],
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+)
+
+# LangGraph checkpointer
+langgraph_checkpointer_failures_total = Counter(
+    "langgraph_checkpointer_failures_total",
+    "LangGraph checkpointer 초기화 실패 횟수 (프로덕션 degraded mode)",
+)
+
+# Scheduled workflow
+scheduled_workflow_failures_total = Counter(
+    "scheduled_workflow_failures_total",
+    "스케줄된 워크플로우 실행 실패 횟수",
+    ["workflow_id"],
 )
 
 
