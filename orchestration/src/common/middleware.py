@@ -18,7 +18,6 @@ from src.common.logging import (
     clear_context,
 )
 from src.common.metrics import (
-    db_connections,
     http_request_duration_seconds,
     http_requests_total,
 )
@@ -87,10 +86,6 @@ class LoggingContextMiddleware(BaseHTTPMiddleware):
                     if session_id:
                         # Bind session_id to logging context
                         bind_context(session_id=session_id)
-
-                        # Try to get user_id from request state after authentication
-                        # This will be set by the dependency injection if the endpoint uses authentication
-                        # We'll check after the request is processed
 
                 except JWTError as e:
                     # Token is invalid — let the auth dependency return 401; log for security monitoring

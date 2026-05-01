@@ -1,6 +1,5 @@
 """LangGraph node implementations for LangGraphAgent."""
 
-import json
 import re
 
 from langchain_core.messages import ToolMessage
@@ -15,8 +14,6 @@ from src.common.prompts import load_system_prompt
 from src.common.schemas.graph import GraphState
 from src.common.services.graph import prepare_messages, process_llm_response
 
-_MAX_VERIFY_ITERATIONS = 2
-
 _THINKING_PROMPT = """You are an expert AI strategist designed to ensure high-quality responses.
 Your task is NOT to answer the user's question directly, but to ANALYZE the request and PLAN the best possible response.
 
@@ -30,30 +27,6 @@ Your task is NOT to answer the user's question directly, but to ANALYZE the requ
 - Use **Internal Monologue** (e.g., "The user is asking about X. I must ensure to cover Y and Z...").
 - **DO NOT** address the user directly (No "Here is the plan for you").
 - **DO NOT** generate the final answer text. Only the plan.
-"""
-
-_VERIFY_PROMPT = """You are a strict Quality Evaluator for AI responses.
-Evaluate the last assistant message against the user's original request.
-
-**Evaluation criteria:**
-1. **Completeness**: Does it fully address every part of the user's question?
-2. **Accuracy**: Is the information factually correct and logically sound?
-3. **Depth**: Is the explanation sufficiently detailed and insightful?
-4. **Clarity**: Is it well-structured and easy to understand?
-
-**Output format (strict JSON, no markdown, no extra text):**
-{
-  "approved": true,
-  "feedback": ""
-}
-or
-{
-  "approved": false,
-  "feedback": "<concrete, actionable instructions for what must be improved in the next attempt>"
-}
-
-Only set approved=true when the response genuinely meets all criteria.
-If approved=false, feedback must be specific — not generic like 'improve clarity'.
 """
 
 _DEEP_THINKING_TAG_RE = re.compile(
@@ -84,9 +57,6 @@ class NodesMixin:
         if state.thinking_context:
             system_prompt += f"\n\n[Execution Plan]\n{state.thinking_context}"
 
-        if state.verify_feedback:
-            system_prompt += f"\n\n[Quality Feedback — must address in this response]\n{state.verify_feedback}"
-
         messages = prepare_messages(state.messages, current_llm, system_prompt)
 
         try:
@@ -105,13 +75,8 @@ class NodesMixin:
                 environment=settings.ENVIRONMENT.value,
             )
 
-            if response_message.tool_calls:
-                goto = "tool_call"
-            elif state.is_deep_thinking:
-                goto = "verify"
-            else:
-                goto = END
-            return Command(update={"messages": [response_message], "verify_feedback": None}, goto=goto)
+            goto = "tool_call" if response_message.tool_calls else END
+            return Command(update={"messages": [response_message]}, goto=goto)
 
         except Exception as e:
             logger.error(
@@ -145,58 +110,10 @@ class NodesMixin:
             response = await self.llm_service.call(messages, model_name=state.model_name, config=config)
             content = _DEEP_THINKING_TAG_RE.sub("", str(response.content))
             response.content = f"[Deep Thinking - Analysis]\n{content}\n\n"
-            return Command(update={"messages": [response]}, goto="verify")
+            return Command(update={"messages": [response], "thinking_context": content}, goto="chat")
         except Exception as e:
             logger.error("think_step_failed", session_id=config["configurable"]["thread_id"], error=str(e))
             return Command(goto="chat")
-
-    async def _verify(self, state: GraphState, config: RunnableConfig) -> Command:
-        """Quality evaluation node — approves the response or sends feedback to chat for retry."""
-        session_id = config["configurable"]["thread_id"]
-        iterations = state.verify_iterations
-
-        if iterations >= _MAX_VERIFY_ITERATIONS:
-            logger.info("verify_max_iterations_reached", session_id=session_id, iterations=iterations)
-            return Command(update={"verify_iterations": 0, "verify_feedback": None}, goto=END)
-
-        current_llm = self.llm_service.get_llm()
-        messages = prepare_messages(state.messages, current_llm, _VERIFY_PROMPT)
-
-        try:
-            response = await self.llm_service.call(messages, model_name=state.model_name, config=config)
-            raw = _DEEP_THINKING_TAG_RE.sub("", str(response.content)).strip()
-
-            try:
-                result = json.loads(raw)
-                approved: bool = result.get("approved", True)
-                feedback: str = result.get("feedback", "")
-            except json.JSONDecodeError:
-                logger.warning("verify_json_parse_failed", session_id=session_id, raw=raw[:200])
-                approved, feedback = True, ""
-
-            logger.info(
-                "verify_quality_evaluated",
-                session_id=session_id,
-                approved=approved,
-                iteration=iterations + 1,
-                feedback_preview=feedback[:100] if feedback else "",
-            )
-
-            if approved or not feedback:
-                return Command(update={"verify_iterations": 0, "verify_feedback": None}, goto=END)
-
-            response.content = f"[Deep Thinking - Verification (attempt {iterations + 1})]\n{feedback}\n\n"
-            return Command(
-                update={
-                    "messages": [response],
-                    "verify_feedback": feedback,
-                    "verify_iterations": iterations + 1,
-                },
-                goto="chat",
-            )
-        except Exception as e:
-            logger.error("verify_step_failed", session_id=session_id, error=str(e))
-            return Command(update={"verify_iterations": 0, "verify_feedback": None}, goto=END)
 
     def _route_start(self, state: GraphState) -> str:
         """Conditional entry — routes to 'think' for deep thinking, else 'chat'.

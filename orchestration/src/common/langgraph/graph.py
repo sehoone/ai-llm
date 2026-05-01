@@ -106,16 +106,12 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                 # 플로우:
                 #   일반:        START → chat → END
                 #   툴 호출:     START → chat → tool_call → chat → ... → END
-                #   딥씽킹:      START → think → chat → verify → END (품질 충족)
-                #                                  ↑         ↓ (품질 미달 + 피드백, 최대 2회)
-                #                                  └─────────┘
+                #   딥씽킹:      START → think → chat → END
                 builder = StateGraph(GraphState)
-                builder.add_node("chat", self._chat, ends=["tool_call", "verify", END]) # chat: 메인 LLM 응답 노드. 툴 호출 감지 시 tool_call, 딥씽킹 시 verify, 그 외 END
+                builder.add_node("chat", self._chat, ends=["tool_call", END]) # chat: 메인 LLM 응답 노드. 툴 호출 감지 시 tool_call, 그 외 END
                 builder.add_node("tool_call", self._tool_call, ends=["chat"]) # tool_call: 툴 실행 후 항상 chat으로 복귀
                 builder.add_node("think", self._think, ends=["chat"]) # think: 응답 전략 수립 (딥씽킹 전용). 항상 chat으로 넘김
-                builder.add_node("verify", self._verify, ends=["chat", END]) # verify: 응답 품질 평가. 승인 시 END, 미달 시 피드백과 함께 chat으로 재요청
                 builder.add_conditional_edges(START, self._route_start) # _route_start: is_deep_thinking 또는 질문 복잡도에 따라 think 또는 chat으로 분기
-                builder.set_finish_point("verify") # verify가 END를 직접 결정하므로 verify를 종료 가능 노드로 지정
 
                 connection_pool = await self._get_connection_pool()
                 if connection_pool:
@@ -247,7 +243,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         relevant_memory = (await self._get_relevant_memory(user_id, messages[-1].content)) or "No relevant memory found."
 
         try:
-            think_tag_sent = verify_tag_sent = answer_tag_sent = False
+            think_tag_sent = answer_tag_sent = False
 
             async with asyncio.timeout(settings.GRAPH_RESPONSE_TIMEOUT):
                 async for msg, metadata in self._graph.astream(
@@ -268,9 +264,6 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                             if node_name == "think" and not think_tag_sent:
                                 yield "[Deep Thinking - Analysis]\n"
                                 think_tag_sent = True
-                            elif node_name == "verify" and not verify_tag_sent:
-                                yield "[Deep Thinking - Verification]\n"
-                                verify_tag_sent = True
                             elif node_name == "chat" and not answer_tag_sent:
                                 yield "[Deep Thinking - Answer]\n"
                                 answer_tag_sent = True

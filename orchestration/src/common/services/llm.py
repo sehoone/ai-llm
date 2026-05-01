@@ -326,22 +326,32 @@ class LLMService:
     async def _invoke_with_retry(
         self, llm: BaseChatModel, messages: List[BaseMessage], config: Optional[Dict] = None
     ) -> BaseMessage:
-        """Invoke a given LLM with automatic retry on transient errors.
+        """Stream a given LLM and aggregate chunks, enabling token-level streaming via LangGraph callbacks.
+
+        Uses astream() so that LangGraph's stream_mode="messages" can capture each token event
+        as it arrives. Chunks are aggregated into a single BaseMessage before returning.
 
         RateLimitError is NOT retried — the caller immediately fails over to the next resource.
 
         Args:
             llm: The LLM instance to invoke (passed explicitly — stateless).
             messages: Messages to send.
-            config: Optional RunnableConfig (carries callbacks, e.g. Langfuse).
+            config: Optional RunnableConfig (carries callbacks, e.g. LangGraph streaming, Langfuse).
 
         Returns:
-            BaseMessage response.
+            BaseMessage: Aggregated response from all streamed chunks.
         """
         try:
-            response = await llm.ainvoke(messages, config=config)
-            logger.debug("llm_call_successful", message_count=len(messages))
-            return response
+            chunks = []
+            async for chunk in llm.astream(messages, config=config):
+                chunks.append(chunk)
+            if not chunks:
+                raise RuntimeError("LLM returned empty streaming response")
+            result = chunks[0]
+            for c in chunks[1:]:
+                result = result + c
+            logger.debug("llm_stream_successful", chunk_count=len(chunks))
+            return result
         except RateLimitError as e:
             logger.warning("llm_rate_limit_immediate_failover", error_type=type(e).__name__, error=str(e))
             raise
