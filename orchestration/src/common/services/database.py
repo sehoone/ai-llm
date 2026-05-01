@@ -8,6 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 from sqlmodel import Session, create_engine, select, text
 
+from src.common.services.db_session import managed_session
+
 from src.common.config import Environment, settings
 from src.common.logging import logger
 from src.user.services.user_repository import UserRepositoryMixin
@@ -98,12 +100,8 @@ class DatabaseService(
 
     def get_db_session(self):
         """Yield a database session for use as a FastAPI dependency."""
-        try:
-            with Session(self.engine) as session:
-                yield session
-        except SQLAlchemyError as e:
-            logger.error("db_session_error", error=str(e))
-            raise
+        with managed_session(self.engine) as session:
+            yield session
 
     def get_session_maker(self) -> Session:
         """Return a new database session (for non-dependency use)."""

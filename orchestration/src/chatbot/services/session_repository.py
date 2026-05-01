@@ -3,9 +3,10 @@
 import asyncio
 from typing import List, Optional
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
 from src.common.logging import logger
+from src.common.services.db_session import managed_session
 from src.chatbot.models.session_model import Session as ChatSession
 from src.chatbot.models.message_model import ChatMessage
 from src.user.models.user_model import User
@@ -30,7 +31,7 @@ class SessionRepositoryMixin:
             ChatSession: The newly created session record.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 chat_session = ChatSession(id=session_id, user_id=user_id, name=name)
                 db.add(chat_session)
                 db.commit()
@@ -49,7 +50,7 @@ class SessionRepositoryMixin:
             Optional[ChatSession]: The session record, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.get(ChatSession, session_id)
         return await asyncio.to_thread(_sync)
 
@@ -63,7 +64,7 @@ class SessionRepositoryMixin:
             List[ChatSession]: All sessions belonging to the user.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 statement = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at.desc())
                 return db.exec(statement).all()
         return await asyncio.to_thread(_sync)
@@ -78,7 +79,7 @@ class SessionRepositoryMixin:
             bool: True if deleted, False if the session was not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 chat_session = db.get(ChatSession, session_id)
                 if not chat_session:
                     return False
@@ -99,7 +100,7 @@ class SessionRepositoryMixin:
             Optional[ChatSession]: The updated session, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 chat_session = db.exec(select(ChatSession).where(ChatSession.id == session_id)).one_or_none()
                 if chat_session:
                     chat_session.name = title
@@ -111,11 +112,7 @@ class SessionRepositoryMixin:
                 else:
                     logger.warning("session_not_found_for_update", session_id=session_id)
                     return None
-        try:
-            return await asyncio.to_thread(_sync)
-        except Exception as e:
-            logger.error("update_session_name_failed", session_id=session_id, error=str(e))
-            raise
+        return await asyncio.to_thread(_sync)
 
     async def save_chat_interaction(self, session_id: str, question: str, answer: str, is_deep_thinking: bool = False) -> ChatMessage:
         """Persist a user question and assistant answer as a single message record.
@@ -130,7 +127,7 @@ class SessionRepositoryMixin:
             ChatMessage: The saved message record.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 message = ChatMessage(session_id=session_id, question=question, answer=answer)
                 db.add(message)
                 db.commit()
@@ -148,7 +145,7 @@ class SessionRepositoryMixin:
             List[ChatMessage]: Messages in chronological order.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 statement = select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at)
                 return db.exec(statement).all()
         return await asyncio.to_thread(_sync)
@@ -156,7 +153,7 @@ class SessionRepositoryMixin:
     async def delete_chat_messages(self, session_id: str) -> None:
         """Delete all chat messages for a session."""
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 messages = db.exec(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
                 for msg in messages:
                     db.delete(msg)
@@ -177,7 +174,7 @@ class SessionRepositoryMixin:
         """
         def _sync():
             from sqlalchemy import func, or_
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 search_filter = None
                 if search:
                     pattern = f"%{search}%"
@@ -234,7 +231,7 @@ class SessionRepositoryMixin:
             Optional[dict]: The message dict, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 statement = (
                     select(ChatMessage, ChatSession, User)
                     .join(ChatSession, ChatMessage.session_id == ChatSession.id)

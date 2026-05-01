@@ -17,6 +17,7 @@ from src.common.langgraph._memory import MemoryMixin
 from src.common.langgraph._nodes import NodesMixin
 from src.common.langgraph.tools import tools
 from src.common.logging import logger
+from src.common.metrics import langgraph_checkpointer_failures_total
 from src.common.schemas.graph import GraphState
 from src.chatbot.schemas.chat_schema import Message
 from src.common.services.graph import dump_messages
@@ -84,7 +85,11 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
             except Exception as e:
                 logger.error("connection_pool_creation_failed", error=str(e), environment=settings.ENVIRONMENT.value)
                 if settings.ENVIRONMENT == Environment.PRODUCTION:
-                    logger.warning("continuing_without_connection_pool")
+                    langgraph_checkpointer_failures_total.inc()
+                    logger.critical(
+                        "checkpointer_unavailable_degraded_mode",
+                        note="conversation history will not persist across restarts",
+                    )
                     return None
                 raise
         return self._connection_pool
@@ -137,7 +142,11 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
             except Exception as e:
                 logger.error("graph_creation_failed", error=str(e), environment=settings.ENVIRONMENT.value)
                 if settings.ENVIRONMENT == Environment.PRODUCTION:
-                    logger.warning("continuing_without_graph")
+                    langgraph_checkpointer_failures_total.inc()
+                    logger.critical(
+                        "graph_unavailable_degraded_mode",
+                        note="LLM graph failed to initialize; responses will not be served",
+                    )
                     return None
                 raise
         return self._graph
