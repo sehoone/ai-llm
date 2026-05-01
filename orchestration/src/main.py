@@ -159,7 +159,6 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Root endpoint
 @app.get("/")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["root"][0])
 async def root(request: Request):
     """Root endpoint returning basic API information."""
     logger.info("root_endpoint_called")
@@ -174,7 +173,6 @@ async def root(request: Request):
 
 # Health check endpoint
 @app.get("/health")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["health"][0])
 async def health_check(request: Request) -> Dict[str, Any]:
     """Health check endpoint with environment-specific information.
 

@@ -147,7 +147,6 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
 
 
 @router.post("/register", response_model=UserResponse, summary="사용자 등록", description="사용자 등록")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["register"][0])
 async def register_user(request: Request, user_data: UserCreate):
     """Register a new user.
 
@@ -191,7 +190,6 @@ async def register_user(request: Request, user_data: UserCreate):
 
 
 @router.post("/login", response_model=TokenResponse, summary="사용자 로그인", description="사용자 로그인")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["login"][0])
 async def login(request: Request, user_data: UserLogin):
     """Login a user.
 
@@ -243,7 +241,6 @@ async def login(request: Request, user_data: UserLogin):
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="토큰 갱신", description="Refresh Token을 사용하여 Access Token 갱신")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["login"][0])
 async def refresh_token(request: Request, token_data: RefreshTokenRequest):
     """Refresh access token.
 

@@ -48,7 +48,6 @@ file_storage = FileStorageService(settings.UPLOAD_DIR)
 
 
 @router.post("/chat", response_model=ChatResponse, summary="채팅 요청", description="LangGraph를 사용하여 채팅 요청을 처리합니다.")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat"][0])
 async def chat(
     request: Request,
     chat_request: ChatRequest,
@@ -102,7 +101,6 @@ async def chat(
 
 
 @router.post("/chat/upload", response_model=ChatResponse, summary="파일 첨부 채팅 요청", description="LangGraph를 사용하여 파일 첨부 채팅 요청을 처리합니다.")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat"][0])
 async def chat_with_files(
     request: Request,
     session_id: str = Form(..., description="The session ID"),
@@ -193,7 +191,6 @@ async def chat_with_files(
 
 
 @router.post("/chat/stream", response_model=None, summary="스트리밍 채팅 요청", description="LangGraph를 사용하여 스트리밍 채팅 요청을 처리합니다.")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat_stream"][0])
 async def chat_stream(
     request: Request,
     chat_request: ChatRequest,
@@ -301,7 +298,6 @@ async def chat_stream(
 
 
 @router.get("/messages", response_model=ChatResponse, summary="세션 메시지 조회", description="인증된 사용자의 세션에 대한 모든 메시지를 조회합니다.")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def get_session_messages(
     request: Request,
     session_id: str,
@@ -351,7 +347,6 @@ async def get_session_messages(
 
 
 @router.delete("/messages", summary="세션 메시지 삭제", description="인증된 사용자의 세션에 대한 모든 메시지를 삭제합니다.")
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def clear_chat_history(
     request: Request,
     session_id: str,

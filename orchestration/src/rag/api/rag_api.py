@@ -44,7 +44,6 @@ def _validate_rag_type(rag_type: str) -> None:
 
 
 @router.post("/upload", response_model=DocumentResponse, summary="문서 업로드", description="RAG를 위한 문서를 업로드합니다.")
-@limiter.limit("10 per hour")
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
@@ -170,7 +169,6 @@ async def upload_document(
 
 
 @router.get("/documents", response_model=List[DocumentResponse], summary="사용자 문서 목록 조회", description="인증된 사용자의 모든 문서를 조회합니다.")
-@limiter.limit("30 per minute")
 async def get_user_documents(
     request: Request,
     rag_key: str = None,
@@ -209,7 +207,6 @@ async def get_user_documents(
 
 
 @router.get("/documents/{doc_id}", response_model=DocumentDetailResponse, summary="문서 상세 조회", description="문서의 상세 내용 및 전체 텍스트를 조회합니다.")
-@limiter.limit("60 per minute")
 async def get_document_detail(
     request: Request,
     doc_id: int,
@@ -249,7 +246,6 @@ async def get_document_detail(
 
 
 @router.delete("/documents/{doc_id}", summary="문서 삭제", description="인증된 사용자의 문서를 삭제합니다.")
-@limiter.limit("30 per minute")
 async def delete_document(
     request: Request,
     doc_id: int,
@@ -289,7 +285,6 @@ async def delete_document(
 
 
 @router.post("/search", response_model=RAGSearchResponse, summary="RAG 문서 검색", description="RAG 문서들을 의미론적 유사도로 검색합니다.")
-@limiter.limit("30 per minute")
 async def search_rag(
     request: Request,
     rag_key: str = Form(...),
@@ -356,7 +351,6 @@ async def search_rag(
 
 
 @router.post("/search-group", response_model=RAGSearchResponse, summary="RAG 그룹 문서 검색", description="RAG 그룹에 속한 여러 RAG 문서들을 의미론적 유사도로 검색합니다.")
-@limiter.limit("30 per minute")
 async def search_rag_group(
     request: Request,
     rag_group: str = Form(...),
@@ -423,7 +417,6 @@ async def search_rag_group(
 
 
 @router.post("/natural-language-search", summary="자연어 검색 (Streaming)", description="RAG 검색 후 LLM을 통해 요약된 답변을 스트리밍으로 제공합니다.")
-@limiter.limit("20 per minute")
 async def natural_language_search(
     request: Request,
     rag_type: str = Form(...),
