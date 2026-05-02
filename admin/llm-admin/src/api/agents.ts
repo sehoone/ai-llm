@@ -18,6 +18,7 @@ export interface Agent {
   rag_search_k: number
   rag_enabled: boolean
   tools_enabled: string[]
+  allowed_models: string[]
   is_published: boolean
   is_active: boolean
   created_at: string
@@ -37,6 +38,7 @@ export interface CreateAgentData {
   rag_search_k?: number
   rag_enabled?: boolean
   tools_enabled?: string[]
+  allowed_models?: string[]
   is_published?: boolean
 }
 
@@ -144,9 +146,15 @@ export const agentApi = {
     messages: Message[],
     onChunk: (content: string, done: boolean, title?: string) => void,
     onError: (error: any) => void,
-    isDeepThinking?: boolean
+    isDeepThinking?: boolean,
+    modelOverride?: string
   ) => {
-    const request = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking }
+    const request = {
+      session_id: sessionId,
+      messages,
+      is_deep_thinking: isDeepThinking,
+      model_override: modelOverride || null,
+    }
 
     try {
       let buffer = ''

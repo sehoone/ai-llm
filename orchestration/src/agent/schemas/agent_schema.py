@@ -19,6 +19,7 @@ class AgentCreate(BaseModel):
     rag_search_k: int = Field(default=5, ge=1, le=20)
     rag_enabled: bool = False
     tools_enabled: List[str] = Field(default_factory=list)
+    allowed_models: List[str] = Field(default_factory=list)
     is_published: bool = False
 
 
@@ -35,6 +36,7 @@ class AgentUpdate(BaseModel):
     rag_search_k: Optional[int] = Field(default=None, ge=1, le=20)
     rag_enabled: Optional[bool] = None
     tools_enabled: Optional[List[str]] = None
+    allowed_models: Optional[List[str]] = None
     is_published: Optional[bool] = None
     is_active: Optional[bool] = None
 
@@ -54,6 +56,7 @@ class AgentResponse(BaseModel):
     rag_search_k: int
     rag_enabled: bool
     tools_enabled: List[str]
+    allowed_models: List[str]
     is_published: bool
     is_active: bool
     created_at: datetime
@@ -77,6 +80,7 @@ class AgentChatRequest(BaseModel):
     session_id: str = Field(..., description="에이전트 세션 ID")
     messages: List[Message] = Field(..., min_length=1)
     is_deep_thinking: bool = Field(default=False)
+    model_override: Optional[str] = Field(default=None, description="채팅 시 선택한 모델 (allowed_models 내 항목이어야 함)")
 
 
 class RagKeyInfo(BaseModel):

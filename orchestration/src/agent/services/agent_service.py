@@ -28,9 +28,11 @@ class AgentService:
             temperature=data.temperature,
             max_tokens=data.max_tokens,
             rag_keys=data.rag_keys,
+            rag_groups=data.rag_groups,
             rag_search_k=data.rag_search_k,
             rag_enabled=data.rag_enabled,
             tools_enabled=data.tools_enabled,
+            allowed_models=data.allowed_models,
             is_published=data.is_published,
         )
         with Session(database_service.engine) as session:

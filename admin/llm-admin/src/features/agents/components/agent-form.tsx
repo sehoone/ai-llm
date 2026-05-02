@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { agentApi, type Agent, type RagKeyInfo, type RagGroupInfo } from '@/api/agents'
+import { getChatModels, type ChatModel } from '@/api/llm-resources'
 import { logger } from '@/lib/logger'
 import { FileText, FolderOpen, X, Globe } from 'lucide-react'
 
@@ -35,12 +36,12 @@ const agentSchema = z.object({
   rag_search_k: z.number().min(1).max(20),
   rag_enabled: z.boolean(),
   tools_enabled: z.array(z.string()),
+  allowed_models: z.array(z.string()),
   is_published: z.boolean(),
 })
 
 type AgentFormData = z.infer<typeof agentSchema>
 
-const AVAILABLE_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-5', 'gpt-5-mini']
 const AVAILABLE_TOOLS = [{ id: 'web_search', label: '웹 검색', icon: Globe }]
 
 interface AgentFormProps {
@@ -52,15 +53,16 @@ interface AgentFormProps {
 export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
   const [ragKeys, setRagKeys] = useState<RagKeyInfo[]>([])
   const [ragGroups, setRagGroups] = useState<RagGroupInfo[]>([])
+  const [chatModels, setChatModels] = useState<ChatModel[]>([])
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<AgentFormData>({
+  const { register, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<AgentFormData>({
     resolver: zodResolver(agentSchema),
     defaultValues: {
       name: initial?.name ?? '',
       description: initial?.description ?? '',
       system_prompt: initial?.system_prompt ?? '',
       welcome_message: initial?.welcome_message ?? '',
-      model: initial?.model ?? 'gpt-4o',
+      model: initial?.model ?? '',
       temperature: initial?.temperature ?? 0.7,
       max_tokens: initial?.max_tokens ?? 2000,
       rag_keys: initial?.rag_keys ?? [],
@@ -68,6 +70,7 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
       rag_search_k: initial?.rag_search_k ?? 5,
       rag_enabled: initial?.rag_enabled ?? false,
       tools_enabled: initial?.tools_enabled ?? [],
+      allowed_models: initial?.allowed_models ?? [],
       is_published: initial?.is_published ?? false,
     },
   })
@@ -78,11 +81,40 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
   const watchedRagEnabled = watch('rag_enabled')
   const watchedTemperature = watch('temperature')
   const watchedMaxTokens = watch('max_tokens')
+  const watchedAllowedModels = watch('allowed_models')
 
   useEffect(() => {
     agentApi.getRagKeys().then(setRagKeys).catch((e) => logger.error('Failed to load rag keys', e))
     agentApi.getRagGroups().then(setRagGroups).catch((e) => logger.error('Failed to load rag groups', e))
-  }, [])
+    getChatModels().then(setChatModels).catch((e) => logger.error('Failed to load chat models', e))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // chatModels 로드 완료 시: initial 값을 기준으로 model/allowed_models를 ID로 동기화
+  useEffect(() => {
+    if (chatModels.length === 0) return
+
+    // model: name → ID (Select value 동기화)
+    const savedModel = initial?.model ?? getValues('model')
+    if (savedModel && !/^\d+$/.test(savedModel)) {
+      const match = chatModels.find((m) => m.name === savedModel)
+      if (match) setValue('model', String(match.id))
+    }
+
+    // allowed_models: 항상 setValue로 명시 설정 (name→ID 변환 + watch 구독 갱신)
+    const savedAllowed = initial?.allowed_models ?? getValues('allowed_models') ?? []
+    const converted = savedAllowed.map((v) => {
+      if (/^\d+$/.test(v)) return v
+      const match = chatModels.find((m) => m.name === v)
+      return match ? String(match.id) : v
+    })
+    setValue('allowed_models', [...new Set(converted)])
+  }, [chatModels]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // allowed_models: resource ID(String)로 저장 → 리소스별 고유 선택
+  const toggleAllowedModel = (resourceId: string) => {
+    const cur = watchedAllowedModels ?? []
+    setValue('allowed_models', cur.includes(resourceId) ? cur.filter((v) => v !== resourceId) : [...cur, resourceId])
+  }
 
   const toggleRagKey = (key: string) => {
     const cur = watchedRagKeys ?? []
@@ -101,8 +133,14 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
 
   const totalSelected = (watchedRagKeys?.length ?? 0) + (watchedRagGroups?.length ?? 0)
 
+  const handleFormSubmit = async (data: AgentFormData) => {
+    // model: ID → name 변환 후 백엔드 전달
+    const modelResource = chatModels.find((m) => String(m.id) === data.model)
+    await onSubmit(modelResource ? { ...data, model: modelResource.name } : data)
+  }
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={handleSubmit(handleFormSubmit)}>
       <Tabs defaultValue="basic" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="basic">기본 정보</TabsTrigger>
@@ -134,14 +172,59 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
             <Input id="welcome_message" placeholder="안녕하세요! 무엇을 도와드릴까요?" {...register('welcome_message')} />
           </div>
 
+          {/* 기본 모델: ID를 value로 사용 → name 중복 문제 없음 */}
           <div className="space-y-2">
-            <Label>모델</Label>
+            <Label>기본 모델</Label>
+            <p className="text-xs text-muted-foreground">채팅 시작 시 기본으로 사용할 모델</p>
             <Select value={watch('model')} onValueChange={(v) => setValue('model', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="모델 선택" /></SelectTrigger>
               <SelectContent>
-                {AVAILABLE_MODELS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                {chatModels.length === 0 ? (
+                  <SelectItem value="__none__" disabled>
+                    모델 없음 (LLM 리소스를 먼저 등록하세요)
+                  </SelectItem>
+                ) : (
+                  chatModels.map((m) => (
+                    <SelectItem key={String(m.id)} value={String(m.id)}>
+                      {m.name}{m.model_name ? ` (${m.model_name})` : ''}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* 선택 가능한 모델: resource ID 기준으로 체크 → 리소스별 독립 선택 */}
+          <div className="space-y-2">
+            <Label>선택 가능한 모델</Label>
+            <p className="text-xs text-muted-foreground">채팅 중 사용자가 전환할 수 있는 모델 목록</p>
+            {chatModels.length === 0 ? (
+              <p className="text-sm text-muted-foreground border border-dashed rounded-md p-3 text-center">
+                LLM 리소스에 등록된 챗 모델이 없습니다
+              </p>
+            ) : (
+              <div className="space-y-1 border rounded-md p-1.5 max-h-40 overflow-y-auto">
+                {chatModels.map((m) => {
+                  const selected = watchedAllowedModels?.includes(String(m.id))
+                  return (
+                    <button
+                      key={String(m.id)}
+                      type="button"
+                      onClick={() => toggleAllowedModel(String(m.id))}
+                      className={`w-full flex items-center gap-2 p-2 rounded-md text-left text-sm transition-colors ${
+                        selected ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${selected ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
+                        {selected && <span className="text-primary-foreground text-xs">✓</span>}
+                      </div>
+                      <span className="font-medium">{m.name}</span>
+                      {m.model_name && <span className="text-xs text-muted-foreground">({m.model_name})</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">
@@ -190,7 +273,6 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
                 />
               </div>
 
-              {/* 선택된 항목 요약 */}
               {totalSelected > 0 && (
                 <div className="flex flex-wrap gap-1 p-2 bg-muted/40 rounded-md border">
                   {watchedRagKeys?.map((key) => (
@@ -212,7 +294,6 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
                 </div>
               )}
 
-              {/* 탭: 키 / 그룹 */}
               <Tabs defaultValue="keys" className="w-full">
                 <TabsList className="w-full grid grid-cols-2">
                   <TabsTrigger value="keys" className="text-xs">
@@ -231,7 +312,6 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* 개별 키 목록 */}
                 <TabsContent value="keys" className="mt-2">
                   {ragKeys.length === 0 ? (
                     <p className="text-sm text-muted-foreground border border-dashed rounded-md p-4 text-center">
@@ -267,7 +347,6 @@ export function AgentForm({ initial, onSubmit, isLoading }: AgentFormProps) {
                   )}
                 </TabsContent>
 
-                {/* 그룹 목록 */}
                 <TabsContent value="groups" className="mt-2">
                   <p className="text-xs text-muted-foreground mb-2">
                     그룹을 선택하면 해당 그룹의 모든 키를 한 번에 검색합니다.

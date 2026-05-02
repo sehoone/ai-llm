@@ -213,6 +213,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_session_user_id ON agent_session(user_id);
 -- Migration: add rag_groups column to existing agent tables
 ALTER TABLE agent ADD COLUMN IF NOT EXISTS rag_groups TEXT[] NOT NULL DEFAULT '{}';
 
+-- Migration: add allowed_models column to agent table
+ALTER TABLE agent ADD COLUMN IF NOT EXISTS allowed_models TEXT[] NOT NULL DEFAULT '{}';
+
 -- ── RAG group / key config ────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS rag_group_config (

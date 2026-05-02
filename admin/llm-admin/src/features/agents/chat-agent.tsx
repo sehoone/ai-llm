@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useRef, Fragment } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { agentApi, type Agent, type AgentSession } from '@/api/agents'
+import { getChatModels, type ChatModel } from '@/api/llm-resources'
 import { type Message } from '@/types/chat-api'
 import { ChatArea } from '@/features/chats/components/chat-area'
 import { Header } from '@/components/layout/header'
@@ -21,6 +22,13 @@ import {
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ProfileDropdown } from '@/components/profile-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ArrowLeft, BrainCircuit, Edit, MessagesSquare, Send, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -38,13 +46,22 @@ export function AgentChat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isSending, setIsSending] = useState(false)
   const [isDeepThinking, setIsDeepThinking] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const [chatModels, setChatModels] = useState<ChatModel[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
 
   useEffect(() => {
+    getChatModels().then(setChatModels).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (!agentId) return
-    agentApi.get(agentId).then(setAgent).catch((e) => {
+    agentApi.get(agentId).then((a) => {
+      setAgent(a)
+      setSelectedModel(a.allowed_models?.[0] ?? null)
+    }).catch((e) => {
       logger.error('Failed to load agent', e)
       toast.error('에이전트를 불러오지 못했습니다')
       router.push('/agents')
@@ -140,7 +157,8 @@ export function AgentChat() {
           toast.error('메시지 전송에 실패했습니다')
           setIsSending(false)
         },
-        isDeepThinking
+        isDeepThinking,
+        selectedModel && agent?.allowed_models?.includes(selectedModel) ? selectedModel : undefined
       )
     } catch (e) {
       logger.error('Failed to send message', e)
@@ -261,6 +279,26 @@ export function AgentChat() {
                         className={cn('stroke-muted-foreground', isDeepThinking && 'stroke-blue-600 dark:stroke-blue-400')}
                       />
                     </Button>
+                    {agent?.allowed_models && agent.allowed_models.length > 0 && (
+                      <Select
+                        value={selectedModel ?? agent.allowed_models[0]}
+                        onValueChange={setSelectedModel}
+                      >
+                        <SelectTrigger className="h-7 text-xs border-0 shadow-none bg-transparent px-1 w-auto max-w-40 gap-1 focus:ring-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {agent.allowed_models.map((resourceId) => {
+                            const found = chatModels.find((m) => String(m.id) === resourceId)
+                            return (
+                              <SelectItem key={resourceId} value={resourceId} className="text-xs">
+                                {found ? found.model_name : resourceId}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <label className="flex-1">
                       <span className="sr-only">메시지 입력</span>
                       <input

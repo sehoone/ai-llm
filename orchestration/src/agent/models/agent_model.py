@@ -29,6 +29,7 @@ class Agent(BaseModel, table=True):
     rag_enabled: bool = Field(default=False)
 
     tools_enabled: List[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]"))
+    allowed_models: List[str] = Field(default_factory=list, sa_column=Column(ARRAY(String), nullable=False, server_default="{}"))
 
     is_published: bool = Field(default=False)
     is_active: bool = Field(default=True)

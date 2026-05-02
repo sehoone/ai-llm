@@ -1,6 +1,17 @@
 import api from './axios'
 import type { LLMResource } from '@/features/llm-resources/data/schema'
 
+export interface ChatModel {
+  id: number
+  name: string
+  model_name: string | null
+}
+
+export const getChatModels = async (): Promise<ChatModel[]> => {
+  const response = await api.get('v1/llm-resources/chat-models')
+  return response.data
+}
+
 export const getLLMResources = async (): Promise<LLMResource[]> => {
   const response = await api.get('v1/llm-resources')
   return response.data

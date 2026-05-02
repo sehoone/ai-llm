@@ -197,7 +197,16 @@ async def chat_stream(
     agent = await _get_owned_agent(agent_id, user)
     session = await _get_owned_session(chat_request.session_id, agent_id, user)
 
-    logger.info("agent_stream_chat", agent_id=agent_id, session_id=session.id)
+    effective_model = agent.model
+    if chat_request.model_override and chat_request.model_override in agent.allowed_models:
+        try:
+            resource = await database_service.get_llm_resource(int(chat_request.model_override))
+            if resource and resource.is_active:
+                effective_model = resource.name
+        except (ValueError, Exception):
+            pass
+
+    logger.info("agent_stream_chat", agent_id=agent_id, session_id=session.id, model=effective_model)
 
     async def event_generator():
         try:
@@ -219,7 +228,7 @@ async def chat_stream(
                 is_deep_thinking=chat_request.is_deep_thinking,
                 system_instructions=agent.system_prompt,
                 rag_key=None,
-                model_name=agent.model,
+                model_name=effective_model,
             ):
                 full_response += chunk
                 yield f"data: {json.dumps(StreamResponse(content=chunk, done=False).model_dump(), ensure_ascii=False)}\n\n"

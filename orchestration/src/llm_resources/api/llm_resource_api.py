@@ -1,13 +1,20 @@
 """LLM resource management endpoints. Admin access required for all operations."""
 
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from src.auth.api.auth_api import get_current_user
 from src.common.services.database import database_service
 from src.llm_resources.schemas.llm_resource_schemas import LLMResourceCreate, LLMResourceResponse, LLMResourceUpdate
 from src.user.models.user_model import User, UserRole
 
 router = APIRouter()
+
+
+class ChatModelInfo(BaseModel):
+    id: int
+    name: str
+    model_name: Optional[str]
 
 
 def _require_admin(user: User = Depends(get_current_user)) -> User:
@@ -19,6 +26,17 @@ def _require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+@router.get("/chat-models", response_model=List[ChatModelInfo])
+async def read_chat_models(user: User = Depends(get_current_user)):
+    """List active chat-type LLM resources for agent model selection. All authenticated users."""
+    resources = await database_service.get_llm_resources()
+    return [
+        ChatModelInfo(id=r.id, name=r.name, model_name=r.model_name)
+        for r in resources
+        if r.resource_type == "chat" and r.is_active
+    ]
 
 
 @router.get("/", response_model=List[LLMResourceResponse])
