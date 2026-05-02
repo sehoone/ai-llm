@@ -269,13 +269,12 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                 ):
                     try:
                         node_name = metadata.get("langgraph_node")
-                        if is_deep_thinking:
-                            if node_name == "think" and not think_tag_sent:
-                                yield "[Deep Thinking - Analysis]\n"
-                                think_tag_sent = True
-                            elif node_name == "chat" and not answer_tag_sent:
-                                yield "[Deep Thinking - Answer]\n"
-                                answer_tag_sent = True
+                        if node_name == "think" and not think_tag_sent:
+                            yield "[Deep Thinking - Analysis]\n"
+                            think_tag_sent = True
+                        elif node_name == "chat" and think_tag_sent and not answer_tag_sent:
+                            yield "[Deep Thinking - Answer]\n"
+                            answer_tag_sent = True
                         yield msg.content
                     except Exception as token_error:
                         logger.error("stream_token_processing_failed", error=str(token_error), session_id=session_id)

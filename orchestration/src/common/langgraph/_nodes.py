@@ -65,7 +65,7 @@ class NodesMixin:
 
             response_message = process_llm_response(response_message)
 
-            if state.is_deep_thinking:
+            if state.is_deep_thinking or state.thinking_context:
                 response_message.content = f"[Deep Thinking - Answer]\n{response_message.content}"
 
             logger.info(
@@ -125,8 +125,11 @@ class NodesMixin:
             return "think"
         if state.messages:
             last_content = state.messages[-1].content if hasattr(state.messages[-1], "content") else ""
-            if isinstance(last_content, str) and self._is_complex_query(last_content):
-                return "think"
+            if isinstance(last_content, str):
+                # Strip RAG context before checking complexity to avoid false positives
+                original_query = last_content.split("\n\nContext from knowledge base:")[0]
+                if self._is_complex_query(original_query):
+                    return "think"
         return "chat"
 
     @staticmethod
