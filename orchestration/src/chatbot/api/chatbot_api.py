@@ -287,7 +287,7 @@ async def chat_stream(
 
             except Exception as e:
                 logger.error("stream_chat_request_failed", session_id=session.id, error=str(e), exc_info=True)
-                error_response = StreamResponse(content=str(e), done=True)
+                error_response = StreamResponse(content="An error occurred. Please try again.", done=True)
                 yield f"data: {json.dumps(error_response.model_dump(), ensure_ascii=False)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")

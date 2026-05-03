@@ -72,11 +72,15 @@ async def lifespan(app: FastAPI):
     await agent.create_graph()
     workflow_scheduler.start()
     yield
-    workflow_scheduler.shutdown()
-    logger.info("application_shutdown")
-    if agent._connection_pool is not None:
-        await agent._connection_pool.close()
-        logger.info("connection_pool_closed")
+    try:
+        workflow_scheduler.shutdown()
+    except Exception as e:
+        logger.error("scheduler_shutdown_failed", error=str(e))
+    finally:
+        logger.info("application_shutdown")
+        if agent._connection_pool is not None:
+            await agent._connection_pool.close()
+            logger.info("connection_pool_closed")
 
 
 app = FastAPI(

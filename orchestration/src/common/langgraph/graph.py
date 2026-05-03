@@ -10,6 +10,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import StateSnapshot
+from psycopg import sql as psycopg_sql
 from psycopg_pool import AsyncConnectionPool
 
 from src.common.config import Environment, settings
@@ -200,15 +201,11 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                     },
                     config=config,
                 )
-            task = asyncio.create_task(
+            self._create_memory_task(
                 self._update_long_term_memory(
                     user_id, convert_to_openai_messages(response["messages"]), config["metadata"]
-                )
-            )
-            task.add_done_callback(
-                lambda t: logger.error("memory_update_failed", error=str(t.exception()), session_id=session_id)
-                if not t.cancelled() and t.exception()
-                else None
+                ),
+                session_id=session_id,
             )
             return self._process_messages(response["messages"])
         except Exception as e:
@@ -282,15 +279,11 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
 
             state: StateSnapshot = await sync_to_async(self._graph.get_state)(config=config)
             if state.values and "messages" in state.values:
-                task = asyncio.create_task(
+                self._create_memory_task(
                     self._update_long_term_memory(
                         user_id, convert_to_openai_messages(state.values["messages"]), config["metadata"]
-                    )
-                )
-                task.add_done_callback(
-                    lambda t: logger.error("memory_update_failed", error=str(t.exception()), session_id=session_id)
-                    if not t.cancelled() and t.exception()
-                    else None
+                    ),
+                    session_id=session_id,
                 )
         except Exception as e:
             logger.error("stream_processing_failed", error=str(e), session_id=session_id)
@@ -331,7 +324,12 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                     if table not in _allowed_tables:
                         raise ValueError(f"Refusing to delete from unknown table: {table!r}")
                     try:
-                        await conn.execute(f"DELETE FROM {table} WHERE thread_id = %s", (session_id,))
+                        await conn.execute(
+                            psycopg_sql.SQL("DELETE FROM {} WHERE thread_id = %s").format(
+                                psycopg_sql.Identifier(table)
+                            ),
+                            (session_id,),
+                        )
                         logger.info("checkpoint_table_cleared", table=table, session_id=session_id)
                     except Exception as e:
                         logger.error("checkpoint_table_clear_failed", table=table, error=str(e))
@@ -341,6 +339,18 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
             raise
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _create_memory_task(self, coro, session_id: str) -> asyncio.Task:
+        """Schedule a background memory update with a 30 s timeout and structured error logging."""
+        async def _run() -> None:
+            try:
+                await asyncio.wait_for(coro, timeout=30.0)
+            except asyncio.TimeoutError:
+                logger.warning("memory_update_timeout", session_id=session_id)
+            except Exception as e:
+                logger.error("memory_update_failed", error=str(e), session_id=session_id)
+
+        return asyncio.create_task(_run())
 
     def _build_config(self, session_id: str, user_id: Optional[str]) -> dict:
         """Build the LangGraph run configuration dict.
