@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 
 type GeneralErrorProps = React.HTMLAttributes<HTMLDivElement> & {
   minimal?: boolean
+  onReset?: () => void
 }
 
 export function GeneralError({
   className,
   minimal = false,
+  onReset,
 }: GeneralErrorProps) {
   const router = useRouter()
   return (
@@ -28,7 +30,11 @@ export function GeneralError({
             <Button variant='outline' onClick={() => router.back()}>
               Go Back
             </Button>
-            <Button onClick={() => router.push('/')}>Back to Home</Button>
+            {onReset ? (
+              <Button onClick={onReset}>Try Again</Button>
+            ) : (
+              <Button onClick={() => router.push('/')}>Back to Home</Button>
+            )}
           </div>
         )}
       </div>

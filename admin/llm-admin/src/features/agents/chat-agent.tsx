@@ -53,7 +53,9 @@ export function AgentChat() {
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
 
   useEffect(() => {
-    getChatModels().then(setChatModels).catch(() => {})
+    getChatModels().then(setChatModels).catch((e) => {
+      logger.warn('Failed to load chat models', e)
+    })
   }, [])
 
   useEffect(() => {

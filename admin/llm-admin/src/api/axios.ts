@@ -15,6 +15,8 @@ interface FailedRequest {
   reject: (reason?: any) => void;
 }
 
+const REFRESH_TIMEOUT_MS = 10_000;
+
 let isRefreshing = false;
 let failedQueue: FailedRequest[] = [];
 
@@ -43,7 +45,13 @@ function isTokenExpired() {
 export const refreshAccessToken = async () => {
   if (isRefreshing) {
     return new Promise((resolve, reject) => {
-      failedQueue.push({ resolve, reject });
+      const timer = setTimeout(
+        () => reject(new Error('Token refresh timed out')),
+        REFRESH_TIMEOUT_MS
+      );
+      const timeoutReject = (reason: unknown) => { clearTimeout(timer); reject(reason); };
+      const timeoutResolve = (value: unknown) => { clearTimeout(timer); resolve(value); };
+      failedQueue.push({ resolve: timeoutResolve, reject: timeoutReject });
     });
   }
 
@@ -57,8 +65,12 @@ export const refreshAccessToken = async () => {
       throw new Error('No refresh token available');
     }
 
-    // Call refresh endpoint
-    const response = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken });
+    // Call refresh endpoint with timeout to prevent indefinite hang
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+    const response = await axios
+      .post('/api/v1/auth/refresh', { refresh_token: refreshToken }, { signal: controller.signal })
+      .finally(() => clearTimeout(timeoutId));
 
     const { access_token, refresh_token, expires_at } = response.data;
 
