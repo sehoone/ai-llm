@@ -2,10 +2,18 @@
 
 import asyncio
 import base64
+import re
 import uuid
 from pathlib import Path
 
 from src.common.logging import logger
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Strip path components and dangerous characters from a user-supplied filename."""
+    name = Path(filename).name  # drop any directory prefix (e.g. ../../etc/passwd → passwd)
+    name = re.sub(r"[^\w\s\-.]", "", name).strip()
+    return name or "file"
 
 
 class FileStorageService:
@@ -31,7 +39,7 @@ class FileStorageService:
             dir_path = self.base_dir / session_id
             self._ensure_dir(dir_path)
 
-            unique_name = f"{uuid.uuid4().hex}_{original_filename}"
+            unique_name = f"{uuid.uuid4().hex}_{_sanitize_filename(original_filename)}"
             file_path = dir_path / unique_name
 
             raw = base64.b64decode(data_base64)

@@ -13,6 +13,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     Request,
     UploadFile,
 )
@@ -417,8 +418,8 @@ async def download_attachment(
 @router.get("/history/all", response_model=ChatHistoryListResponse, summary="전체 대화 이력 조회", description="모든 사용자의 대화 이력을 조회합니다. (관리자용)")
 async def get_all_chat_history(
     request: Request,
-    limit: int = 20,
-    offset: int = 0,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     search: str = "",
     user: User = Depends(require_admin),
 ):
