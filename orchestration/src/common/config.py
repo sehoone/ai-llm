@@ -112,8 +112,9 @@ _RATE_LIMIT_ENDPOINT_DEFAULTS: Dict[str, List[str]] = {
     "chat": ["30 per minute"],
     "chat_stream": ["20 per minute"],
     "messages": ["50 per minute"],
-    "register": ["10 per hour"],
+    "register": ["20 per hour"],
     "login": ["20 per minute"],
+    "refresh": ["30 per minute"],
     "root": ["10 per minute"],
     "health": ["20 per minute"],
 }
