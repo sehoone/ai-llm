@@ -28,7 +28,7 @@ def main():
 
     print("-------------------------------------------------------")
     # 3.1 리스트
-    # 리스트는 여러 개의 값을 하나의 변수에 저장할 수 있는 자료형
+    # 리스트는 여러 개의 값을 하나의 변수에 저장할 수 있는 자료형. java의 arraylist와 유사
     icecream = ["chocolate", "vanilla", "strawberry"]
     print(icecream[0])
     print(icecream[0:2]) # slicing
@@ -52,8 +52,28 @@ def main():
     print(f"sorted price: {sorted(price)}") # sorted list
     print(f"reversed price: {sorted(price, reverse=True)}") # sorted list
 
+    print(price.index(3000)) # index of element
+
     # 3.2 튜플
-    # 튜플은 리스트와 달리 요소를 변경할 수 없는 자료형
+    # 튜플은 리스트와 달리 요소를 변경할 수 없는 자료형. java의 final array와 유사
+    price2 = (1000, 3000, 2000)
+    print(price2[0])
+    # price2[0] = 5000 # error
+
+    # 3.3 딕셔너리
+    # 딕셔너리는 키-값 쌍으로 데이터를 저장하는 자료형. java의 hashmap과 유사
+    person = {
+        "name": "sehoon",
+        "age": 30,
+        "city": "seoul"
+    }
+    print(person.get("name")) # get value by key
+
+    person["name"] = "sehoon2" # update value by key
+    print(person.get("name"))
+
+    del person["age"] # remove key-value pair
+    print(person)
 
 if __name__ == "__main__":
     main()
