@@ -261,7 +261,7 @@ class LLMService:
 
     # ── LLM factory ───────────────────────────────────────────────────────────
 
-    def _create_llm_from_resource(self, resource: LLMResource, **kwargs) -> BaseChatModel:
+    def _create_llm_from_resource(self, resource: LLMResource, use_tools: bool = True, **kwargs) -> BaseChatModel:
         """Create a ChatLiteLLM client from a DB resource config.
 
         LiteLLM unifies Azure / OpenAI / Anthropic / Google / Ollama under one interface.
@@ -295,7 +295,7 @@ class LLMService:
 
         llm: BaseChatModel = ChatLiteLLM(model=model_id, **params)
 
-        if self._bound_tools:
+        if use_tools and self._bound_tools:
             llm = llm.bind_tools(self._bound_tools)
 
         return llm
@@ -392,13 +392,14 @@ class LLMService:
         messages: List[BaseMessage],
         model_name: Optional[str],
         config: Optional[Dict] = None,
+        use_tools: bool = True,
         **model_kwargs,
     ) -> BaseMessage:
         """Try registry models in circular order, starting from model_name if given."""
         if model_name:
             try:
                 llm = LLMRegistry.get(model_name, **model_kwargs)
-                if self._bound_tools:
+                if use_tools and self._bound_tools:
                     llm = llm.bind_tools(self._bound_tools)
                 all_names = LLMRegistry.get_all_names()
                 try:
@@ -412,7 +413,7 @@ class LLMService:
         else:
             entry = LLMRegistry.get_model_at_index(self._current_model_index)
             llm = entry["llm"]
-            if self._bound_tools:
+            if use_tools and self._bound_tools:
                 llm = llm.bind_tools(self._bound_tools)
             logger.info("using_registry_fallback", model=entry["name"])
 
@@ -441,7 +442,7 @@ class LLMService:
                     break
                 entry = LLMRegistry.get_model_at_index(self._current_model_index)
                 llm = entry["llm"]
-                if self._bound_tools:
+                if use_tools and self._bound_tools:
                     llm = llm.bind_tools(self._bound_tools)
 
         logger.error(
@@ -460,6 +461,7 @@ class LLMService:
         messages: List[BaseMessage],
         model_name: Optional[str] = None,
         config: Optional[Dict] = None,
+        use_tools: bool = True,
         **model_kwargs,
     ) -> BaseMessage:
         """Call the LLM, selecting a resource via Priority + Circuit Breaker + Weighted Random.
@@ -471,6 +473,8 @@ class LLMService:
             messages: Messages to send.
             model_name: Logical model name (matches llm_resource.model_name).
             config: Optional RunnableConfig forwarded to the LLM (carries callbacks, e.g. Langfuse).
+            use_tools: Whether to bind tools to the LLM (default True). Pass False for nodes that
+                should not make tool calls (e.g. _think).
             **model_kwargs: Override default model config.
 
         Returns:
@@ -499,7 +503,7 @@ class LLMService:
                         weight=resource.weight,
                         circuit_state=cb.state.value,
                     )
-                    llm = self._create_llm_from_resource(resource, **model_kwargs)
+                    llm = self._create_llm_from_resource(resource, use_tools=use_tools, **model_kwargs)
                     response = await self._invoke_with_retry(llm, messages, config=config)
                     cb.record_success()
                     return response
@@ -531,7 +535,7 @@ class LLMService:
                 error=str(last_error),
             )
 
-        return await self._call_registry_with_fallback(messages, model_name, config=config, **model_kwargs)
+        return await self._call_registry_with_fallback(messages, model_name, config=config, use_tools=use_tools, **model_kwargs)
 
     async def astream(
         self,

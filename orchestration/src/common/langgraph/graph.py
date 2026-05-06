@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Optional
 from urllib.parse import quote_plus
 
 from asgiref.sync import sync_to_async
-from langchain_core.messages import BaseMessage, convert_to_openai_messages
+from langchain_core.messages import AIMessageChunk, BaseMessage, convert_to_openai_messages
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -275,6 +275,8 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                     stream_mode="messages",
                 ):
                     try:
+                        if not isinstance(msg, AIMessageChunk):
+                            continue
                         node_name = metadata.get("langgraph_node")
                         if node_name == "think" and not think_tag_sent:
                             yield "[Deep Thinking - Analysis]\n"
@@ -282,7 +284,14 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                         elif node_name == "chat" and think_tag_sent and not answer_tag_sent:
                             yield "[Deep Thinking - Answer]\n"
                             answer_tag_sent = True
-                        yield msg.content
+                        content = msg.content
+                        if isinstance(content, list):
+                            content = "".join(
+                                block.get("text", "") if isinstance(block, dict) else str(block)
+                                for block in content
+                            )
+                        if content:
+                            yield content
                     except Exception as token_error:
                         logger.error("stream_token_processing_failed", error=str(token_error), session_id=session_id)
                         continue

@@ -107,7 +107,7 @@ class NodesMixin:
         messages = prepare_messages(state.messages, current_llm, _THINKING_PROMPT)
 
         try:
-            response = await self.llm_service.call(messages, model_name=state.model_name, config=config)
+            response = await self.llm_service.call(messages, model_name=state.model_name, config=config, use_tools=False)
             content = _DEEP_THINKING_TAG_RE.sub("", str(response.content))
             response.content = f"[Deep Thinking - Analysis]\n{content}\n\n"
             return Command(update={"messages": [response], "thinking_context": content}, goto="chat")

@@ -31,16 +31,20 @@ def dump_messages(messages: Union[list[Message], list[dict]]) -> list[dict]:
         
         # Handle LangChain BaseMessage objects (HumanMessage, AIMessage, etc.)
         if isinstance(message, BaseMessage):
-            # LangChain messages use 'type' attribute for role
             role_map = {
                 "human": "user",
-                "ai": "assistant", 
+                "ai": "assistant",
                 "system": "system",
                 "tool": "tool",
             }
             msg_type = getattr(message, 'type', None)
             role = role_map.get(msg_type, msg_type)
-            result.append({"role": role, "content": message.content})
+            msg_dict = {"role": role, "content": message.content}
+            if msg_type == "tool" and hasattr(message, 'tool_call_id') and message.tool_call_id:
+                msg_dict["tool_call_id"] = message.tool_call_id
+            elif msg_type == "ai" and hasattr(message, 'tool_calls') and message.tool_calls:
+                msg_dict["tool_calls"] = message.tool_calls
+            result.append(msg_dict)
             continue
         
         # Handle Message schema objects
@@ -177,6 +181,47 @@ def _replace_images_with_placeholder(message: dict) -> dict:
     return {"role": message["role"], "content": new_content if len(new_content) > 1 else new_content[0].get("text", "") if new_content else ""}
 
 
+def _sanitize_tool_sequences(messages: list) -> list:
+    """Remove tool_calls from assistant messages whose tool results were trimmed away.
+
+    When trim_messages cuts history, it may keep an assistant message with tool_calls
+    but drop the subsequent tool result messages. This produces a 400 from the API.
+    Strip orphaned tool_calls so the sequence is always valid.
+
+    Handles both dict messages and LangChain BaseMessage objects (trim_messages returns
+    BaseMessage objects even when given dicts as input).
+    """
+    def _get(msg, key):
+        if isinstance(msg, dict):
+            return msg.get(key)
+        # LangChain BaseMessage: role stored as .type ("ai"/"human"/"tool"), tool_calls as attribute
+        if key == "role":
+            type_map = {"ai": "assistant", "human": "user", "tool": "tool", "system": "system"}
+            return type_map.get(getattr(msg, "type", None))
+        if key == "tool_calls":
+            return getattr(msg, "tool_calls", None) or None
+        if key == "tool_call_id":
+            return getattr(msg, "tool_call_id", None)
+        return None
+
+    result = list(messages)
+    for i, msg in enumerate(result):
+        if _get(msg, "role") == "assistant":
+            tool_calls = _get(msg, "tool_calls")
+            if not tool_calls:
+                continue
+            tool_call_ids = {tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None) for tc in tool_calls}
+            following_tool_ids = {_get(m, "tool_call_id") for m in result[i + 1:] if _get(m, "role") == "tool"}
+            if not tool_call_ids.issubset(following_tool_ids):
+                if isinstance(msg, dict):
+                    result[i] = {k: v for k, v in msg.items() if k != "tool_calls"}
+                else:
+                    # LangChain AIMessage: clear tool_calls in-place via copy
+                    from langchain_core.messages import AIMessage
+                    result[i] = AIMessage(content=msg.content)
+    return result
+
+
 def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt: str) -> list[dict]:
     """Prepare the messages for the LLM.
     
@@ -238,6 +283,7 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
         else:
             raise
 
-    result = [{"role": "system", "content": system_prompt}] + trimmed_messages
+    sanitized_messages = _sanitize_tool_sequences(trimmed_messages)
+    result = [{"role": "system", "content": system_prompt}] + sanitized_messages
     logger.debug("prepare_messages_result", total_count=len(result))
     return result
