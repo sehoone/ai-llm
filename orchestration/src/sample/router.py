@@ -27,6 +27,16 @@
     GET  /api/v1/sample/workflow/presets           — 예시 워크플로우 정의
     POST /api/v1/sample/workflow/run               — 워크플로우 실행
     POST /api/v1/sample/workflow/run/stream        — 워크플로우 실행 (SSE)
+
+    GET  /api/v1/sample/db/health                  — DB 연결 상태
+    GET  /api/v1/sample/db/users                   — 사용자 목록 (Depends 패턴)
+    GET  /api/v1/sample/db/users/count             — 사용자 수 (managed_session)
+    GET  /api/v1/sample/db/pool-stats              — 커넥션 풀 상태
+
+    GET  /api/v1/sample/observability/log-demo     — structlog 레벨별 사용법
+    POST /api/v1/sample/observability/business-op  — 서비스 레이어 로깅 패턴
+    GET  /api/v1/sample/observability/context      — 미들웨어 컨텍스트 확인
+    GET  /api/v1/sample/observability/metrics-demo — Prometheus 지표 수동 기록
 """
 
 from fastapi import APIRouter
@@ -37,15 +47,19 @@ from src.sample._03_llm_service.api import router as llm_router
 from src.sample._04_rag_pipeline.api import router as rag_router
 from src.sample._05_fastapi_patterns.api import router as patterns_router
 from src.sample._06_workflow_engine.api import router as workflow_router
+from src.sample._07_database_patterns.api import router as db_router
+from src.sample._08_observability.api import router as observability_router
 
 sample_router = APIRouter()
 
-sample_router.include_router(basic_chat_router,   prefix="/basic-chat",    tags=["sample-basic-chat"])
+sample_router.include_router(basic_chat_router,    prefix="/basic-chat",    tags=["sample-basic-chat"])
 sample_router.include_router(deep_thinking_router, prefix="/deep-thinking", tags=["sample-deep-thinking"])
 sample_router.include_router(llm_router,           prefix="/llm",           tags=["sample-llm-service"])
 sample_router.include_router(rag_router,           prefix="/rag",           tags=["sample-rag"])
 sample_router.include_router(patterns_router,      prefix="/patterns",      tags=["sample-patterns"])
 sample_router.include_router(workflow_router,      prefix="/workflow",      tags=["sample-workflow"])
+sample_router.include_router(db_router,            prefix="/db",            tags=["sample-database"])
+sample_router.include_router(observability_router, prefix="/observability", tags=["sample-observability"])
 
 
 @sample_router.get(
@@ -113,6 +127,26 @@ async def sample_index():
                     "GET  /presets",
                     "POST /run",
                     "POST /run/stream",
+                ],
+            },
+            "db": {
+                "prefix": "/api/v1/sample/db",
+                "description": "DB 패턴 (managed_session, Depends, 커넥션 풀)",
+                "endpoints": [
+                    "GET  /health",
+                    "GET  /users",
+                    "GET  /users/count",
+                    "GET  /pool-stats",
+                ],
+            },
+            "observability": {
+                "prefix": "/api/v1/sample/observability",
+                "description": "관찰성 (structlog 규칙, Prometheus 지표, 컨텍스트)",
+                "endpoints": [
+                    "GET  /log-demo",
+                    "POST /business-op",
+                    "GET  /context",
+                    "GET  /metrics-demo",
                 ],
             },
         },

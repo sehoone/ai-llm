@@ -1,10 +1,26 @@
 """Long-term memory mixin for LangGraphAgent."""
 
 from mem0 import AsyncMemory
+from mem0.vector_stores.pgvector import PGVector
 
 from src.common.config import settings
 from src.common.logging import logger
 from src.common.services.database import database_service
+
+# mem0ai hardcodes 'public' schema in list_cols(); patch it to use our schema.
+_schema = settings.POSTGRES_SCHEMA
+
+
+def _list_cols_patched(self):
+    with self._get_cursor() as cur:
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s",
+            (_schema,),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+PGVector.list_cols = _list_cols_patched
 
 
 class MemoryMixin:
@@ -69,17 +85,18 @@ class MemoryMixin:
             embedder_resource = await self._resolve_embedding_resource(settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
             llm_cfg = self._build_mem0_component_config(llm_resource, settings.LONG_TERM_MEMORY_MODEL)
             embedder_cfg = self._build_mem0_component_config(embedder_resource, settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
-            self.memory = AsyncMemory.from_config(
+            conn_str = (
+                f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
+                f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+                f"?options=-c%20search_path%3D{settings.POSTGRES_SCHEMA}%2Cpublic"
+            )
+            self.memory = await AsyncMemory.from_config(
                 config_dict={
                     "vector_store": {
                         "provider": "pgvector",
                         "config": {
                             "collection_name": settings.LONG_TERM_MEMORY_COLLECTION_NAME,
-                            "dbname": settings.POSTGRES_DB,
-                            "user": settings.POSTGRES_USER,
-                            "password": settings.POSTGRES_PASSWORD,
-                            "host": settings.POSTGRES_HOST,
-                            "port": settings.POSTGRES_PORT,
+                            "connection_string": conn_str,
                         },
                     },
                     "llm": llm_cfg,
@@ -102,22 +119,28 @@ class MemoryMixin:
             return ""
 
     async def _update_long_term_memory(self, user_id: str, messages: list[dict], metadata: dict = None) -> None:
-        """Persist *messages* to long-term memory, stripping image content first."""
+        """Persist *messages* to long-term memory, keeping only user/assistant text turns."""
         try:
             memory = await self._long_term_memory()
 
             filtered: list[dict] = []
             for msg in messages:
-                if isinstance(msg.get("content"), list):
+                role = msg.get("role")
+                if role not in ("user", "assistant"):
+                    continue
+                content = msg.get("content")
+                if isinstance(content, list):
                     text_parts = [
                         block["text"]
-                        for block in msg["content"]
+                        for block in content
                         if isinstance(block, dict) and block.get("type") == "text" and "text" in block
-                    ] + [block for block in msg["content"] if isinstance(block, str)]
+                    ] + [block for block in content if isinstance(block, str)]
                     if text_parts:
-                        filtered.append({"role": msg.get("role"), "content": "\n".join(text_parts)})
-                else:
-                    filtered.append(msg)
+                        filtered.append({"role": role, "content": "\n".join(text_parts)})
+                elif content:
+                    cleaned = content.replace("[Deep Thinking - Analysis]\n", "").replace("[Deep Thinking - Answer]\n", "").strip()
+                    if cleaned:
+                        filtered.append({"role": role, "content": cleaned})
 
             if filtered:
                 await memory.add(filtered, user_id=str(user_id), metadata=metadata)
