@@ -69,7 +69,7 @@ class MemoryMixin:
             embedder_resource = await self._resolve_embedding_resource(settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
             llm_cfg = self._build_mem0_component_config(llm_resource, settings.LONG_TERM_MEMORY_MODEL)
             embedder_cfg = self._build_mem0_component_config(embedder_resource, settings.LONG_TERM_MEMORY_EMBEDDER_MODEL)
-            self.memory = await AsyncMemory.from_config(
+            self.memory = AsyncMemory.from_config(
                 config_dict={
                     "vector_store": {
                         "provider": "pgvector",
