@@ -139,8 +139,9 @@ async def chat_node(state: DeepThinkingState, config: RunnableConfig) -> Command
     messages = [SystemMessage(content=system_prompt)] + filtered_messages
     response = await llm.ainvoke(messages, config=config)
 
-    # 딥씽킹 모드에서는 answer 태그 추가
-    response.content = f"[Deep Thinking - Answer]\n{response.content}"
+    # 딥씽킹 모드에서만 answer 태그 추가 (일반 모드에는 태그 없이 반환)
+    if state.is_deep_thinking:
+        response.content = f"[Deep Thinking - Answer]\n{response.content}"
 
     # verify 노드로 품질 검증
     return Command(
