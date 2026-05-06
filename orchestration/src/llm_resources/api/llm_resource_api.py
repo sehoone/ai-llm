@@ -39,7 +39,7 @@ async def read_chat_models(user: User = Depends(get_current_user)):
     ]
 
 
-@router.get("/", response_model=List[LLMResourceResponse])
+@router.get("", response_model=List[LLMResourceResponse])
 async def read_llm_resources(user: User = Depends(_require_admin)):
     """List all LLM resources ordered by priority. Admin only.
 
@@ -49,7 +49,7 @@ async def read_llm_resources(user: User = Depends(_require_admin)):
     return await database_service.get_llm_resources()
 
 
-@router.post("/", response_model=LLMResourceResponse)
+@router.post("", response_model=LLMResourceResponse)
 async def create_llm_resource(resource: LLMResourceCreate, user: User = Depends(_require_admin)):
     """Create a new LLM resource configuration. Admin only.
 
