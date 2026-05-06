@@ -81,6 +81,7 @@ async def chat(
             session.id,
             user_id=session.user_id,
             is_deep_thinking=chat_request.is_deep_thinking,
+            rag_group=chat_request.rag_group,
         )
 
         if chat_request.messages:
@@ -236,6 +237,7 @@ async def chat_stream(
                         session.id,
                         user_id=session.user_id,
                         is_deep_thinking=chat_request.is_deep_thinking,
+                        rag_group=chat_request.rag_group,
                     ):
                         full_response += chunk
                         response = StreamResponse(content=chunk, done=False)

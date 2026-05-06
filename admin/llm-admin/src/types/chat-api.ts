@@ -23,6 +23,7 @@ export interface ChatRequest {
   session_id: string
   messages: Message[]
   is_deep_thinking?: boolean
+  rag_group?: string
 }
 
 export interface ChatResponse {

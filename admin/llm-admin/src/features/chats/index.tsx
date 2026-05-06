@@ -31,6 +31,7 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { ChatArea } from './components/chat-area'
 import { ChatInput } from './components/chat-input'
 import { chatService } from '@/api/chat'
+import { ragGroupApi, type RagGroup } from '@/api/rag-groups'
 import { type ChatSession, type Message, type FileAttachment } from '@/types/chat-api'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
@@ -45,10 +46,13 @@ export function Chats() {
   const [isSending, setIsSending] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
+  const [ragGroups, setRagGroups] = useState<RagGroup[]>([])
+  const [selectedRagGroup, setSelectedRagGroup] = useState<string | null>(null)
 
-  // Fetch sessions on mount
+  // Fetch sessions and RAG groups on mount
   useEffect(() => {
     loadSessions()
+    loadRagGroups()
   }, [])
 
   // Fetch messages when session is selected
@@ -67,6 +71,15 @@ export function Chats() {
     } catch (error) {
       logger.error('Failed to load sessions', error)
       toast.error('Failed to load sessions')
+    }
+  }
+
+  const loadRagGroups = async () => {
+    try {
+      const data = await ragGroupApi.listGroups()
+      setRagGroups(data)
+    } catch (error) {
+      logger.error('Failed to load RAG groups', error)
     }
   }
 
@@ -196,7 +209,8 @@ export function Chats() {
             logger.error(error)
             toast.error('Failed to send message')
         },
-        isDeepThinking
+        isDeepThinking,
+        selectedRagGroup ?? undefined
       )
     } catch (error) {
       logger.error('Failed to send message', error)
@@ -205,7 +219,7 @@ export function Chats() {
       setIsSending(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSessionId, isSending])
+  }, [selectedSessionId, isSending, selectedRagGroup])
 
   const filteredSessions = sessions.filter((s) =>
     (s.name || 'New Chat').toLowerCase().includes(search.trim().toLowerCase())
@@ -351,7 +365,13 @@ export function Chats() {
               <ChatArea messages={messages} isLoading={isSending && messages.length > 0 && messages[messages.length-1].role !== 'assistant'} />
 
               {/* Input Area */}
-              <ChatInput isSending={isSending} onSend={handleSendMessage} />
+              <ChatInput
+                isSending={isSending}
+                onSend={handleSendMessage}
+                ragGroups={ragGroups}
+                selectedRagGroup={selectedRagGroup}
+                onRagGroupChange={setSelectedRagGroup}
+              />
             </div>
           ) : (
             <div

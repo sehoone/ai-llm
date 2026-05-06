@@ -9,6 +9,22 @@ SET search_path TO llmonl, public;
 -- Enable pgvector extension for vector embeddings
 CREATE EXTENSION IF NOT EXISTS vector;
 
+CREATE TABLE longterm_memory (                                                                                                                                                                                                                   
+    id  UUID  PRIMARY KEY,                                                                                                                                                                                                                        
+    vector  vector(1536),
+    payload JSONB
+);
+  
+CREATE TABLE llmonl.mem0migrations (                                                                                                                                                                                       
+    id UUID  PRIMARY KEY,
+    vector  vector(1536),                                                                                                                                                                                                  
+    payload JSONB                                                                                                                                                                                                        
+  );
+
+CREATE INDEX mem0migrations_hnsw_idx
+    ON llmonl.mem0migrations
+    USING hnsw (vector vector_cosine_ops);
+
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -331,4 +347,54 @@ CREATE TABLE IF NOT EXISTS workflow_endpoint (
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_workflow_id ON workflow_endpoint(workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_user_id ON workflow_endpoint(user_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_path_method ON workflow_endpoint(path, method) WHERE is_active = TRUE;
+
+-- ── LangGraph checkpoint tables ───────────────────────────────
+-- LangGraph AsyncPostgresSaver가 생성하는 테이블을 명시적으로 정의.
+-- 서버 최초 기동 시 setup()이 아래 테이블을 자동 생성하므로, 신규 환경에서는 실행 불필요.
+-- 기존 환경에서 public 스키마에 생성된 테이블을 이전할 때 아래 DDL을 사용.
+
+-- [신규 환경] 직접 생성
+CREATE TABLE IF NOT EXISTS checkpoint_migrations (
+    v INTEGER PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS checkpoints (
+    thread_id             TEXT NOT NULL,
+    checkpoint_ns         TEXT NOT NULL DEFAULT '',
+    checkpoint_id         TEXT NOT NULL,
+    parent_checkpoint_id  TEXT,
+    type                  TEXT,
+    checkpoint            JSONB NOT NULL,
+    metadata              JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+);
+
+CREATE INDEX IF NOT EXISTS checkpoints_thread_id_idx ON checkpoints(thread_id);
+
+CREATE TABLE IF NOT EXISTS checkpoint_blobs (
+    thread_id      TEXT NOT NULL,
+    checkpoint_ns  TEXT NOT NULL DEFAULT '',
+    channel        TEXT NOT NULL,
+    version        TEXT NOT NULL,
+    type           TEXT NOT NULL,
+    blob           BYTEA,
+    PRIMARY KEY (thread_id, checkpoint_ns, channel, version)
+);
+
+CREATE INDEX IF NOT EXISTS checkpoint_blobs_thread_id_idx ON checkpoint_blobs(thread_id);
+
+CREATE TABLE IF NOT EXISTS checkpoint_writes (
+    thread_id      TEXT NOT NULL,
+    checkpoint_ns  TEXT NOT NULL DEFAULT '',
+    checkpoint_id  TEXT NOT NULL,
+    task_id        TEXT NOT NULL,
+    idx            INTEGER NOT NULL,
+    channel        TEXT NOT NULL,
+    type           TEXT,
+    blob           BYTEA NOT NULL,
+    task_path      TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
+);
+
+CREATE INDEX IF NOT EXISTS checkpoint_writes_thread_id_idx ON checkpoint_writes(thread_id);
 

@@ -107,9 +107,10 @@ export const chatService = {
     messages: Message[],
     onChunk: (content: string, done: boolean, title?: string) => void,
     onError: (error: any) => void,
-    isDeepThinking?: boolean
+    isDeepThinking?: boolean,
+    ragGroup?: string
   ) => {
-    const request: ChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking }
+    const request: ChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking, rag_group: ragGroup || undefined }
 
     try {
       let buffer = ''

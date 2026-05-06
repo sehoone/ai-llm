@@ -1,16 +1,21 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Plus, Send, BrainCircuit, X, FileText, Image as ImageIcon } from 'lucide-react'
+import { Plus, Send, BrainCircuit, X, FileText, Image as ImageIcon, Database } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import type { RagGroup } from '@/api/rag-groups'
 
 interface ChatInputProps {
   isSending: boolean
   onSend: (message: string, files: File[], isDeepThinking: boolean) => void
+  ragGroups?: RagGroup[]
+  selectedRagGroup?: string | null
+  onRagGroupChange?: (group: string | null) => void
 }
 
-export function ChatInput({ isSending, onSend }: ChatInputProps) {
+export function ChatInput({ isSending, onSend, ragGroups = [], selectedRagGroup, onRagGroupChange }: ChatInputProps) {
   const [inputMessage, setInputMessage] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isDeepThinking, setIsDeepThinking] = useState(true)
@@ -33,6 +38,10 @@ export function ChatInput({ isSending, onSend }: ChatInputProps) {
     onSend(inputMessage, selectedFiles, isDeepThinking)
     setInputMessage('')
     setSelectedFiles([])
+  }
+
+  const handleRagGroupChange = (value: string) => {
+    onRagGroupChange?.(value === '__none__' ? null : value)
   }
 
   return (
@@ -84,6 +93,27 @@ export function ChatInput({ isSending, onSend }: ChatInputProps) {
           >
             <BrainCircuit size={20} className={cn('stroke-muted-foreground', isDeepThinking && 'stroke-blue-600 dark:stroke-blue-400')} />
           </Button>
+          {ragGroups.length > 0 && (
+            <Select value={selectedRagGroup ?? '__none__'} onValueChange={handleRagGroupChange}>
+              <SelectTrigger className={cn(
+                'h-8 w-auto min-w-0 border-0 shadow-none px-2 gap-1 focus:ring-0',
+                selectedRagGroup && 'text-emerald-600 dark:text-emerald-400'
+              )}>
+                <Database size={16} className={cn('shrink-0', selectedRagGroup ? 'stroke-emerald-600 dark:stroke-emerald-400' : 'stroke-muted-foreground')} />
+                {selectedRagGroup && (
+                  <span className="text-xs truncate max-w-[80px]">{selectedRagGroup}</span>
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">RAG 사용 안함</SelectItem>
+                {ragGroups.map((group) => (
+                  <SelectItem key={group.id} value={group.name}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <label className='flex-1'>
             <span className='sr-only'>Chat Text Box</span>
             <input

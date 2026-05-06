@@ -23,6 +23,7 @@ from src.common.schemas.graph import GraphState
 from src.chatbot.schemas.chat_schema import Message
 from src.common.services.graph import dump_messages
 from src.common.services.llm import LLMService
+from src.rag.services.rag_service import rag_service
 
 def _get_langfuse_callbacks():
     if settings.langfuse_is_enabled:
@@ -75,7 +76,12 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
                     max_size=settings.POSTGRES_POOL_SIZE,
                     # autocommit: checkpoint마다 즉시 커밋
                     # prepare_threshold=None: pgbouncer 호환 (prepared statement 비활성화)
-                    kwargs={"autocommit": True, "connect_timeout": 5, "prepare_threshold": None},
+                    kwargs={
+                        "autocommit": True,
+                        "connect_timeout": 5,
+                        "prepare_threshold": None,
+                        "options": f"-c search_path={settings.POSTGRES_SCHEMA},public",
+                    },
                 )
                 await self._connection_pool.open()
                 logger.info(
@@ -121,9 +127,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
 
                 connection_pool = await self._get_connection_pool()
                 if connection_pool:
-                    # setup(): 체크포인트 테이블 생성 (이미 존재하면 스킵)
                     checkpointer = AsyncPostgresSaver(connection_pool)
-                    await checkpointer.setup()
                 else:
                     # 프로덕션: checkpointer 없이 진행 / 그 외: 예외 발생
                     checkpointer = None
@@ -162,6 +166,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         is_deep_thinking: bool = False,
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
+        rag_group: Optional[str] = None,
         model_name: Optional[str] = None,
     ) -> list[dict]:
         """Run the graph to completion and return all resulting messages.
@@ -187,6 +192,8 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
 
         config = self._build_config(session_id, user_id)
         relevant_memory = (await self._get_relevant_memory(user_id, messages[-1].content)) or "No relevant memory found."
+
+        messages = await self._inject_rag_context(messages, rag_key, user_id, rag_group)
 
         try:
             async with asyncio.timeout(settings.GRAPH_RESPONSE_TIMEOUT):
@@ -220,6 +227,7 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
         is_deep_thinking: bool = False,
         system_instructions: Optional[str] = None,
         rag_key: Optional[str] = None,
+        rag_group: Optional[str] = None,
         model_name: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Stream the graph's token output as an async generator.
@@ -247,6 +255,8 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
 
         config = self._build_config(session_id, user_id)
         relevant_memory = (await self._get_relevant_memory(user_id, messages[-1].content)) or "No relevant memory found."
+
+        messages = await self._inject_rag_context(messages, rag_key, user_id, rag_group)
 
         try:
             think_tag_sent = answer_tag_sent = False
@@ -339,6 +349,30 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
             raise
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    async def _inject_rag_context(
+        self, messages: list[Message], rag_key: Optional[str], user_id: Optional[str], rag_group: Optional[str] = None
+    ) -> list[Message]:
+        """Augment the last user message with RAG retrieval context."""
+        if not (rag_key or rag_group) or not messages:
+            return messages
+
+        last = messages[-1]
+        if last.role != "user" or not isinstance(last.content, str):
+            return messages
+
+        uid = int(user_id) if user_id and str(user_id).isdigit() else None
+
+        if rag_group:
+            context = await rag_service.get_rag_group_context(rag_group, last.content, uid)
+        else:
+            context = await rag_service.get_rag_context(rag_key, last.content, uid)
+
+        if not context:
+            return messages
+
+        augmented = last.model_copy(update={"content": last.content + context})
+        return list(messages[:-1]) + [augmented]
 
     def _create_memory_task(self, coro, session_id: str) -> asyncio.Task:
         """Schedule a background memory update with a 30 s timeout and structured error logging."""

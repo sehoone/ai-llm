@@ -7,6 +7,7 @@ from typing import List, Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlmodel import (
     Session,
+    select,
     text,
 )
 
@@ -16,6 +17,7 @@ from src.common.services.database import database_service
 from src.common.services.embedding import embedding_service
 from src.common.services.llm import llm_service
 from src.chatbot.schemas.chat_schema import Message
+from src.rag.models.rag_key_config_model import RagKeyConfig
 
 
 class RAGService:
@@ -600,6 +602,64 @@ Context from documents:
         except Exception as e:
             logger.error("llm_stream_summary_failed", error=str(e))
             yield json.dumps({"type": "error", "data": "Failed to generate summary."})
+
+
+    async def get_rag_group_context(self, rag_group: str, query: str, user_id: Optional[int] = None) -> str:
+        """Retrieve RAG context for a query across an entire group.
+
+        Args:
+            rag_group: The RAG group name to search.
+            query: The user query.
+            user_id: The requesting user's ID.
+
+        Returns:
+            str: Formatted context string, or empty string if no results.
+        """
+        try:
+            results = await self.search_rag_group(rag_group, "chatbot_shared", user_id, query, limit=5)
+            if not results:
+                return ""
+            context = "\n\n".join(r["content"] for r in results)
+            logger.info("rag_group_context_retrieved", rag_group=rag_group, chunk_count=len(results))
+            return f"\n\nContext from knowledge base:\n{context}"
+        except Exception as e:
+            logger.error("get_rag_group_context_failed", rag_group=rag_group, error=str(e))
+            return ""
+
+    async def get_rag_context(self, rag_key: str, query: str, user_id: Optional[int] = None) -> str:
+        """Retrieve RAG context for a query, resolving rag_type from config.
+
+        Args:
+            rag_key: The RAG key to search.
+            query: The user query to embed and search against.
+            user_id: The requesting user's ID (used for user_isolated rag_type).
+
+        Returns:
+            str: Formatted context string to inject into the prompt, or empty string if no results.
+        """
+        try:
+            with Session(self.db_service.engine) as session:
+                config = session.exec(
+                    select(RagKeyConfig).where(RagKeyConfig.rag_key == rag_key)
+                ).first()
+
+            if not config:
+                logger.warning("rag_key_config_not_found", rag_key=rag_key)
+                return ""
+
+            search_user_id = user_id if config.rag_type == "user_isolated" else None
+            results = await self.search_rag(rag_key, config.rag_type, search_user_id, query, limit=5)
+
+            if not results:
+                return ""
+
+            context = "\n\n".join(r["content"] for r in results)
+            logger.info("rag_context_retrieved", rag_key=rag_key, chunk_count=len(results))
+            return f"\n\nContext from knowledge base:\n{context}"
+
+        except Exception as e:
+            logger.error("get_rag_context_failed", rag_key=rag_key, error=str(e))
+            return ""
 
 
 # Create singleton instance
