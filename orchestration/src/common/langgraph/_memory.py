@@ -1,5 +1,7 @@
 """Long-term memory mixin for LangGraphAgent."""
 
+import inspect
+
 from mem0 import AsyncMemory
 from mem0.vector_stores.pgvector import PGVector
 
@@ -90,7 +92,7 @@ class MemoryMixin:
                 f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
                 f"?options=-c%20search_path%3D{settings.POSTGRES_SCHEMA}%2Cpublic"
             )
-            self.memory = await AsyncMemory.from_config(
+            result = AsyncMemory.from_config(
                 config_dict={
                     "vector_store": {
                         "provider": "pgvector",
@@ -103,6 +105,8 @@ class MemoryMixin:
                     "embedder": embedder_cfg,
                 }
             )
+            # from_config is sync in newer mem0ai versions, async in older ones
+            self.memory = await result if inspect.isawaitable(result) else result
         return self.memory
 
     async def _get_relevant_memory(self, user_id: str, query: str) -> str:
