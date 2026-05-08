@@ -116,7 +116,7 @@ class MemoryMixin:
         """
         try:
             memory = await self._long_term_memory()
-            results = await memory.search(user_id=str(user_id), query=query)
+            results = await memory.search(query=query, filters={"user_id": str(user_id)})
             return "\n".join([f"* {r['memory']}" for r in results["results"]])
         except Exception as e:
             logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
