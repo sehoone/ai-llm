@@ -78,7 +78,7 @@ async def update_session_name(
         sanitized_session_id = sanitize_string(session_id)
         sanitized_name = sanitize_string(name)
 
-        session = await get_owned_chat_session(sanitized_session_id, user)
+        await get_owned_chat_session(sanitized_session_id, user)
 
         # Update the session name
         updated = await database_service.update_session_name(sanitized_session_id, sanitized_name)
@@ -106,7 +106,7 @@ async def delete_session(session_id: str, user: User = Depends(get_current_user)
         # Sanitize inputs
         sanitized_session_id = sanitize_string(session_id)
 
-        session = await get_owned_chat_session(sanitized_session_id, user)
+        await get_owned_chat_session(sanitized_session_id, user)
 
         # Delete the session
         await database_service.delete_session(sanitized_session_id)

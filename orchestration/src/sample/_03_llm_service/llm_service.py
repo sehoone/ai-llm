@@ -21,14 +21,12 @@
 """
 
 import random
-import time
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 from itertools import groupby
 from typing import Dict, List, Optional
 
 from langchain_litellm import ChatLiteLLM
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from openai import APIError, APITimeoutError, RateLimitError
 from tenacity import (
@@ -247,7 +245,6 @@ class LLMService:
 
         if active:
             candidates = self._get_candidates(active, model_name)
-            last_error = None
 
             for resource in candidates:
                 cb = self._get_circuit_breaker(resource.id)
@@ -259,7 +256,6 @@ class LLMService:
                     return response
                 except Exception as e:
                     cb.record_failure()
-                    last_error = e
                     print(f"  실패: {resource.name} — {e}")
 
         # 정적 레지스트리 circular fallback

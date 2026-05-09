@@ -8,7 +8,6 @@ from itertools import groupby
 from typing import Any, Dict, List, Optional
 
 import litellm
-from src.common.config import settings
 from src.common.logging import logger
 from src.llm_resources.models.llm_resource_model import LLMResource
 

@@ -1,9 +1,9 @@
 """This file contains the graph utilities for the application."""
 
-from typing import List, Union
+from typing import Union
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage
 from langchain_core.messages import trim_messages as _trim_messages
 
 from src.common.config import settings
@@ -28,7 +28,7 @@ def dump_messages(messages: Union[list[Message], list[dict]]) -> list[dict]:
         if isinstance(message, dict):
             result.append(message)
             continue
-        
+
         # Handle LangChain BaseMessage objects (HumanMessage, AIMessage, etc.)
         if isinstance(message, BaseMessage):
             role_map = {
@@ -46,26 +46,26 @@ def dump_messages(messages: Union[list[Message], list[dict]]) -> list[dict]:
                 msg_dict["tool_calls"] = message.tool_calls
             result.append(msg_dict)
             continue
-        
+
         # Handle Message schema objects
         if not hasattr(message, 'role') or not hasattr(message, 'content'):
             # Skip invalid message formats
             logger.warning("invalid_message_format", message_type=type(message).__name__)
             continue
-            
+
         msg_dict = {"role": message.role}
-        
+
         # Check if message has file attachments
         if hasattr(message, 'files') and message.files and message.role == "user":
             # Build content array for multimodal message
             content_parts = []
-            
+
             # Add text content
             content_parts.append({
                 "type": "text",
                 "text": message.content
             })
-            
+
             # Add file attachments
             for file in message.files:
                 if file.is_image():
@@ -93,13 +93,13 @@ def dump_messages(messages: Union[list[Message], list[dict]]) -> list[dict]:
                         "type": "text",
                         "text": f"\n\n[PDF file attached: {file.filename}. PDF content extraction not yet implemented.]"
                     })
-            
+
             msg_dict["content"] = content_parts
         else:
             msg_dict["content"] = message.content
-        
+
         result.append(msg_dict)
-    
+
     return result
 
 
@@ -151,33 +151,33 @@ def process_llm_response(response: BaseMessage) -> BaseMessage:
 
 def _replace_images_with_placeholder(message: dict) -> dict:
     """Replace image content in a message with a text placeholder.
-    
+
     This is used to reduce token usage by not sending the same image
     multiple times in conversation history.
-    
+
     Args:
         message: A message dict that may contain multimodal content.
-        
+
     Returns:
         dict: Message with images replaced by placeholders.
     """
     if not isinstance(message.get("content"), list):
         return message
-    
+
     new_content = []
     image_count = 0
-    
+
     for part in message["content"]:
         if isinstance(part, dict) and part.get("type") == "image_url":
             image_count += 1
         else:
             new_content.append(part)
-    
+
     # Add placeholder for removed images
     if image_count > 0:
         placeholder_text = f"[이전에 첨부된 이미지 {image_count}개 - 이미 분석 완료됨]"
         new_content.append({"type": "text", "text": placeholder_text})
-    
+
     return {"role": message["role"], "content": new_content if len(new_content) > 1 else new_content[0].get("text", "") if new_content else ""}
 
 
@@ -224,7 +224,7 @@ def _sanitize_tool_sequences(messages: list) -> list:
 
 def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt: str) -> list[dict]:
     """Prepare the messages for the LLM.
-    
+
     Images are only kept in the last user message to reduce token usage.
     Previous images are replaced with placeholders.
 
@@ -238,7 +238,7 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
     """
     dumped = dump_messages(messages)
     # logger.debug("prepare_messages_dumped", message_count=len(dumped), messages=dumped)
-    
+
     # Replace images in all messages except the last user message
     # Find the last user message index
     last_user_idx = -1
@@ -246,7 +246,7 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
         if dumped[i].get("role") == "user":
             last_user_idx = i
             break
-    
+
     # Process messages: replace images with placeholders except for the last user message
     processed_messages = []
     for i, msg in enumerate(dumped):
@@ -258,7 +258,7 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
             processed_messages.append(_replace_images_with_placeholder(msg))
         else:
             processed_messages.append(msg)
-    
+
     try:
         trimmed_messages = _trim_messages(
             processed_messages,

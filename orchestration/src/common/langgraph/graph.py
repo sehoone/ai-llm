@@ -28,7 +28,11 @@ from src.rag.services.rag_service import rag_service
 def _get_langfuse_callbacks():
     if settings.langfuse_is_enabled:
         from langfuse.langchain import CallbackHandler
-        return [CallbackHandler()]
+        return [CallbackHandler(
+            public_key=settings.LANGFUSE_PUBLIC_KEY,
+            secret_key=settings.LANGFUSE_SECRET_KEY,
+            host=settings.LANGFUSE_HOST,
+        )]
     return []
 
 

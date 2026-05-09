@@ -12,7 +12,7 @@ class ApiKeyCreate(ApiKeyBase):
 class ApiKeyRead(ApiKeyBase):
     id: int
     user_id: int
-    key: str 
+    key: str
     is_active: bool
     created_at: datetime
 

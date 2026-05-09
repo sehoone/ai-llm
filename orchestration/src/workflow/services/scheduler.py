@@ -6,9 +6,6 @@ The scheduler is started in the FastAPI lifespan and shut down cleanly on exit.
 
 from __future__ import annotations
 
-import asyncio
-import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler

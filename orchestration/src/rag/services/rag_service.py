@@ -16,7 +16,6 @@ from src.common.logging import logger
 from src.common.services.database import database_service
 from src.common.services.embedding import embedding_service
 from src.common.services.llm import llm_service
-from src.chatbot.schemas.chat_schema import Message
 from src.rag.models.rag_key_config_model import RagKeyConfig
 
 
@@ -221,7 +220,7 @@ class RAGService:
                         logger.error("user_id_required_for_user_isolated_rag")
                         return []
                     query_str = """
-                    SELECT 
+                    SELECT
                         re.id,
                         re.doc_id,
                         d.filename,
@@ -247,7 +246,7 @@ class RAGService:
                 else:  # chatbot_shared
                     # Global search (no user filter)
                     query_str = """
-                    SELECT 
+                    SELECT
                         re.id,
                         re.doc_id,
                         d.filename,
@@ -497,7 +496,7 @@ Context from documents:
             "If no context is provided or the information is not in the context, answer based on your general knowledge "
             "but indicate that the answer is not from the retrieved documents."
         )
-        
+
         user_message = f"Query: {query}\n\nContext:\n{context_str if context_str else 'No relevant documents found.'}"
 
         try:
@@ -530,7 +529,7 @@ Context from documents:
         system_prompt: Optional[str] = None,
     ):
         """Stream search results and LLM summary.
-        
+
         Yields:
              JSON strings containing 'type' and 'data'
         """
@@ -549,7 +548,7 @@ Context from documents:
             for i, res in enumerate(results):
                 context_parts.append(f"Source {i+1} ({res.get('filename', 'Unknown')}):\n{res.get('content', '')}")
             context_str = "\n\n".join(context_parts)
-        
+
         # 2. Yield Sources immediately
         # Truncate content for the response to avoid huge payloads, similar to non-streaming
         safe_results = [
@@ -572,7 +571,7 @@ Context from documents:
             "but indicate that the answer is not from the retrieved documents."
         )
         system_prompt = system_prompt or default_system_prompt
-        
+
         user_message = f"Query: {query}\n\nContext:\n{context_str if context_str else 'No relevant documents found.'}"
 
         try:
@@ -581,7 +580,7 @@ Context from documents:
                     SystemMessage(content=system_prompt),
                     HumanMessage(content=user_message)
                 ],
-                model_name=model 
+                model_name=model
             ):
                 content = chunk.content
                 # Handle list content (e.g. from reasoning models or multimodal)
@@ -598,7 +597,7 @@ Context from documents:
 
                 if content:
                     yield json.dumps({"type": "chunk", "data": str(content)})
-            
+
         except Exception as e:
             logger.error("llm_stream_summary_failed", error=str(e))
             yield json.dumps({"type": "error", "data": "Failed to generate summary."})

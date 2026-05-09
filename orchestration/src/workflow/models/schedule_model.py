@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Optional
 
-from sqlalchemy import Column, JSON, Text
+from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel
 
 

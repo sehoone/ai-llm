@@ -193,7 +193,6 @@ class WorkflowEngine:
         """워크플로우를 실행하고 SSE 이벤트를 yield한다."""
         context: Dict[str, Any] = {"input": initial_input or {}}
         results: Dict[str, NodeResult] = {}
-        node_map = {n.id: n for n in workflow.nodes}
 
         # 이벤트 큐 (SSE 이벤트를 순서대로 전달)
         event_queue: asyncio.Queue[ExecutionEvent] = asyncio.Queue()

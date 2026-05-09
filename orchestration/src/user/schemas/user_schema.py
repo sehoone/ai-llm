@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr
 from src.user.models.user_model import UserRole
 
 class UserBase(BaseModel):
@@ -20,6 +20,6 @@ class UserUpdate(BaseModel):
 
 class UserRead(UserBase):
     id: int
-    
+
     class Config:
         from_attributes = True

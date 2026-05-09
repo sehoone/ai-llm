@@ -20,8 +20,8 @@ from src.common.services.sanitization import sanitize_string
 
 
 def create_access_token(
-    thread_id: str, 
-    expires_delta: Optional[timedelta] = None, 
+    thread_id: str,
+    expires_delta: Optional[timedelta] = None,
     claims: Optional[dict] = None
 ) -> Token:
     """Create a new access token for a thread or user.
@@ -45,7 +45,7 @@ def create_access_token(
         "iat": datetime.now(UTC),
         "jti": sanitize_string(f"{thread_id}-{datetime.now(UTC).timestamp()}"),  # Add unique token identifier
     }
-    
+
     if claims:
         to_encode.update(claims)
 

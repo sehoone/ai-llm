@@ -5,7 +5,7 @@ for real-time conversation and evaluation.
 """
 
 import json
-from typing import Dict, List, Any
+from typing import Dict, List
 import httpx
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect

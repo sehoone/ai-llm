@@ -32,9 +32,8 @@
 
 import json
 import re
-from typing import Optional
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END
 from langgraph.graph.state import Command

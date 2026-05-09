@@ -21,7 +21,7 @@ class DocumentResponse(BaseModel):
 
 class DocumentDetailResponse(DocumentResponse):
     """Response model for full document details."""
-    
+
     content: str
 
 

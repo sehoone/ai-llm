@@ -31,7 +31,7 @@ class CustomGPTService:
             is_public=gpt_create.is_public,
             model=gpt_create.model
         )
-        
+
         with Session(database_service.engine) as session:
             session.add(gpt)
             session.commit()

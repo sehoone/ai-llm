@@ -15,7 +15,6 @@ from typing import (
     Any,
     Dict,
     List,
-    Optional,
 )
 
 import structlog
@@ -174,7 +173,7 @@ def setup_logging() -> None:
     """
     # Determine log level based on DEBUG setting
     log_level = logging.DEBUG if settings.DEBUG else logging.INFO
-    
+
     # Create file handler for JSON logs
     file_handler = JsonlFileHandler(get_log_file_path())
     file_handler.setLevel(log_level)

@@ -15,7 +15,7 @@ from typing import (
 from langchain_litellm import ChatLiteLLM
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
-from langchain_openai import ChatOpenAI, AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from src.common.services.database import database_service
 from src.llm_resources.models.llm_resource_model import LLMResource
 from openai import (

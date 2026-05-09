@@ -14,20 +14,18 @@ Routes:
     5. Request-ID, Logging, Metrics 미들웨어 체인 동작 확인
 """
 
-import asyncio
 import json
 import time
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.chatbot.api.chatbot_api import agent
 from src.chatbot.schemas.chat_schema import Message
 from src.common.limiter import limiter
-from src.common.config import settings
 
 router = APIRouter()
 

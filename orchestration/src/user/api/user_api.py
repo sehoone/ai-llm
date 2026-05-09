@@ -1,6 +1,6 @@
 """User management endpoints. Admin access required for all operations."""
 
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from src.user.schemas.user_schema import UserRead, UserCreate, UserUpdate
 from src.common.services.database import database_service

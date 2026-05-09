@@ -1,6 +1,5 @@
 """This file contains the GPT session model for the application."""
 
-from typing import Optional
 
 from sqlmodel import Field
 

@@ -9,7 +9,6 @@ from datetime import timedelta
 from fastapi import (
     APIRouter,
     Depends,
-    Form,
     HTTPException,
     Request,
 )
@@ -75,7 +74,7 @@ async def get_current_user(
         # How to know if we should check the DB revocation list?
         # 1. If it has a specific claim "type": "api_key"
         # 2. Or we just decode it.
-        
+
         payload = verify_token(token)
         if payload is None:
              # It might be a raw opaque token (sk-...)
@@ -88,7 +87,7 @@ async def get_current_user(
                 if user:
                     bind_context(user_id=user.id)
                     return user
-            
+
             # Invalid JWT and not an opaque token
             logger.error("invalid_token_payload", token_part=token[:10] + "...")
             raise HTTPException(
@@ -96,10 +95,10 @@ async def get_current_user(
                 detail="Invalid authentication credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            
+
         user_id = payload.get("sub")
         token_type = payload.get("type")
-        
+
         # If it is an API Key JWT, we MUST check if it is still active in the DB
         if token_type == "api_key":
             # The "key" stored in DB matches the JWT string
@@ -108,7 +107,7 @@ async def get_current_user(
                  # Revoked or deleted
                  logger.warning("api_key_revoked_or_not_found", user_id=user_id)
                  raise HTTPException(status_code=401, detail="API Key is invalid or revoked")
-                 
+
         # Verify user exists in database
         user_id_int = int(user_id)
         user = await database_service.get_user(user_id_int)

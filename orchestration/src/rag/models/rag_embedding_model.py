@@ -25,10 +25,10 @@ class RAGEmbedding(BaseModel, table=True):
         content: The chunk content (text)
         embedding: The vector embedding (stored as pgvector vector type in DB, handled via raw SQL)
         created_at: When the embedding was created
-    
+
     Note:
-        The embedding field is defined as Any type because we use raw SQL for 
-        insert/query operations with pgvector's vector type. SQLModel/Pydantic 
+        The embedding field is defined as Any type because we use raw SQL for
+        insert/query operations with pgvector's vector type. SQLModel/Pydantic
         doesn't natively support pgvector's Vector type.
     """
 

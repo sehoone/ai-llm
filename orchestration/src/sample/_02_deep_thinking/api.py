@@ -136,8 +136,6 @@ async def deep_thinking_stream(body: DeepThinkingRequest):
         import json
         yield f"data: {{\"session_id\":\"{session_id}\"}}\n\n"
 
-        current_section = None
-
         async for token in agent.get_stream_response(
             messages=messages,
             session_id=session_id,
@@ -149,15 +147,12 @@ async def deep_thinking_stream(body: DeepThinkingRequest):
             # 섹션 헤더 감지 → event: section 이벤트로 전달
             if "[Deep Thinking - Analysis]" in token:
                 yield f"event: section\ndata: {json.dumps({'section': 'analysis'})}\n\n"
-                current_section = "analysis"
                 continue
             if "[Deep Thinking - Verification" in token:
                 yield f"event: section\ndata: {json.dumps({'section': 'verification'})}\n\n"
-                current_section = "verification"
                 continue
             if "[Deep Thinking - Answer]" in token:
                 yield f"event: section\ndata: {json.dumps({'section': 'answer'})}\n\n"
-                current_section = "answer"
                 continue
 
             safe = token.replace("\n", "\\n")

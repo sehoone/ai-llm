@@ -25,7 +25,6 @@ from src.chatbot.deps import get_owned_chat_session
 from src.chatbot.services.file_storage_service import FileStorageService
 from src.common.config import settings
 from src.common.langgraph.graph import LangGraphAgent
-from src.common.limiter import limiter
 from src.common.logging import logger
 from src.common.metrics import llm_stream_duration_seconds
 from src.user.models.user_model import User

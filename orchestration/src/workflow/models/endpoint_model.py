@@ -1,7 +1,6 @@
 """WorkflowEndpoint DB model — maps a custom HTTP path to a workflow."""
 
 from datetime import UTC, datetime
-from typing import Optional
 
 from sqlalchemy import Column, Text, UniqueConstraint
 from sqlmodel import Field, SQLModel

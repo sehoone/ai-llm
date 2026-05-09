@@ -41,7 +41,7 @@ class EvaluationService:
         self.audio_service = AudioService()
         self._setup_prompts()
         self._setup_graph()
-    
+
     def _setup_prompts(self):
         """Set up evaluation and conversation prompts."""
         self.evaluation_prompt = ChatPromptTemplate.from_messages([
@@ -86,9 +86,10 @@ class EvaluationService:
 - feedback은 상세하고 구체적으로 작성해주세요"""),
             ("human", "다음 대화 내용을 평가해주세요:\n\n{conversation_text}")
         ])
-        
+
         self.conversation_prompt = ChatPromptTemplate.from_messages([
-            ("system", """당신은 영어 언어 능력 모의평가를 진행하는 전문 면접관입니다. 
+            ("system", """당신은 영어 언어 능력 모의평가를 진행하는 전문 면접관입니다.
+
 
 **역할:**
 - 대화가 시작되면 먼저 질문을 제시합니다
@@ -160,31 +161,31 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{input}")
         ])
-    
+
     def _setup_graph(self):
         """Configure LangGraph workflow."""
         # Create StateGraph
         workflow = StateGraph(ConversationState)
-        
+
         # Add nodes
         workflow.add_node("generate_response", self._generate_response_node)
         workflow.add_node("assess_pronunciation", self._assess_pronunciation_node)
         workflow.add_node("evaluate", self._evaluate_node)
-        
+
         # Configure edges
         workflow.set_entry_point("generate_response")
         workflow.add_edge("generate_response", "assess_pronunciation")
         workflow.add_edge("assess_pronunciation", "evaluate")
         workflow.add_edge("evaluate", END)
-        
+
         # Compile graph (with memory checkpointer)
         self.graph = workflow.compile(checkpointer=self.memory)
-    
+
     def _generate_response_node(self, state: ConversationState) -> ConversationState:
         """Node for generating conversation response."""
         user_input = state["user_input"]
         messages = state.get("messages", [])
-        
+
         # Convert message history to LangChain message objects
         chat_history = []
         for msg in messages:
@@ -194,21 +195,21 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 chat_history.append(HumanMessage(content=content))
             elif role == "assistant":
                 chat_history.append(AIMessage(content=content))
-        
+
         # Create prompt and invoke LLM
         chain = self.conversation_prompt | self.llm
         response = chain.invoke({
             "input": user_input,
             "chat_history": chat_history
         })
-        
+
         # Update state
         state["assistant_response"] = response.content
         state["messages"].append({"role": "user", "content": user_input})
         state["messages"].append({"role": "assistant", "content": response.content})
-        
+
         return state
-    
+
     async def _assess_pronunciation_node(self, state: ConversationState) -> ConversationState:
         """Node for pronunciation assessment using Azure Speech Service."""
         audio_data = state.get("audio_data")
@@ -234,24 +235,24 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
             logger.info("assessment_node_no_audio")
 
         return state
-    
+
     def _evaluate_node(self, state: ConversationState) -> ConversationState:
         """Node for evaluation (Text + Pronunciation)."""
         messages = state.get("messages", [])
         pronunciation_result = state.get("pronunciation_result")
 
-        
+
         # Convert conversation to text
         conversation_text = ""
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             conversation_text += f"{role}: {content}\n"
-        
+
         # Create and invoke evaluation chain
         chain = self.evaluation_prompt | self.llm
         response = chain.invoke({"conversation_text": conversation_text})
-        
+
         # Parse JSON
         content = response.content
         try:
@@ -275,7 +276,7 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                     }
             else:
                 evaluation_data = content
-            
+
             # Integrate assessment results
             if pronunciation_result:
                 # Apply Azure pronunciation scores
@@ -283,16 +284,16 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 accuracy_score = pronunciation_result.get("accuracy_score", 0)
                 fluency_score_azure = pronunciation_result.get("fluency_score", 0)
                 prosody_score = pronunciation_result.get("prosody_score", 0)
-                
+
                 # Weighted average for fluency
                 original_fluency = evaluation_data.get("fluency_score", 75)
                 combined_fluency = (original_fluency * 0.4 + fluency_score_azure * 0.6)
-                
+
                 evaluation_data["fluency_score"] = round(combined_fluency, 1)
                 evaluation_data["pronunciation_score"] = pronunciation_score
                 evaluation_data["accuracy_score"] = accuracy_score
                 evaluation_data["prosody_score"] = prosody_score
-                
+
                 # Add detailed pronunciation info
                 evaluation_data["pronunciation_details"] = {
                     "pronunciation_score": pronunciation_score,
@@ -303,7 +304,7 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                     "recognized_text": pronunciation_result.get("recognized_text", ""),
                     "word_details": pronunciation_result.get("word_details", [])
                 }
-                
+
                 # Recalculate overall score with pronunciation
                 overall_score = (
                     evaluation_data.get("grammar_score", 0) * 0.2 +
@@ -313,11 +314,11 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                     evaluation_data.get("comprehension_score", evaluation_data.get("communication_score", 0)) * 0.2
                 )
                 evaluation_data["overall_score"] = round(overall_score, 1)
-            
+
             # Normalize score
             overall_score = evaluation_data.get("overall_score", 0)
             overall_score = max(0, min(100, overall_score))
-            
+
             state["evaluation_result"] = {
                 "score": float(overall_score),
                 "feedback": evaluation_data.get("feedback", ""),
@@ -346,12 +347,12 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 "suggestions": ["다시 시도해주세요."],
                 "evaluation_details": {}
             }
-        
+
         return state
-    
+
     async def evaluate_conversation(
-        self, 
-        text: str, 
+        self,
+        text: str,
         conversation_history: List[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """Evaluate conversation content.
@@ -373,15 +374,15 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
         # Add text if present
         if text:
             conversation_text += f"user: {text}\n"
-        
+
         # Create evaluation chain
         evaluation_chain = self.evaluation_prompt | self.llm
-        
+
         try:
             response = await evaluation_chain.ainvoke({
                 "conversation_text": conversation_text
             })
-            
+
             # Try parsing JSON
             content = response.content
             if isinstance(content, str):
@@ -406,14 +407,14 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                     }
             else:
                 evaluation_data = content
-            
+
             # Normalize score
             overall_score = evaluation_data.get("overall_score", 0)
             if overall_score > 100:
                 overall_score = 100
             elif overall_score < 0:
                 overall_score = 0
-            
+
             return {
                 "score": float(overall_score),
                 "feedback": evaluation_data.get("feedback", ""),
@@ -439,10 +440,10 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                 "suggestions": ["다시 시도해주세요."],
                 "evaluation_details": {}
             }
-    
+
     async def generate_response(
-        self, 
-        user_input: str, 
+        self,
+        user_input: str,
         conversation_history: List[Dict[str, str]] = None
     ) -> str:
         """Generate conversation response.
@@ -464,17 +465,17 @@ Next Step: 예) "Try describing a past event using 'first-then-finally' structur
                     chat_history.append(HumanMessage(content=content))
                 elif role == "assistant":
                     chat_history.append(AIMessage(content=content))
-        
+
         # Create conversation chain
 
         conversation_chain = self.conversation_prompt | self.llm
-        
+
         try:
             response = await conversation_chain.ainvoke({
                 "input": user_input,
                 "chat_history": chat_history
             })
-            
+
             return response.content
         except Exception as e:
             return f"죄송합니다. 응답 생성 중 오류가 발생했습니다: {str(e)}"

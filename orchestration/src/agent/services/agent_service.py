@@ -8,7 +8,6 @@ from sqlmodel import Session, select, text
 from src.agent.models.agent_model import Agent
 from src.agent.models.agent_session_model import AgentSession
 from src.agent.schemas.agent_schema import AgentCreate, AgentUpdate, RagGroupInfo, RagKeyInfo
-from src.common.logging import logger
 from src.common.services.database import database_service
 
 

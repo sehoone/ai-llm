@@ -1,8 +1,7 @@
 """API key management service."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import List, Optional
-import uuid
 from sqlmodel import Session, select
 from src.auth.models.api_key_model import ApiKey
 from src.auth.schemas.api_key_schema import ApiKeyCreate
@@ -31,18 +30,18 @@ class ApiKeyService:
              expires_at = key_data.expires_at
              if expires_at.tzinfo is None:
                  expires_at = expires_at.replace(tzinfo=UTC)
-                 
+
              if expires_at > now:
                  expires_delta = expires_at - now
-        
+
         # Create a token with a special claim
         token_data = create_access_token(
-            thread_id=str(user_id), 
+            thread_id=str(user_id),
             expires_delta=expires_delta,
             claims={"type": "api_key"}
         )
         generated_key = token_data.access_token
-        
+
         db_key = ApiKey(
             user_id=user_id,
             key=generated_key,

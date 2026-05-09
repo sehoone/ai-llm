@@ -26,7 +26,6 @@ import textwrap
 from typing import List, Optional
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from pydantic import BaseModel
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, text

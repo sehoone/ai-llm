@@ -8,7 +8,7 @@ import json
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
@@ -216,7 +216,7 @@ async def rename_gpt_session(
     Returns:
         GPTSessionResponse: Updated session info.
     """
-    session = await get_owned_gpt_session(session_id, gpt_id, user)
+    await get_owned_gpt_session(session_id, gpt_id, user)
 
     updated = await database_service.update_gpt_session_name(session_id, name)
     return GPTSessionResponse(session_id=updated.id, name=updated.name, custom_gpt_id=updated.custom_gpt_id)
@@ -238,7 +238,7 @@ async def delete_gpt_session(
     Returns:
         dict: Success message.
     """
-    session = await get_owned_gpt_session(session_id, gpt_id, user)
+    await get_owned_gpt_session(session_id, gpt_id, user)
 
     await agent.clear_chat_history(session_id)
     await database_service.delete_gpt_session(session_id)

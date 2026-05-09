@@ -5,7 +5,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.auth.api.auth_api import get_current_user
-from src.common.logging import logger
 from src.rag.schemas.rag_group_schema import (
     RagGroupCreate,
     RagGroupResponse,

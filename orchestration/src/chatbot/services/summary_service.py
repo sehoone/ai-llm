@@ -1,5 +1,4 @@
 
-from typing import Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from src.common.config import settings
@@ -13,10 +12,10 @@ summary_llm = ChatOpenAI(
 
 summary_prompt = ChatPromptTemplate.from_template(
     """다음 대화의 첫 번째 사용자 질문과 AI 답변을 바탕으로 3~5단어 정도의 짧고 간결한 대화 주제(제목)를 한국어로 생성해주세요.
-    
+
     사용자: {user_message}
     AI: {ai_message}
-    
+
     제목:"""
 )
 
@@ -31,7 +30,7 @@ class ChatSummaryService:
             })
             title = response.content.strip().replace('"', '')
             return title
-        except Exception as e:
+        except Exception:
             # Fallback title if generation fails
             return "새로운 대화"
 

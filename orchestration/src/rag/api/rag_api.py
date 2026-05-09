@@ -15,14 +15,11 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
-from src.common.config import settings
-from src.common.limiter import limiter
 from src.common.logging import logger
 from src.user.models.user_model import User
 from src.rag.schemas.rag_schema import (
     DocumentDetailResponse,
     DocumentResponse,
-    NaturalLanguageSearchResponse,
     RAGSearchResponse,
     RAGSearchResult,
 )
@@ -72,7 +69,7 @@ async def upload_document(
     """
     try:
         logger.info("document_upload_received", filename=file.filename, user_id=user.id, rag_key=rag_key, rag_group=rag_group, rag_type=rag_type)
-        
+
         _validate_rag_type(rag_type)
 
         # Validate file
@@ -99,7 +96,7 @@ async def upload_document(
                 except Exception as e:
                     logger.error("pdf_parsing_failed", error=str(e))
                     raise HTTPException(status_code=400, detail="Failed to parse PDF file.")
-            
+
             elif file_ext in ["docx", "doc"]:
                 try:
                     import docx
@@ -111,7 +108,7 @@ async def upload_document(
                 except Exception as e:
                     logger.error("docx_parsing_failed", error=str(e))
                     raise HTTPException(status_code=400, detail="Failed to parse Word file.")
-            
+
             else:
                 # Default to text
                 file_content = content.decode("utf-8")
