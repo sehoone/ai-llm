@@ -25,15 +25,22 @@ from src.common.services.graph import dump_messages
 from src.common.services.llm import LLMService
 from src.rag.services.rag_service import rag_service
 
-def _get_langfuse_callbacks():
-    if settings.langfuse_is_enabled:
+_langfuse_callbacks: list = []
+if settings.langfuse_is_enabled:
+    try:
         from langfuse.langchain import CallbackHandler
-        return [CallbackHandler(
+        _langfuse_callbacks = [CallbackHandler(
             public_key=settings.LANGFUSE_PUBLIC_KEY,
             secret_key=settings.LANGFUSE_SECRET_KEY,
             host=settings.LANGFUSE_HOST,
         )]
-    return []
+        logger.info("langfuse_callback_handler_initialized", host=settings.LANGFUSE_HOST)
+    except Exception as e:
+        logger.warning("langfuse_callback_handler_failed", error=str(e))
+
+
+def _get_langfuse_callbacks() -> list:
+    return _langfuse_callbacks
 
 
 class LangGraphAgent(MemoryMixin, NodesMixin):

@@ -13,6 +13,17 @@ deploy/
 ├── deploy.sh            # 배포 스크립트
 ├── stop.sh              # 중지 스크립트
 └── logs.sh              # 로그 조회 스크립트
+
+orchestration/
+├── prometheus/
+│   └── prometheus.yml   # Prometheus 스크랩 설정 (FastAPI + cAdvisor)
+└── grafana/
+    ├── datasources/
+    │   └── datasource.yml   # Prometheus 데이터소스 자동 프로비저닝
+    └── dashboards/
+        ├── dashboards.yml   # 대시보드 프로바이더 설정
+        └── json/
+            └── llm_latency.json   # LLM Inference Latency 대시보드
 ```
 
 ## 노출 포트
@@ -20,7 +31,11 @@ deploy/
 | 포트 | 서비스 | 설명 |
 |------|--------|------|
 | `8060` | nginx | 프론트엔드 / API 단일 진입점 |
-| `5432` | db | PostgreSQL (환경변수 `POSTGRES_PORT`로 변경 가능) |
+| `8063` | prometheus | 메트릭 수집 UI |
+| `8064` | grafana | 메트릭 시각화 대시보드 |
+| `8065` | cadvisor | 컨테이너 리소스 모니터링 |
+| `8066` | db | PostgreSQL 외부 노출 포트 |
+| `8067` | langfuse | LLM 추적/관찰 UI |
 
 ### 트래픽 흐름
 
@@ -31,6 +46,11 @@ deploy/
 :8060 (nginx)
     ├── /api/*  →  orchestration:8000  (FastAPI)
     └── /*      →  llm-admin:3000      (Next.js)
+
+모니터링
+    ├── Prometheus :8063  ←  FastAPI /metrics + cAdvisor
+    ├── Grafana    :8064  ←  Prometheus (대시보드 자동 프로비저닝)
+    └── cAdvisor   :8065  ←  Docker 컨테이너 리소스 메트릭
 ```
 
 ---
@@ -104,6 +124,21 @@ NEXT_PUBLIC_WS_URL=ws://<서버IP>:8060/api/v1/voice-evaluation/ws/conversation
 
 - 프론트엔드: `http://<서버IP>:8060`
 - API: `http://<서버IP>:8060/api`
+- Prometheus: `http://<서버IP>:8063`
+- Grafana: `http://<서버IP>:8064`
+- cAdvisor: `http://<서버IP>:8065`
+- Langfuse: `http://<서버IP>:8067`
+
+#### Grafana 초기 로그인
+
+기본 계정: `admin` / `admin` (`.env.production`에 `GRAFANA_ADMIN_PASSWORD` 설정 권장)
+
+```env
+# orchestration/.env.production
+GRAFANA_ADMIN_PASSWORD=<강력한 패스워드>
+```
+
+기동 시 **LLM Inference Latency** 대시보드와 Prometheus 데이터소스가 자동으로 프로비저닝됩니다.
 
 ---
 
@@ -136,6 +171,9 @@ docker compose down -v
 ./deploy/logs.sh llm-admin    # Next.js
 ./deploy/logs.sh nginx        # Nginx
 ./deploy/logs.sh db           # PostgreSQL
+./deploy/logs.sh prometheus   # Prometheus
+./deploy/logs.sh grafana      # Grafana
+./deploy/logs.sh cadvisor     # cAdvisor
 
 # 환경 지정
 ./deploy/logs.sh app staging

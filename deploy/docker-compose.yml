@@ -93,7 +93,7 @@ services:
   #   http://1.1.1.1:8067  → Langfuse UI
   # ─────────────────────────────────────────────
   langfuse:
-    image: langfuse/langfuse:2
+    image: langfuse/langfuse:3
     container_name: langfuse
     ports:
       - "8067:3000"
@@ -112,9 +112,75 @@ services:
       - app-network
     restart: always
 
+  # ─────────────────────────────────────────────
+  # Prometheus (메트릭 수집)
+  #   http://1.1.1.1:8063  → Prometheus UI
+  # ─────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "8063:9090"
+    volumes:
+      - ../orchestration/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    networks:
+      - app-network
+    restart: always
+
+  # ─────────────────────────────────────────────
+  # Grafana (메트릭 시각화)
+  #   http://1.1.1.1:8064  → Grafana UI
+  # ─────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "8064:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ../orchestration/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../orchestration/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+    restart: always
+
+  # ─────────────────────────────────────────────
+  # cAdvisor (컨테이너 리소스 메트릭)
+  #   http://1.1.1.1:8065  → cAdvisor UI
+  # ─────────────────────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    privileged: true
+    ports:
+      - "8065:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    networks:
+      - app-network
+    restart: always
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   postgres-data:
+  grafana-storage:
+  prometheus-data:

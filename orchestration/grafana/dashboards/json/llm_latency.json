@@ -5,60 +5,108 @@
     "title": "LLM Inference Latency",
     "tags": ["inference", "latency"],
     "timezone": "browser",
-    "schemaVersion": 30,
-    "version": 3,
+    "schemaVersion": 38,
+    "version": 4,
     "refresh": "10s",
     "panels": [
       {
-        "type": "graph",
+        "type": "timeseries",
         "title": "LLM Inference Duration (p95)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
             "expr": "histogram_quantile(0.95, rate(llm_inference_duration_seconds_bucket[1m]))",
             "legendFormat": "{{model}} (chat)",
             "refId": "A"
           }
         ],
-        "datasource": "Prometheus",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": { "lineWidth": 1, "fillOpacity": 10 }
+          },
+          "overrides": []
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "none" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
         "gridPos": { "x": 0, "y": 0, "w": 24, "h": 9 }
       },
       {
-        "type": "graph",
+        "type": "timeseries",
         "title": "LLM Stream Inference Duration (p95)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
             "expr": "histogram_quantile(0.95, rate(llm_stream_duration_seconds_bucket[1m]))",
             "legendFormat": "{{model}} (stream)",
             "refId": "B"
           }
         ],
-        "datasource": "Prometheus",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": { "lineWidth": 1, "fillOpacity": 10 }
+          },
+          "overrides": []
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "none" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
         "gridPos": { "x": 0, "y": 9, "w": 24, "h": 9 }
       },
       {
-        "type": "graph",
+        "type": "timeseries",
         "title": "LLM Inference Duration (Average)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
             "expr": "rate(llm_inference_duration_seconds_sum[1m]) / rate(llm_inference_duration_seconds_count[1m])",
             "legendFormat": "{{model}} (avg)",
             "refId": "C"
           }
         ],
-        "datasource": "Prometheus",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": { "lineWidth": 1, "fillOpacity": 10 }
+          },
+          "overrides": []
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "none" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
         "gridPos": { "x": 0, "y": 18, "w": 24, "h": 9 }
       },
       {
-        "type": "graph",
+        "type": "timeseries",
         "title": "LLM Inference Request Count",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
             "expr": "rate(llm_inference_duration_seconds_count[1m])",
             "legendFormat": "{{model}}",
             "refId": "D"
           }
         ],
-        "datasource": "Prometheus",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": { "lineWidth": 1, "fillOpacity": 10 }
+          },
+          "overrides": []
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "none" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
         "gridPos": { "x": 0, "y": 27, "w": 24, "h": 9 }
       }
     ]

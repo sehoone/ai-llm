@@ -55,9 +55,12 @@ services:
     ports:
       - "8063:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
     networks:
       - monitoring
     restart: always
@@ -69,24 +72,30 @@ services:
       - "8064:3000"
     volumes:
       - grafana-storage:/var/lib/grafana
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./grafana/dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
     networks:
       - monitoring
     restart: always
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
+    privileged: true
     ports:
       - "8065:8080"
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:rw
+      - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
     networks:
       - monitoring
     restart: always
@@ -99,3 +108,4 @@ networks:
 volumes:
   grafana-storage:
   postgres-data:
+  prometheus-data:
