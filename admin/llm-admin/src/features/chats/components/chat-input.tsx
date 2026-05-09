@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Plus, Send, BrainCircuit, X, FileText, Image as ImageIcon, Database } from 'lucide-react'
+import { Plus, Send, BrainCircuit, X, FileText, Image as ImageIcon, Database, Bot } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { RagGroup } from '@/api/rag-groups'
+import type { ChatModel } from '@/api/llm-resources'
 
 interface ChatInputProps {
   isSending: boolean
@@ -13,9 +14,12 @@ interface ChatInputProps {
   ragGroups?: RagGroup[]
   selectedRagGroup?: string | null
   onRagGroupChange?: (group: string | null) => void
+  chatModels?: ChatModel[]
+  selectedModelId?: number | null
+  onModelChange?: (modelId: number | null) => void
 }
 
-export function ChatInput({ isSending, onSend, ragGroups = [], selectedRagGroup, onRagGroupChange }: ChatInputProps) {
+export function ChatInput({ isSending, onSend, ragGroups = [], selectedRagGroup, onRagGroupChange, chatModels = [], selectedModelId, onModelChange }: ChatInputProps) {
   const [inputMessage, setInputMessage] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isDeepThinking, setIsDeepThinking] = useState(true)
@@ -43,6 +47,12 @@ export function ChatInput({ isSending, onSend, ragGroups = [], selectedRagGroup,
   const handleRagGroupChange = (value: string) => {
     onRagGroupChange?.(value === '__none__' ? null : value)
   }
+
+  const handleModelChange = (value: string) => {
+    onModelChange?.(value === '__default__' ? null : Number(value))
+  }
+
+  const selectedModel = chatModels.find((m) => m.id === selectedModelId) ?? null
 
   return (
     <div className='p-3 bg-background border-t'>
@@ -109,6 +119,32 @@ export function ChatInput({ isSending, onSend, ragGroups = [], selectedRagGroup,
                 {ragGroups.map((group) => (
                   <SelectItem key={group.id} value={group.name}>
                     {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {chatModels.length > 0 && (
+            <Select value={selectedModelId?.toString() ?? '__default__'} onValueChange={handleModelChange}>
+              <SelectTrigger className={cn(
+                'h-8 w-auto min-w-0 border-0 shadow-none px-2 gap-1 focus:ring-0',
+                selectedModelId && 'text-violet-600 dark:text-violet-400'
+              )}>
+                <Bot size={16} className={cn('shrink-0', selectedModelId ? 'stroke-violet-600 dark:stroke-violet-400' : 'stroke-muted-foreground')} />
+                {selectedModel && (
+                  <span className="text-xs truncate max-w-[80px]">{selectedModel.name}</span>
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__default__">기본 모델</SelectItem>
+                {chatModels.map((model) => (
+                  <SelectItem key={model.id} value={model.id.toString()}>
+                    <div className="flex flex-col">
+                      <span>{model.name}</span>
+                      {model.model_name && (
+                        <span className="text-xs text-muted-foreground">{model.model_name}</span>
+                      )}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>

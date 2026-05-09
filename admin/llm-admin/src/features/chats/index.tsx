@@ -32,6 +32,7 @@ import { ChatArea } from './components/chat-area'
 import { ChatInput } from './components/chat-input'
 import { chatService } from '@/api/chat'
 import { ragGroupApi, type RagGroup } from '@/api/rag-groups'
+import { getChatModels, type ChatModel } from '@/api/llm-resources'
 import { type ChatSession, type Message, type FileAttachment } from '@/types/chat-api'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
@@ -48,11 +49,14 @@ export function Chats() {
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
   const [ragGroups, setRagGroups] = useState<RagGroup[]>([])
   const [selectedRagGroup, setSelectedRagGroup] = useState<string | null>(null)
+  const [chatModels, setChatModels] = useState<ChatModel[]>([])
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
 
-  // Fetch sessions and RAG groups on mount
+  // Fetch sessions, RAG groups, and chat models on mount
   useEffect(() => {
     loadSessions()
     loadRagGroups()
+    loadChatModels()
   }, [])
 
   // Fetch messages when session is selected
@@ -80,6 +84,15 @@ export function Chats() {
       setRagGroups(data)
     } catch (error) {
       logger.error('Failed to load RAG groups', error)
+    }
+  }
+
+  const loadChatModels = async () => {
+    try {
+      const data = await getChatModels()
+      setChatModels(data)
+    } catch (error) {
+      logger.error('Failed to load chat models', error)
     }
   }
 
@@ -177,7 +190,6 @@ export function Chats() {
       await chatService.streamMessage(
         selectedSessionId,
         messagesToSend,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         (chunk, done, title) => {
            if (title) {
              setSessions((prev) => 
@@ -210,7 +222,8 @@ export function Chats() {
             toast.error('Failed to send message')
         },
         isDeepThinking,
-        selectedRagGroup ?? undefined
+        selectedRagGroup ?? undefined,
+        selectedModelId ?? undefined
       )
     } catch (error) {
       logger.error('Failed to send message', error)
@@ -219,7 +232,7 @@ export function Chats() {
       setIsSending(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSessionId, isSending, selectedRagGroup])
+  }, [selectedSessionId, isSending, selectedRagGroup, selectedModelId])
 
   const filteredSessions = sessions.filter((s) =>
     (s.name || 'New Chat').toLowerCase().includes(search.trim().toLowerCase())
@@ -371,6 +384,9 @@ export function Chats() {
                 ragGroups={ragGroups}
                 selectedRagGroup={selectedRagGroup}
                 onRagGroupChange={setSelectedRagGroup}
+                chatModels={chatModels}
+                selectedModelId={selectedModelId}
+                onModelChange={setSelectedModelId}
               />
             </div>
           ) : (

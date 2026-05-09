@@ -75,12 +75,19 @@ async def chat(
             message_count=len(chat_request.messages),
         )
 
+        model_name = None
+        if chat_request.llm_resource_id:
+            resource = await database_service.get_llm_resource(chat_request.llm_resource_id)
+            if resource and resource.resource_type == "chat" and resource.is_active:
+                model_name = resource.model_name or resource.name
+
         result = await agent.get_response(
             chat_request.messages,
             session.id,
             user_id=session.user_id,
             is_deep_thinking=chat_request.is_deep_thinking,
             rag_group=chat_request.rag_group,
+            model_name=model_name,
         )
 
         if chat_request.messages:
@@ -219,6 +226,12 @@ async def chat_stream(
             message_count=len(chat_request.messages),
         )
 
+        model_name = None
+        if chat_request.llm_resource_id:
+            resource = await database_service.get_llm_resource(chat_request.llm_resource_id)
+            if resource and resource.resource_type == "chat" and resource.is_active:
+                model_name = resource.model_name or resource.name
+
         async def event_generator():
             """Generate streaming events.
 
@@ -237,6 +250,7 @@ async def chat_stream(
                         user_id=session.user_id,
                         is_deep_thinking=chat_request.is_deep_thinking,
                         rag_group=chat_request.rag_group,
+                        model_name=model_name,
                     ):
                         full_response += chunk
                         response = StreamResponse(content=chunk, done=False)

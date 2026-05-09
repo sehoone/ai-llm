@@ -126,6 +126,7 @@ class ChatRequest(BaseModel):
     session_id: str = Field(..., description="The ID of the session")
     is_deep_thinking: bool = Field(default=False, description="Whether to enable deep thinking mode")
     rag_group: Optional[str] = Field(default=None, description="RAG group name to inject retrieval context")
+    llm_resource_id: Optional[int] = Field(default=None, description="Specific LLM resource ID to use for this request")
     messages: List[Message] = Field(
         ...,
         description="List of messages in the conversation",

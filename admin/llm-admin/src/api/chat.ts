@@ -108,9 +108,16 @@ export const chatService = {
     onChunk: (content: string, done: boolean, title?: string) => void,
     onError: (error: any) => void,
     isDeepThinking?: boolean,
-    ragGroup?: string
+    ragGroup?: string,
+    llmResourceId?: number
   ) => {
-    const request: ChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking, rag_group: ragGroup || undefined }
+    const request: ChatRequest = {
+      session_id: sessionId,
+      messages,
+      is_deep_thinking: isDeepThinking,
+      rag_group: ragGroup || undefined,
+      llm_resource_id: llmResourceId || undefined,
+    }
 
     try {
       let buffer = ''

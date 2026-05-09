@@ -24,6 +24,7 @@ export interface ChatRequest {
   messages: Message[]
   is_deep_thinking?: boolean
   rag_group?: string
+  llm_resource_id?: number
 }
 
 export interface ChatResponse {
