@@ -198,13 +198,10 @@ async def chat_stream(
     session = await _get_owned_session(chat_request.session_id, agent_id, user)
 
     effective_model = agent.model
-    if chat_request.model_override and chat_request.model_override in agent.allowed_models:
-        try:
-            resource = await database_service.get_llm_resource(int(chat_request.model_override))
-            if resource and resource.is_active:
-                effective_model = resource.name
-        except (ValueError, Exception):
-            pass
+    if chat_request.llm_resource_id:
+        resource = await database_service.get_llm_resource(chat_request.llm_resource_id)
+        if resource and resource.resource_type == "chat" and resource.is_active:
+            effective_model = resource.model_name or resource.name
 
     logger.info("agent_stream_chat", agent_id=agent_id, session_id=session.id, model=effective_model)
 

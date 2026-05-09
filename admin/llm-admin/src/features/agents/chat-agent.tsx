@@ -160,7 +160,7 @@ export function AgentChat() {
           setIsSending(false)
         },
         isDeepThinking,
-        selectedModel && agent?.allowed_models?.includes(selectedModel) ? selectedModel : undefined
+        selectedModel ? Number(selectedModel) : undefined
       )
     } catch (e) {
       logger.error('Failed to send message', e)

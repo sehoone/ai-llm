@@ -277,6 +277,12 @@ async def gpt_chat(
     logger.info("gpt_chat_request", gpt_id=gpt_id, session_id=session.id)
 
     try:
+        model_name = None
+        if chat_request.llm_resource_id:
+            resource = await database_service.get_llm_resource(chat_request.llm_resource_id)
+            if resource and resource.resource_type == "chat" and resource.is_active:
+                model_name = resource.model_name or resource.name
+
         result = await agent.get_response(
             chat_request.messages,
             session.id,
@@ -284,6 +290,7 @@ async def gpt_chat(
             is_deep_thinking=chat_request.is_deep_thinking,
             system_instructions=gpt.instructions,
             rag_key=gpt.rag_key,
+            model_name=model_name,
         )
 
         if chat_request.messages:
@@ -332,6 +339,12 @@ async def gpt_chat_stream(
 
     logger.info("gpt_stream_chat_request", gpt_id=gpt_id, session_id=session.id)
 
+    model_name = None
+    if chat_request.llm_resource_id:
+        resource = await database_service.get_llm_resource(chat_request.llm_resource_id)
+        if resource and resource.resource_type == "chat" and resource.is_active:
+            model_name = resource.model_name or resource.name
+
     async def event_generator():
         try:
             full_response = ""
@@ -342,6 +355,7 @@ async def gpt_chat_stream(
                 is_deep_thinking=chat_request.is_deep_thinking,
                 system_instructions=gpt.instructions,
                 rag_key=gpt.rag_key,
+                model_name=model_name,
             ):
                 full_response += chunk
                 response = StreamResponse(content=chunk, done=False)

@@ -41,6 +41,7 @@ export interface GPTChatRequest {
   session_id: string
   messages: Message[]
   is_deep_thinking?: boolean
+  llm_resource_id?: number
 }
 
 export const customGptApi = {
@@ -112,9 +113,10 @@ export const customGptApi = {
     messages: Message[],
     onChunk: (content: string, done: boolean, title?: string) => void,
     onError: (error: any) => void,
-    isDeepThinking?: boolean
+    isDeepThinking?: boolean,
+    llmResourceId?: number
   ) => {
-    const request: GPTChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking }
+    const request: GPTChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking, llm_resource_id: llmResourceId || undefined }
 
     try {
       let buffer = ''

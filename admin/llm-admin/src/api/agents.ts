@@ -147,13 +147,13 @@ export const agentApi = {
     onChunk: (content: string, done: boolean, title?: string) => void,
     onError: (error: any) => void,
     isDeepThinking?: boolean,
-    modelOverride?: string
+    llmResourceId?: number
   ) => {
     const request = {
       session_id: sessionId,
       messages,
       is_deep_thinking: isDeepThinking,
-      model_override: modelOverride || null,
+      llm_resource_id: llmResourceId || undefined,
     }
 
     try {

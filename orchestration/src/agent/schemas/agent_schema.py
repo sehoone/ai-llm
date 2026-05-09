@@ -80,7 +80,7 @@ class AgentChatRequest(BaseModel):
     session_id: str = Field(..., description="에이전트 세션 ID")
     messages: List[Message] = Field(..., min_length=1)
     is_deep_thinking: bool = Field(default=False)
-    model_override: Optional[str] = Field(default=None, description="채팅 시 선택한 모델 (allowed_models 내 항목이어야 함)")
+    llm_resource_id: Optional[int] = Field(default=None, description="사용할 LLM 리소스 ID (allowed_models 내 항목이어야 함)")
 
 
 class RagKeyInfo(BaseModel):

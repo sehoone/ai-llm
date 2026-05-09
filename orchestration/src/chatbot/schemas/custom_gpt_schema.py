@@ -46,3 +46,4 @@ class GPTChatRequest(BaseModel):
     session_id: str = Field(..., description="GPT 세션 ID")
     is_deep_thinking: bool = Field(default=False)
     messages: List[Message] = Field(..., min_length=1)
+    llm_resource_id: Optional[int] = Field(default=None, description="사용할 LLM 리소스 ID")
