@@ -38,7 +38,8 @@ export function useAudioCaptureWithSTT(
 
   // Initialize SpeechRecognition (once only)
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const w = window as any
+    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       setIsSupported(false);

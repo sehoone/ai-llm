@@ -42,7 +42,7 @@ function isTokenExpired() {
   return Date.now() >= expirationTime - 2000;
 }
 
-export const refreshAccessToken = async () => {
+const refreshAccessToken = async () => {
   if (isRefreshing) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(

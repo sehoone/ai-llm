@@ -14,24 +14,27 @@ pnpm format:check # Check formatting
 pnpm knip         # Dead code analysis
 ```
 
-Docker build:
+Docker build (pass `ENV_FILE=.env.production` for prod builds):
 ```bash
 docker build --build-arg ENV_FILE=.env -t llm-admin .
 ```
+
+There is no test suite configured.
 
 ## Environment Variables
 
 Copy `.env.example` to `.env`:
 ```
-NEXT_PUBLIC_API_URL=http://localhost:8000  # Used client-side and for WebSocket URL
-API_URL=http://localhost:8000              # Used by Next.js rewrite proxy
+NEXT_PUBLIC_API_URL=http://localhost:8000  # Client-side axios base URL; falls back to /api
+API_URL=http://localhost:8000              # Server-side rewrite destination
+NEXT_PUBLIC_WS_URL=                       # WebSocket URL for evaluation feature (optional; auto-derived from NEXT_PUBLIC_API_URL if unset)
 ```
 
-`next.config.mjs` rewrites all `/api/*` requests to `${API_URL}/api/*`. Client-side axios uses `NEXT_PUBLIC_API_URL` directly (falls back to `/api`).
+`next.config.mjs` rewrites all `/api/*` requests to `${API_URL}/api/*`. Client-side axios uses `NEXT_PUBLIC_API_URL` directly (falls back to `/api`). The distinction matters: `API_URL` is never sent to the browser; `NEXT_PUBLIC_*` vars are embedded at build time.
 
 ## Architecture
 
-**Next.js 16 App Router** with TypeScript and pnpm. Uses `output: 'standalone'` for Docker.
+**Next.js 16 App Router** with TypeScript (strict) and pnpm. Uses `output: 'standalone'` for Docker.
 
 ### Route Groups
 
@@ -43,50 +46,83 @@ API_URL=http://localhost:8000              # Used by Next.js rewrite proxy
 
 - JWT tokens stored in cookies: `access_token`, `refresh_token`, `expires_at`
 - Client state managed by Zustand in `src/stores/auth-store.ts` — initializes from cookies on load
-- `src/api/axios.ts` — Axios instance with interceptors that proactively refresh tokens before expiry and retry on 401; calls `/api/v1/auth/refresh`
+- `src/api/axios.ts` — Axios instance with interceptors that:
+  - **Proactively refresh** tokens 2s before expiry
+  - **Queue** concurrent requests during an in-flight refresh (prevents race conditions via `failedQueue` array)
+  - **Retry** on 401 after successful refresh; redirect to sign-in on refresh failure
 
 ### Feature Structure
 
 Each feature lives in `src/features/<feature-name>/` with an `index.tsx` entry point. The corresponding page in `src/app/(authenticated)/` simply imports and renders it.
 
 Active features:
-- `chats/` — LLM chat with session management and streaming responses (`chatService.streamMessage` uses SSE)
+- `chats/` — LLM chat with session management and streaming responses
 - `gpts/` — Custom GPT CRUD; create/edit/delete/chat with custom GPTs
-- `chat-history/` — Read-only view of historical conversations
-- `rag-documents/` — Upload and manage documents for RAG knowledge base
+- `agents/` — Configurable AI agents with RAG integration (`rag_keys`, `rag_groups`), tool selection, session management, streaming chat; supports `model_override` and `is_deep_thinking`
+- `workflows/` — Visual workflow builder (`@xyflow/react` v12) with node-based execution, SSE streaming, cron schedules, webhooks, and dynamic API endpoints
+- `chat-history/` — Read-only admin view of all users' chat history
+- `rag-documents/` — Upload and manage documents for RAG knowledge base; includes groups/keys tab for organizing document namespaces
 - `natural-search/` — Natural language search over data sources
-- `evaluation/` — AI voice interview evaluation (Korean-language); uses WebSocket + Azure Speech SDK for STT/TTS
+- `evaluation/` — AI voice interview evaluation (Korean-language UI); uses WebSocket + Azure Speech SDK for STT/TTS
 - `llm-resources/` — Configure LLM provider endpoints (failover/fallback)
 - `api-keys/` — Manage authentication keys
 - `users/` — User management table with CRUD
 - `dashboard/` — Analytics overview
 
+Inactive (routes exist, sidebar entries commented out): `tasks/`, `apps/` — starter scaffolding not wired to backend.
+
 ### API Layer
 
-All backend calls live in `src/api/`. Each file exports typed functions calling the shared Axios instance from `src/api/axios.ts`. Notable:
-- `src/api/chat.ts` — `chatService.streamMessage()` handles streaming via `ReadableStream`
+All backend calls live in `src/api/`. Each file exports typed functions using the shared Axios instance from `src/api/axios.ts`. Available LLM models are enumerated in `src/config/models.ts` (`LLM_MODELS`, `DEFAULT_LLM_MODEL`).
+
+**SSE streaming pattern** (used by chat, agents, and workflows):
+```typescript
+api.post(endpoint, data, {
+  onDownloadProgress: (progressEvent) => {
+    const xhr = progressEvent.event?.target as XMLHttpRequest
+    const newText = xhr.responseText.slice(lastPosition)
+    lastPosition = xhr.responseText.length
+    // split on '\n\n', parse 'data: {json}' lines
+    // handle [DONE] sentinel and feature-specific event types
+  }
+})
+```
+
+Streaming event types by feature:
+- **Chat/Agents**: `{ content: string, done: boolean }` | `{ type: 'title', title: string }`
+- **Workflows**: `{ type: 'node_start' | 'node_complete' | 'node_failed' | 'execution_complete' | 'execution_failed', ... }`
+
+Only `workflowApi.runStream()` exposes an `AbortController`-based cancel function.
+
+Notable non-streaming APIs:
 - `src/api/rag.ts` — Document upload and management
+- `src/api/rag-groups.ts` — RAG group and key management (`ragGroupApi`)
 - `src/api/custom-gpts.ts` — Custom GPT CRUD
 
 ### WebSocket (Evaluation Feature)
 
-- `src/utils/websocket.ts` — `WebSocketClient` class handles connection, reconnection, and message framing
-- `src/hooks/websocket/useWebSocket.ts` — React hook wrapping the client; exposes `sendText`, `sendAudio`, `evaluate`, `reset`
-- The evaluation page (`src/app/(authenticated)/evaluation/page.tsx`) coordinates STT (Azure `microsoft-cognitiveservices-speech-sdk`), audio playback, and WebSocket messaging
-- WebSocket URL derived from `NEXT_PUBLIC_API_URL` (http→ws conversion)
+- `src/utils/websocket.ts` — `WebSocketClient` with auto-reconnect (5 attempts, exponential backoff); listener pattern (on/off/emit)
+- `src/hooks/websocket/use-websocket.ts` — React hook exposing `sendText`, `sendAudio`, `evaluate`, `reset`
+- WebSocket URL: uses `NEXT_PUBLIC_WS_URL` if set; otherwise derives from `NEXT_PUBLIC_API_URL` (http→ws protocol swap, appends `/ws/conversation`)
+- Sent message types: `{ type: 'text' | 'audio' | 'reset' | 'evaluate', ... }`
+- Azure Speech SDK (`microsoft-cognitiveservices-speech-sdk`) handles STT/TTS; hooks in `src/hooks/audio/`
 
 ### Global Providers (`src/app/providers.tsx`)
 
-Wraps the app in: TanStack Query, DirectionProvider, FontProvider, ThemeProvider. Query client is configured with auto-retry (disabled in dev for 401/403), 10s stale time, and mutation error toast handling via `src/lib/handle-server-error.ts`.
+Wraps the app in: TanStack Query → DirectionProvider → FontProvider → ThemeProvider. Query client: retries disabled entirely in dev, disabled for 401/403 in prod (or after >3 failures); 10s stale time; `refetchOnWindowFocus` only in prod; mutation errors auto-toasted via `src/lib/handle-server-error.ts` (reads `error.response?.data.title`).
 
 ### Layout System
 
-Sidebar state (open/collapsed/variant) is persisted in cookies (`sidebar_state`, `layout_collapsible`, `layout_variant`) and read by the authenticated layout server component. The sidebar nav is configured in `src/components/layout/data/sidebar-data.ts`.
+Sidebar state persisted in cookies (`sidebar_state`, `layout_collapsible`, `layout_variant`) and read server-side by the authenticated layout to set initial React state. Nav structure defined in `src/components/layout/data/sidebar-data.ts`.
 
 ### Logging
 
-Use `import { logger } from '@/lib/logger'` everywhere. Backed by pino — outputs `debug` level in dev, `warn+` in production. Server-side uses `pino-pretty` for colored output.
+Use `import { logger } from '@/lib/logger'` everywhere. Backed by pino — `debug` level in dev with pino-pretty, `warn+` in production.
 
 ### UI Components
 
-shadcn/ui components are in `src/components/ui/`. Shared layout primitives (`Header`, `Main`) are in `src/components/layout/`. Tailwind CSS v4 with a custom theme at `src/styles/theme.css`.
+shadcn/ui components in `src/components/ui/` (excluded from ESLint). Shared layout primitives (`Header`, `Main`) in `src/components/layout/`. Tailwind CSS v4 with custom theme at `src/styles/theme.css`. Forms use React Hook Form + Zod v4. Tables use TanStack Table v8.
+
+### Code Quality
+
+ESLint flat config ignores `src/components/ui/` and `.next/`. Key rules: no `console` (use logger), `_`-prefixed variables allowed as unused, inline `import type`. Prettier config in `.prettierrc` with Tailwind class sorting plugin.

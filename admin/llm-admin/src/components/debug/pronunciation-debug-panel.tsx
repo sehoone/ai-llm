@@ -3,7 +3,7 @@
 'use client';
 
 import { logger } from '@/lib/logger';
-import { useRef, useEffect, useState, createContext, useContext } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
 interface PronunciationLog {
   timestamp: Date;
@@ -26,21 +26,11 @@ interface AssessmentResult {
   }>;
 }
 
-// Global context for sharing debug data
-const DebugContext = createContext<{
-  assessmentData: AssessmentResult | null;
-  setAssessmentData: (data: AssessmentResult | null) => void;
-} | null>(null);
-
-export function useDebugContext() {
-  return useContext(DebugContext);
-}
-
 // Global state to store assessment data
 let globalAssessmentData: AssessmentResult | null = null;
 let globalDebugCallbacks: Array<(data: AssessmentResult) => void> = [];
 
-export function registerDebugCallback(callback: (data: AssessmentResult) => void) {
+function registerDebugCallback(callback: (data: AssessmentResult) => void) {
   globalDebugCallbacks.push(callback);
 }
 

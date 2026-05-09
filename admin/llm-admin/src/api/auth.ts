@@ -20,9 +20,3 @@ export const login = async (data: Omit<LoginRequest, 'grant_type'>): Promise<Log
   return response.data;
 };
 
-export const refreshToken = async (token: string): Promise<LoginResponse> => {
-  const response = await api.post<LoginResponse>('v1/auth/refresh', {
-    refresh_token: token,
-  });
-  return response.data;
-};

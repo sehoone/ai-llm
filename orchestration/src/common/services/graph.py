@@ -237,7 +237,6 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
         list[dict]: The prepared messages as dictionaries ready for LLM.
     """
     dumped = dump_messages(messages)
-    # logger.debug("prepare_messages_dumped", message_count=len(dumped), messages=dumped)
 
     # Replace images in all messages except the last user message
     # Find the last user message index

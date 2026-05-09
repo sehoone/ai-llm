@@ -66,7 +66,7 @@ src/
 │   ├── prompts/            # System prompt templates
 │   └── langgraph/
 │       ├── graph.py        # LangGraphAgent — main orchestration class
-│       ├── _nodes.py       # Node implementations (_chat, _tool_call, _think, _verify)
+│       ├── _nodes.py       # Node implementations (_chat, _tool_call, _think)
 │       ├── _memory.py      # Long-term memory mixin
 │       └── tools/          # Tool registry (duckduckgo_search)
 ├── agent/                  # Configurable chatbot agents (model, RAG, tools per bot)
@@ -89,17 +89,16 @@ src/
 
 Graph nodes and flow:
 ```
-START → [_think →] _chat → [_tool_call →] _chat → [_verify →] _chat → END
+START → [_think →] _chat → [_tool_call →] _chat → END
 ```
 
-- `_chat` — main LLM node; routes to `_tool_call` (tool calls), `_verify` (deep thinking), or END
-- `_think` — strategy planning node (deep thinking mode only, not user-facing)
+- `_chat` — main LLM node; routes to `_tool_call` (tool calls) or END
+- `_think` — strategy planning node (deep thinking mode only, not user-facing); always routes to `_chat`
 - `_tool_call` — executes tools, returns to `_chat`
-- `_verify` — quality evaluator; approves (→ END) or provides retry feedback (→ `_chat`, max 2 iterations)
 
 State persisted as PostgreSQL checkpoints per `thread_id` via `AsyncPostgresSaver`. Fallback: production continues without checkpointer on DB failure; other envs raise.
 
-Entry points: `get_response()` / `get_stream_response()`. Stream yields per-token output with section headers for think/verify nodes.
+Entry points: `get_response()` / `get_stream_response()`. Stream yields per-token output with section headers for think node.
 
 ### LLM Service (`src/common/services/llm.py`)
 
@@ -109,6 +108,12 @@ Entry points: `get_response()` / `get_stream_response()`. Stream yields per-toke
 - Fallback chain: `gpt-5-mini → gpt-5 → gpt-4o → gpt-4o-mini`
 - `dump_messages()` — normalizes Message/BaseMessage/dict to OpenAI wire format, handles multimodal (images → base64 vision)
 - `process_llm_response()` — strips reasoning/thinking blocks from GPT-5 structured content responses
+
+**DB-driven resource selection:** `LLMService` first queries `llm_resource` table (priority DESC + weighted random, 60s TTL cache) before falling back to `LLMRegistry`. Resources are routed through **LiteLLM** supporting multiple providers — model ID format: `azure/<deployment>`, `anthropic/<model>`, `gemini/<model>`, `ollama/<model>`, or plain `<model>` for OpenAI.
+
+**Circuit breaker:** Both `LLMService` and `EmbeddingService` use `CircuitBreaker` from `src/common/circuit_breaker.py` (CLOSED → OPEN → HALF_OPEN). Threshold: 3 failures; recovery timeout: 30s. State is keyed by `resource.id`. When OPEN, the resource is skipped and fallback chain continues.
+
+**Retry scope:** tenacity retries `APITimeoutError` and `APIError` only — `RateLimitError` is NOT retried (falls to next fallback immediately).
 
 ### RAG System (`src/rag/`)
 
@@ -125,10 +130,12 @@ Configurable chatbots distinct from the default chatbot. Each agent stores: mode
 
 Low-code DAG runner with:
 - **Execution:** Topological sort + parallel node execution (`asyncio.gather`) with SSE streaming (NodeStart, NodeComplete, ExecutionComplete events)
-- **Node types:** Code (Python), Condition (branching), HTTP, Chat (LangGraph integration) — extensible registry in `executor/registry.py`
+- **Node types:** Start, End, LLM, Condition (branching), RAG, HTTP, Code (Python), Tool, Loop — extensible registry in `executor/registry.py`
 - **Scheduling:** APScheduler with CronTrigger; loads all active schedules from DB at startup
 - **Webhooks:** POST `/webhooks/{webhook_token}` → triggers execution with request body as input
 - **Dynamic endpoints:** Workflows bind to custom paths via POST `/api/v1/run/{path}`
+
+**Adding a node type:** implement the executor class and register it in `src/workflow/services/executor/registry.py`.
 
 ### Long-term Memory
 
@@ -139,6 +146,8 @@ mem0ai with pgvector backend. User-scoped semantic memory. Retrieved before grap
 - **Logging:** structlog — JSON in production, colored console in development. Always use kwargs: `logger.info("event", key=value)` (no f-strings)
 - **Metrics:** Prometheus on `:8063`, Grafana on `:8064`, cAdvisor on `:8065`
 - **LLM Tracing:** Langfuse (optional, `LANGFUSE_ENABLED`), callbacks injected via `_get_langfuse_callbacks()`
+
+**Middleware stack order (critical):** `RequestIDMiddleware` must be outermost so `request_id` is available to all downstream logs. Order in `main.py`: RequestID → LoggingContext → Metrics → CORS. `LoggingContextMiddleware` decodes the JWT and binds `user_id`/`session_id` to the structlog context via `ContextVar`.
 
 ## Environment Configuration
 
@@ -153,9 +162,17 @@ Key settings groups: OpenAI (API key, models, TTS/STT), PostgreSQL (`POSTGRES_SC
 
 PostgreSQL with pgvector. `POSTGRES_SCHEMA=llmonl`. Tables auto-created by SQLModel ORM at startup. Manual reference: `schema.sql`.
 
+**Session pattern:** use `managed_session` context manager (`src/common/services/db_session.py`) for automatic rollback on `SQLAlchemyError`. FastAPI routes use the `get_db_session()` dependency; non-route code calls `get_session_maker()`.
+
+**DatabaseService mixin composition:** `DatabaseService` in `src/common/services/database.py` composes domain repository mixins (`UserRepositoryMixin`, `SessionRepositoryMixin`, etc.) into a single service rather than injecting separate repository classes.
+
 Connection pool: `QueuePool`, `pool_pre_ping=True`, `pool_recycle=1800`.
 
 Key tables: `users`, `session`, `agent`, `agent_session`, `gpt_session`, `gpt_chat_message`, `document`, `rag_embedding`, `rag_key_config`, `rag_group_config`, `workflow`, `workflow_execution`, `workflow_node_execution`, `workflow_schedule`, `workflow_endpoint`, `api_key`, `llm_resource`.
+
+## Samples
+
+`src/samples/` contains six self-contained educational examples (basic-chat, deep-thinking, llm-service, rag-pipeline, fastapi-patterns, workflow-engine). Each exposes routes under `/api/v1/sample/*` and is a good reference for idiomatic usage of the stack's core components.
 
 ## Code Style
 

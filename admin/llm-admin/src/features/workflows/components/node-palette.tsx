@@ -1,7 +1,7 @@
 import { Play, Square, Sparkles, GitBranch, Database, Globe, Code2, Wrench, Repeat2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export interface PaletteNode {
+interface PaletteNode {
   type: string
   label: string
   description: string
@@ -10,7 +10,7 @@ export interface PaletteNode {
   group: string
 }
 
-export const PALETTE_NODES: PaletteNode[] = [
+const PALETTE_NODES: PaletteNode[] = [
   // ── Flow ─────────────────────────────────────────────────────────────────
   {
     type: 'start',

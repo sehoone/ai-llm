@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import * as api from '@/api/sample'
-import { Section, JsonResult, ErrorMsg } from '../section'
+import { Section, JsonResult } from '../section'
 
 export function TabPatterns() {
   const [streamMsg, setStreamMsg] = useState('')
