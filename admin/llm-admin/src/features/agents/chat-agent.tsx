@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, BrainCircuit, Edit, MessagesSquare, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, BrainCircuit, Database, Edit, MessagesSquare, Send, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
@@ -48,6 +48,7 @@ export function AgentChat() {
   const [isDeepThinking, setIsDeepThinking] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [chatModels, setChatModels] = useState<ChatModel[]>([])
+  const [selectedRagGroup, setSelectedRagGroup] = useState<string | null>(null)
   const [inputMessage, setInputMessage] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
@@ -160,7 +161,8 @@ export function AgentChat() {
           setIsSending(false)
         },
         isDeepThinking,
-        selectedModel ? Number(selectedModel) : undefined
+        selectedModel ? Number(selectedModel) : undefined,
+        selectedRagGroup ?? undefined
       )
     } catch (e) {
       logger.error('Failed to send message', e)
@@ -298,6 +300,28 @@ export function AgentChat() {
                               </SelectItem>
                             )
                           })}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {agent?.rag_enabled && agent.rag_groups && agent.rag_groups.length > 1 && (
+                      <Select
+                        value={selectedRagGroup ?? '__all__'}
+                        onValueChange={(v) => setSelectedRagGroup(v === '__all__' ? null : v)}
+                      >
+                        <SelectTrigger className={cn(
+                          'h-7 text-xs border-0 shadow-none bg-transparent px-1 w-auto max-w-40 gap-1 focus:ring-0',
+                          selectedRagGroup && 'text-emerald-600 dark:text-emerald-400'
+                        )}>
+                          <Database size={14} className={cn('shrink-0', selectedRagGroup ? 'stroke-emerald-600 dark:stroke-emerald-400' : 'stroke-muted-foreground')} />
+                          {selectedRagGroup && (
+                            <span className="text-xs truncate max-w-[80px]">{selectedRagGroup}</span>
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__" className="text-xs">전체 지식베이스</SelectItem>
+                          {agent.rag_groups.map((group) => (
+                            <SelectItem key={group} value={group} className="text-xs">{group}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}

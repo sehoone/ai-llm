@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { logger } from '@/lib/logger'
+import { createSSEProgressHandler } from '@/lib/sse-stream'
 import api from './axios'
 import type {
   AttachmentMeta,
@@ -46,11 +46,9 @@ export const chatService = {
     sessionId: string,
     name: string
   ): Promise<CreateSessionResponse> => {
-    const formData = new FormData()
-    formData.append('name', name)
     const response = await api.patch<CreateSessionResponse>(
       `${CHATBOT_BASE}/session/${sessionId}/name`,
-      formData
+      { name }
     )
     return response.data
   },
@@ -120,62 +118,17 @@ export const chatService = {
     }
 
     try {
-      let buffer = ''
-      let processedIndex = 0
-
-      await api.post(`${CHATBOT_BASE}/chat/stream`, request, {
-        onDownloadProgress: (progressEvent) => {
-          const xhr = progressEvent.event?.target as any
-          if (!xhr) return
-
-          const responseText = xhr.responseText || ''
-          const newContent = responseText.substring(processedIndex)
-          processedIndex = responseText.length
-
-          buffer += newContent
-
-          const lines = buffer.split('\n\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            const trimmedLine = line.trim()
-            if (trimmedLine.startsWith('data: ')) {
-              const dataStr = trimmedLine.replace('data: ', '')
-              try {
-                if (dataStr === '[DONE]') {
-                  continue
-                }
-                const data = JSON.parse(dataStr)
-                if (data.type === 'title' && data.title) {
-                  onChunk('', false, data.title)
-                } else {
-                  onChunk(data.content, data.done)
-                }
-              } catch (e) {
-                logger.error('Error parsing stream chunk', e, 'chunk:', dataStr)
-              }
-            }
-          }
-        },
-      })
-
-      // Process any remaining buffer
-      if (buffer.trim()) {
-        const lines = buffer.split('\n\n')
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          if (trimmedLine.startsWith('data: ')) {
-            const dataStr = trimmedLine.replace('data: ', '')
-            try {
-              const data = JSON.parse(dataStr)
-              onChunk(data.content, data.done)
-            } catch (e) {
-              // Ignore incomplete JSON at the very end
-              logger.error('Error parsing stream chunk at the end', e, 'chunk:', dataStr)
-            }
+      const handler = createSSEProgressHandler<{ content: string; done: boolean; type?: string; title?: string }>(
+        (data) => {
+          if (data.type === 'title' && data.title) {
+            onChunk('', false, data.title)
+          } else {
+            onChunk(data.content, data.done)
           }
         }
-      }
+      )
+      await api.post(`${CHATBOT_BASE}/chat/stream`, request, { onDownloadProgress: handler.onDownloadProgress })
+      handler.flush()
     } catch (e) {
       onError(e)
     }

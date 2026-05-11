@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { logger } from '@/lib/logger'
+import { createSSEProgressHandler } from '@/lib/sse-stream'
 import api from './axios'
 import type { Message, ChatResponse } from '@/types/chat-api'
 
@@ -82,9 +82,7 @@ export const customGptApi = {
   },
 
   renameSession: async (gptId: string, sessionId: string, name: string): Promise<GPTSession> => {
-    const formData = new FormData()
-    formData.append('name', name)
-    const response = await api.patch<GPTSession>(`v1/gpts/${gptId}/sessions/${sessionId}/name`, formData)
+    const response = await api.patch<GPTSession>(`v1/gpts/${gptId}/sessions/${sessionId}/name`, { name })
     return response.data
   },
 
@@ -119,58 +117,17 @@ export const customGptApi = {
     const request: GPTChatRequest = { session_id: sessionId, messages, is_deep_thinking: isDeepThinking, llm_resource_id: llmResourceId || undefined }
 
     try {
-      let buffer = ''
-      let processedIndex = 0
-
-      await api.post(`v1/gpts/${gptId}/chat/stream`, request, {
-        onDownloadProgress: (progressEvent) => {
-          const xhr = progressEvent.event?.target as any
-          if (!xhr) return
-
-          const responseText = xhr.responseText || ''
-          const newContent = responseText.substring(processedIndex)
-          processedIndex = responseText.length
-
-          buffer += newContent
-
-          const lines = buffer.split('\n\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            const trimmedLine = line.trim()
-            if (trimmedLine.startsWith('data: ')) {
-              const dataStr = trimmedLine.replace('data: ', '')
-              try {
-                if (dataStr === '[DONE]') continue
-                const data = JSON.parse(dataStr)
-                if (data.type === 'title' && data.title) {
-                  onChunk('', false, data.title)
-                } else {
-                  onChunk(data.content, data.done)
-                }
-              } catch (e) {
-                logger.error('Error parsing GPT stream chunk', e, 'chunk:', dataStr)
-              }
-            }
-          }
-        },
-      })
-
-      if (buffer.trim()) {
-        const lines = buffer.split('\n\n')
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          if (trimmedLine.startsWith('data: ')) {
-            const dataStr = trimmedLine.replace('data: ', '')
-            try {
-              const data = JSON.parse(dataStr)
-              onChunk(data.content, data.done)
-            } catch (e) {
-              logger.error('Error parsing GPT stream chunk at the end', e, 'chunk:', dataStr)
-            }
+      const handler = createSSEProgressHandler<{ content: string; done: boolean; type?: string; title?: string }>(
+        (data) => {
+          if (data.type === 'title' && data.title) {
+            onChunk('', false, data.title)
+          } else {
+            onChunk(data.content, data.done)
           }
         }
-      }
+      )
+      await api.post(`v1/gpts/${gptId}/chat/stream`, request, { onDownloadProgress: handler.onDownloadProgress })
+      handler.flush()
     } catch (e) {
       onError(e)
     }

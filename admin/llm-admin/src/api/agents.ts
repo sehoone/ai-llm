@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { logger } from '@/lib/logger'
+import { createSSEProgressHandler } from '@/lib/sse-stream'
 import api from './axios'
 import type { Message } from '@/types/chat-api'
 
@@ -121,9 +121,7 @@ export const agentApi = {
   },
 
   renameSession: async (agentId: string, sessionId: string, name: string): Promise<AgentSession> => {
-    const formData = new FormData()
-    formData.append('name', name)
-    const response = await api.patch<AgentSession>(`v1/agents/${agentId}/sessions/${sessionId}/name`, formData)
+    const response = await api.patch<AgentSession>(`v1/agents/${agentId}/sessions/${sessionId}/name`, { name })
     return response.data
   },
 
@@ -147,65 +145,29 @@ export const agentApi = {
     onChunk: (content: string, done: boolean, title?: string) => void,
     onError: (error: any) => void,
     isDeepThinking?: boolean,
-    llmResourceId?: number
+    llmResourceId?: number,
+    ragGroup?: string
   ) => {
     const request = {
       session_id: sessionId,
       messages,
       is_deep_thinking: isDeepThinking,
       llm_resource_id: llmResourceId || undefined,
+      rag_group: ragGroup || undefined,
     }
 
     try {
-      let buffer = ''
-      let processedIndex = 0
-
-      await api.post(`v1/agents/${agentId}/chat/stream`, request, {
-        onDownloadProgress: (progressEvent) => {
-          const xhr = progressEvent.event?.target as any
-          if (!xhr) return
-
-          const responseText = xhr.responseText || ''
-          const newContent = responseText.substring(processedIndex)
-          processedIndex = responseText.length
-          buffer += newContent
-
-          const lines = buffer.split('\n\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (trimmed.startsWith('data: ')) {
-              const dataStr = trimmed.replace('data: ', '')
-              try {
-                if (dataStr === '[DONE]') continue
-                const data = JSON.parse(dataStr)
-                if (data.type === 'title' && data.title) {
-                  onChunk('', false, data.title)
-                } else {
-                  onChunk(data.content, data.done)
-                }
-              } catch (e) {
-                logger.error('Error parsing agent stream chunk', e)
-              }
-            }
-          }
-        },
-      })
-
-      if (buffer.trim()) {
-        for (const line of buffer.split('\n\n')) {
-          const trimmed = line.trim()
-          if (trimmed.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(trimmed.replace('data: ', ''))
-              onChunk(data.content, data.done)
-            } catch (e) {
-              logger.error('Error parsing agent stream tail', e)
-            }
+      const handler = createSSEProgressHandler<{ content: string; done: boolean; type?: string; title?: string }>(
+        (data) => {
+          if (data.type === 'title' && data.title) {
+            onChunk('', false, data.title)
+          } else {
+            onChunk(data.content, data.done)
           }
         }
-      }
+      )
+      await api.post(`v1/agents/${agentId}/chat/stream`, request, { onDownloadProgress: handler.onDownloadProgress })
+      handler.flush()
     } catch (e) {
       onError(e)
     }

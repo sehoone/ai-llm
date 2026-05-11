@@ -10,13 +10,13 @@ from typing import List
 from fastapi import (
     APIRouter,
     Depends,
-    Form,
     HTTPException,
 )
 
 from src.auth.api.auth_api import get_current_user
 from src.auth.schemas.auth_schema import SessionResponse
 from src.chatbot.deps import get_owned_chat_session
+from src.chatbot.schemas.session_schema import RenameRequest
 from src.common.logging import logger
 from src.common.services.database import database_service
 from src.common.services.sanitization import sanitize_string
@@ -61,7 +61,7 @@ async def create_session(user: User = Depends(get_current_user)):
     description="세션의 이름을 업데이트합니다.",
 )
 async def update_session_name(
-    session_id: str, name: str = Form(...), user: User = Depends(get_current_user)
+    session_id: str, body: RenameRequest, user: User = Depends(get_current_user)
 ):
     """Update a session's name.
 
@@ -76,7 +76,7 @@ async def update_session_name(
     try:
         # Sanitize inputs
         sanitized_session_id = sanitize_string(session_id)
-        sanitized_name = sanitize_string(name)
+        sanitized_name = sanitize_string(body.name)
 
         await get_owned_chat_session(sanitized_session_id, user)
 

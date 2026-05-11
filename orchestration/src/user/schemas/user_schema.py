@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 from src.user.models.user_model import UserRole
@@ -20,6 +21,7 @@ class UserUpdate(BaseModel):
 
 class UserRead(UserBase):
     id: int
+    created_at: datetime
 
     class Config:
         from_attributes = True

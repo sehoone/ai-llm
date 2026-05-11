@@ -8,7 +8,7 @@ import json
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
@@ -21,6 +21,7 @@ from src.chatbot.schemas.custom_gpt_schema import (
     GPTChatRequest,
     GPTSessionResponse,
 )
+from src.chatbot.schemas.session_schema import RenameRequest
 from src.chatbot.services.custom_gpt_service import custom_gpt_service
 from src.chatbot.services.summary_service import chat_summary_service
 from src.common.langgraph.graph import LangGraphAgent
@@ -202,7 +203,7 @@ async def list_gpt_sessions(
 async def rename_gpt_session(
     gpt_id: str,
     session_id: str,
-    name: str = Form(...),
+    body: RenameRequest,
     user: User = Depends(get_current_user),
 ):
     """Rename a GPT session.
@@ -210,7 +211,7 @@ async def rename_gpt_session(
     Args:
         gpt_id: The Custom GPT ID.
         session_id: The session ID to rename.
-        name: The new session name.
+        body: JSON body containing the new session name.
         user: The authenticated user (must own the session).
 
     Returns:
@@ -218,7 +219,7 @@ async def rename_gpt_session(
     """
     await get_owned_gpt_session(session_id, gpt_id, user)
 
-    updated = await database_service.update_gpt_session_name(session_id, name)
+    updated = await database_service.update_gpt_session_name(session_id, body.name)
     return GPTSessionResponse(session_id=updated.id, name=updated.name, custom_gpt_id=updated.custom_gpt_id)
 
 

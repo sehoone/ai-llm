@@ -81,6 +81,7 @@ class AgentChatRequest(BaseModel):
     messages: List[Message] = Field(..., min_length=1)
     is_deep_thinking: bool = Field(default=False)
     llm_resource_id: Optional[int] = Field(default=None, description="사용할 LLM 리소스 ID (allowed_models 내 항목이어야 함)")
+    rag_group: Optional[str] = Field(default=None, description="RAG 검색을 특정 그룹으로 제한 (agent.rag_groups 내 항목이어야 함)")
 
 
 class RagKeyInfo(BaseModel):

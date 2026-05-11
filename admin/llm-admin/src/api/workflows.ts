@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { createSSEProgressHandler } from '@/lib/sse-stream'
 import api from './axios'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -247,41 +248,13 @@ export const workflowApi = {
     onError: (err: string) => void
   ): Promise<() => void> => {
     const controller = new AbortController()
-
-    let buffer = ''
-    let processedIndex = 0
+    const handler = createSSEProgressHandler<SSEEvent>((evt) => onEvent(evt))
 
     api
       .post(
         `v1/workflows/${workflowId}/executions/stream`,
         { input_data: inputData },
-        {
-          signal: controller.signal,
-          onDownloadProgress: (progressEvent) => {
-            const xhr = progressEvent.event?.target as any
-            if (!xhr) return
-
-            const responseText: string = xhr.responseText || ''
-            const newContent = responseText.substring(processedIndex)
-            processedIndex = responseText.length
-
-            buffer += newContent
-            const parts = buffer.split('\n\n')
-            buffer = parts.pop() ?? ''
-
-            for (const part of parts) {
-              const line = part.trim()
-              if (line.startsWith('data: ')) {
-                try {
-                  const evt = JSON.parse(line.slice(6)) as SSEEvent
-                  onEvent(evt)
-                } catch {
-                  // ignore malformed chunks
-                }
-              }
-            }
-          },
-        }
+        { signal: controller.signal, onDownloadProgress: handler.onDownloadProgress }
       )
       .then(() => onDone())
       .catch((err) => {

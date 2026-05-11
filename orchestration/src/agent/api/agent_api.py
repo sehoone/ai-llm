@@ -1,9 +1,9 @@
 """Agent management and chat endpoints."""
 
 import json
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from src.agent.models.agent_session_model import AgentSession
@@ -19,6 +19,7 @@ from src.agent.schemas.agent_schema import (
 from src.agent.services.agent_service import agent_service
 from src.auth.api.auth_api import get_current_user
 from src.chatbot.schemas.chat_schema import Message, StreamResponse
+from src.chatbot.schemas.session_schema import RenameRequest
 from src.chatbot.services.summary_service import chat_summary_service
 from src.common.langgraph.graph import LangGraphAgent
 from src.common.logging import logger
@@ -48,7 +49,7 @@ async def _get_owned_session(session_id: str, agent_id: str, user: User) -> Agen
     return session
 
 
-async def _build_rag_context(agent, user_message: str, user_id: int) -> str:
+async def _build_rag_context(agent, user_message: str, user_id: int, rag_group: Optional[str] = None) -> str:
     """Multi-key + multi-group RAG search and context injection."""
     if not agent.rag_enabled:
         return user_message
@@ -67,9 +68,14 @@ async def _build_rag_context(agent, user_message: str, user_id: int) -> str:
         )
         all_chunks.extend(results)
 
-    for rag_group in (agent.rag_groups or []):
+    # rag_group이 지정되고 agent 설정 내에 존재하면 해당 그룹만 검색, 아니면 전체 검색
+    groups_to_search = (
+        [rag_group] if rag_group and rag_group in (agent.rag_groups or [])
+        else (agent.rag_groups or [])
+    )
+    for group in groups_to_search:
         results = await rag_service.search_rag_group(
-            rag_group=rag_group,
+            rag_group=group,
             rag_type="chatbot_shared",
             user_id=user_id,
             query=user_message,
@@ -159,11 +165,11 @@ async def list_sessions(agent_id: str, user: User = Depends(get_current_user)):
 async def rename_session(
     agent_id: str,
     session_id: str,
-    name: str = Form(...),
+    body: RenameRequest,
     user: User = Depends(get_current_user),
 ):
     await _get_owned_session(session_id, agent_id, user)
-    session = await agent_service.rename_session(session_id, name)
+    session = await agent_service.rename_session(session_id, body.name)
     return AgentSessionResponse(session_id=session.id, agent_id=session.agent_id, name=session.name, created_at=session.created_at)
 
 
@@ -210,7 +216,7 @@ async def chat_stream(
             full_response = ""
 
             last_user_content = chat_request.messages[-1].content if chat_request.messages else ""
-            augmented_content = await _build_rag_context(agent, last_user_content, user.id)
+            augmented_content = await _build_rag_context(agent, last_user_content, user.id, chat_request.rag_group)
 
             augmented_messages = list(chat_request.messages)
             if augmented_content != last_user_content:

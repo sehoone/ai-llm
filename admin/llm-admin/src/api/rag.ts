@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { logger } from '@/lib/logger'
+import { createNDJSONProgressHandler } from '@/lib/sse-stream'
 import api from './axios'
 
 export interface RAGSearchResult {
@@ -137,39 +137,17 @@ export const ragApi = {
     if (params.model) formData.append('model', params.model)
     if (params.system_prompt) formData.append('system_prompt', params.system_prompt)
 
-    let buffer = '';
-    let seenBytes = 0;
+    const handler = createNDJSONProgressHandler<any>((data) => onData(data))
 
     try {
-        await api.post('v1/rag/natural-language-search', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-            responseType: 'text', // Important to get text instead of trying to parse JSON
-            onDownloadProgress: (progressEvent) => {
-                const xhr = progressEvent.event.target
-                const response = xhr.response
-                const newData = response.slice(seenBytes)
-                seenBytes = response.length;
-                
-                buffer += newData;
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // Keep the last partial line in buffer
-
-                for (const line of lines) {
-                    if (!line.trim()) continue;
-                    try {
-                        const json = JSON.parse(line);
-                        onData(json);
-                    } catch (e) {
-                         logger.error('Error parsing JSON line from stream', e);
-                    }
-                }
-            }
-        });
+      await api.post('v1/rag/natural-language-search', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        responseType: 'text',
+        onDownloadProgress: handler.onDownloadProgress,
+      })
     } catch (error) {
-        onError(error);
-        throw error;
+      onError(error)
+      throw error
     }
   },
 
