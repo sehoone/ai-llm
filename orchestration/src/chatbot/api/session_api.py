@@ -21,6 +21,7 @@ from src.common.logging import logger
 from src.common.services.database import database_service
 from src.common.services.sanitization import sanitize_string
 from src.user.models.user_model import User
+from src.chatbot.api.chatbot_api import agent
 
 router = APIRouter()
 
@@ -108,7 +109,8 @@ async def delete_session(session_id: str, user: User = Depends(get_current_user)
 
         await get_owned_chat_session(sanitized_session_id, user)
 
-        # Delete the session
+        # checkpoint 테이블 먼저 정리 후 세션 삭제
+        await agent.clear_chat_history(sanitized_session_id)
         await database_service.delete_session(sanitized_session_id)
 
         logger.info("session_deleted", session_id=session_id, user_id=user.id)

@@ -430,6 +430,27 @@ async def download_attachment(
     )
 
 
+@router.delete("/memory", summary="장기 메모리 전체 삭제", description="인증된 사용자의 모든 장기 메모리(mem0)를 삭제합니다.")
+async def delete_long_term_memory(user: User = Depends(get_current_user)):
+    """Delete all long-term memories for the authenticated user.
+
+    Args:
+        user: The authenticated user.
+
+    Returns:
+        dict: A message indicating all memories were deleted.
+
+    Raises:
+        HTTPException: If deletion fails.
+    """
+    try:
+        await agent.delete_all_long_term_memory(str(user.id))
+        return {"message": "Long-term memory cleared successfully"}
+    except Exception as e:
+        logger.error("delete_long_term_memory_failed", user_id=user.id, error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/history/all", response_model=ChatHistoryListResponse, summary="전체 대화 이력 조회", description="모든 사용자의 대화 이력을 조회합니다. (관리자용)")
 async def get_all_chat_history(
     request: Request,

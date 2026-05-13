@@ -170,6 +170,7 @@ class Settings:
             "LONG_TERM_MEMORY_EMBEDDER_MODEL", "text-embedding-ada-002"
         )
         self.LONG_TERM_MEMORY_COLLECTION_NAME: str = os.getenv("LONG_TERM_MEMORY_COLLECTION_NAME", "longterm_memory")
+        self.LONG_TERM_MEMORY_MAX_COUNT: int = int(os.getenv("LONG_TERM_MEMORY_MAX_COUNT", "100"))
 
         # JWT
         self.JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")

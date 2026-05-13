@@ -109,6 +109,37 @@ class MemoryMixin:
             self.memory = await result if inspect.isawaitable(result) else result
         return self.memory
 
+    async def _prune_long_term_memory(self, user_id: str) -> None:
+        """유저 메모리가 MAX_COUNT를 초과하면 가장 오래된 것부터 삭제."""
+        max_count = settings.LONG_TERM_MEMORY_MAX_COUNT
+        try:
+            memory = await self._long_term_memory()
+            result = await memory.get_all(filters={"user_id": str(user_id)})
+            entries = result.get("results", [])
+            if len(entries) <= max_count:
+                return
+            # created_at 오름차순 정렬 후 초과분 삭제
+            sorted_entries = sorted(
+                entries,
+                key=lambda e: e.get("created_at") or e.get("updated_at") or "",
+            )
+            to_delete = sorted_entries[: len(entries) - max_count]
+            for entry in to_delete:
+                await memory.delete(entry["id"])
+            logger.info("long_term_memory_pruned", user_id=user_id, deleted=len(to_delete))
+        except Exception as e:
+            logger.warning("long_term_memory_prune_failed", user_id=user_id, error=str(e))
+
+    async def delete_all_long_term_memory(self, user_id: str) -> None:
+        """유저의 모든 장기 메모리를 삭제."""
+        try:
+            memory = await self._long_term_memory()
+            await memory.delete_all(user_id=str(user_id))
+            logger.info("long_term_memory_deleted_all", user_id=user_id)
+        except Exception as e:
+            logger.error("long_term_memory_delete_all_failed", user_id=user_id, error=str(e))
+            raise
+
     async def _get_relevant_memory(self, user_id: str, query: str) -> str:
         """Search long-term memory for context relevant to *query*.
 
@@ -149,5 +180,6 @@ class MemoryMixin:
             if filtered:
                 await memory.add(filtered, user_id=str(user_id), metadata=metadata)
                 logger.info("long_term_memory_updated_successfully", user_id=user_id)
+                await self._prune_long_term_memory(user_id)
         except Exception as e:
             logger.exception("failed_to_update_long_term_memory", user_id=user_id, error=str(e))
