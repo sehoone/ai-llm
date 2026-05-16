@@ -5,13 +5,14 @@ import httpx
 from fastmcp import FastMCP
 
 from src.core.config import get_settings
-from src.core.logging import get_logger
+from src.core.logging import get_logger, tool_logger
 from src.weather.models import DailyForecast, ForecastResponse, WeatherResponse
 
 logger = get_logger("weather.server")
 mcp = FastMCP("Weather MCP Server")
 
 
+@tool_logger(logger, param_keys=["city", "country_code"])
 async def get_weather(city: str, country_code: Optional[str] = None) -> dict[str, Any]:
     """현재 날씨 정보를 조회합니다."""
     settings = get_settings()
@@ -61,10 +62,11 @@ async def get_weather(city: str, country_code: Optional[str] = None) -> dict[str
             return {"error": f"도시 '{city}'를 찾을 수 없습니다."}
         return {"error": f"API 오류: {e.response.status_code}"}
     except Exception as e:
-        logger.exception(f"get_weather failed for city={city}")
+        logger.exception("get_weather failed", extra={"tool": "get_weather", "city": city})
         return {"error": str(e)}
 
 
+@tool_logger(logger, param_keys=["city", "country_code", "days"])
 async def get_forecast(
     city: str, country_code: Optional[str] = None, days: int = 5
 ) -> dict[str, Any]:
@@ -130,7 +132,7 @@ async def get_forecast(
             return {"error": f"도시 '{city}'를 찾을 수 없습니다."}
         return {"error": f"API 오류: {e.response.status_code}"}
     except Exception as e:
-        logger.exception(f"get_forecast failed for city={city}")
+        logger.exception("get_forecast failed", extra={"tool": "get_forecast", "city": city})
         return {"error": str(e)}
 
 

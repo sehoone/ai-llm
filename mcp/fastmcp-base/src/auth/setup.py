@@ -13,6 +13,9 @@ from src.core.auth import (
     verify_user,
 )
 from src.core.config import Settings
+from src.core.logging import get_logger
+
+logger = get_logger("auth.setup")
 
 
 def setup_auth(mcp, settings: Settings) -> list[Middleware]:
@@ -33,8 +36,10 @@ def setup_auth(mcp, settings: Settings) -> list[Middleware]:
         password = body.get("password", "")
 
         if not verify_user(username, password, settings):
+            logger.warning("login_failed", extra={"username": username})
             return JSONResponse({"error": "Invalid credentials"}, status_code=401)
 
+        logger.info("login_success", extra={"username": username})
         return JSONResponse(
             {
                 "access_token": create_access_token(username, settings),
@@ -55,14 +60,17 @@ def setup_auth(mcp, settings: Settings) -> list[Middleware]:
         try:
             payload = decode_token(token, settings)
         except jwt.ExpiredSignatureError:
+            logger.warning("token_refresh_failed", extra={"reason": "expired"})
             return JSONResponse({"error": "Refresh token expired"}, status_code=401)
         except jwt.InvalidTokenError:
+            logger.warning("token_refresh_failed", extra={"reason": "invalid"})
             return JSONResponse({"error": "Invalid refresh token"}, status_code=401)
 
         if payload.get("type") != "refresh":
             return JSONResponse({"error": "Refresh token required"}, status_code=401)
 
         sub = payload["sub"]
+        logger.info("token_refreshed", extra={"username": sub})
         return JSONResponse(
             {
                 "access_token": create_access_token(sub, settings),

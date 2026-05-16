@@ -35,8 +35,8 @@ async def fetch_json(
                 raise
             wait = 2 ** attempt
             logger.warning(
-                f"HTTP request failed (attempt {attempt + 1}/{max_retries}), "
-                f"retry in {wait}s: {exc}"
+                "HTTP request failed, retrying",
+                extra={"attempt": attempt + 1, "max_retries": max_retries, "wait_s": wait, "error": str(exc)},
             )
             await asyncio.sleep(wait)
 

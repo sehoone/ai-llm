@@ -9,7 +9,7 @@ import httpx
 from fastmcp import FastMCP
 
 from src.core.config import get_settings
-from src.core.logging import get_logger
+from src.core.logging import get_logger, tool_logger
 from src.news.server import get_news_sources, get_top_headlines, search_news
 from src.weather.server import get_forecast, get_weather
 
@@ -48,6 +48,7 @@ def safe_eval(expression: str) -> Union[int, float]:
 
 # ─── Utilities ────────────────────────────────────────────────────────────────
 
+@tool_logger(logger)
 async def get_time() -> dict[str, Any]:
     """현재 시간 정보를 반환합니다."""
     now = datetime.now()
@@ -59,6 +60,7 @@ async def get_time() -> dict[str, Any]:
     }
 
 
+@tool_logger(logger, param_keys=["expression"])
 async def calculate(expression: str) -> dict[str, Any]:
     """수식을 계산합니다. 예: '2 + 3 * 4', '(10 - 2) / 4'"""
     try:
@@ -68,6 +70,7 @@ async def calculate(expression: str) -> dict[str, Any]:
         return {"error": str(e)}
 
 
+@tool_logger(logger, param_keys=["url"])
 async def ping_server(url: str) -> dict[str, Any]:
     """서버의 응답 시간을 확인합니다."""
     settings = get_settings()

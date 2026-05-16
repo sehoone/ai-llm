@@ -7,6 +7,9 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from src.core.config import Settings
+from src.core.logging import get_logger
+
+logger = get_logger("core.auth")
 
 _BYPASS_PATHS = frozenset({"/auth/token", "/auth/refresh", "/health"})
 
@@ -53,17 +56,24 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         auth = request.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
+            logger.warning(
+                "auth_missing_token",
+                extra={"path": request.url.path, "method": request.method},
+            )
             return JSONResponse({"error": "Authorization header missing"}, status_code=401)
 
         token = auth[7:]
         try:
             payload = decode_token(token, self.settings)
         except jwt.ExpiredSignatureError:
+            logger.warning("auth_token_expired", extra={"path": request.url.path})
             return JSONResponse({"error": "Token expired"}, status_code=401)
         except jwt.InvalidTokenError:
+            logger.warning("auth_token_invalid", extra={"path": request.url.path})
             return JSONResponse({"error": "Invalid token"}, status_code=401)
 
         if payload.get("type") != "access":
+            logger.warning("auth_wrong_token_type", extra={"path": request.url.path})
             return JSONResponse({"error": "Access token required"}, status_code=401)
 
         request.state.user = payload["sub"]

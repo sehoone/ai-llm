@@ -11,6 +11,10 @@ from fastmcp import FastMCP
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+from src.core.logging import get_logger  # noqa: E402 — sys.path 설정 후 import
+
+_logger = get_logger("main")
+
 _SERVERS: dict[str, tuple[str, str]] = {
     "integrated": ("src.integrated.server", "mcp"),
     "weather": ("src.weather.server", "mcp"),
@@ -47,9 +51,14 @@ def cmd_server(server_type: str = "integrated") -> None:
     from src.core.config import get_settings
     settings = get_settings()
 
-    print(
-        f"{server_type} MCP 서버를 시작합니다... "
-        f"[{settings.mcp_transport}] {settings.mcp_host}:{settings.mcp_port}"
+    _logger.info(
+        "server_starting",
+        extra={
+            "server": server_type,
+            "transport": settings.mcp_transport,
+            "host": settings.mcp_host,
+            "port": settings.mcp_port,
+        },
     )
 
     if settings.mcp_transport in ("streamable-http", "http", "sse"):

@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.core.config import get_settings
-from src.core.logging import get_logger
+from src.core.logging import get_logger, tool_logger
 from src.database.models import (
     AuthorInfo,
     DatabaseStats,
@@ -338,6 +338,7 @@ def _get_table_schema_sync(table_name: str) -> dict:
 
 # ─── 비동기 MCP 도구 함수 ─────────────────────────────────────────────────────
 
+@tool_logger(logger, param_keys=["username"])
 async def create_user(
     username: str, email: str, full_name: Optional[str] = None
 ) -> dict[str, Any]:
@@ -351,17 +352,20 @@ async def create_user(
     return await asyncio.to_thread(_create_user_sync, username, email, full_name)
 
 
+@tool_logger(logger, param_keys=["limit", "offset"])
 async def get_users(limit: int = 10, offset: int = 0) -> dict[str, Any]:
     """사용자 목록을 조회합니다."""
     limit = min(max(1, limit), get_settings().db_max_page_size)
     return await asyncio.to_thread(_get_users_sync, limit, offset)
 
 
+@tool_logger(logger, param_keys=["user_id"])
 async def get_user_by_id(user_id: int) -> dict[str, Any]:
     """ID로 사용자 정보를 조회합니다."""
     return await asyncio.to_thread(_get_user_by_id_sync, user_id)
 
 
+@tool_logger(logger, param_keys=["author_id", "is_published"])
 async def create_post(
     title: str, content: str, author_id: int, is_published: bool = False
 ) -> dict[str, Any]:
@@ -373,6 +377,7 @@ async def create_post(
     return await asyncio.to_thread(_create_post_sync, title, content, author_id, is_published)
 
 
+@tool_logger(logger, param_keys=["limit", "offset", "published_only"])
 async def get_posts(
     limit: int = 10, offset: int = 0, published_only: bool = False
 ) -> dict[str, Any]:
@@ -381,6 +386,7 @@ async def get_posts(
     return await asyncio.to_thread(_get_posts_sync, limit, offset, published_only)
 
 
+@tool_logger(logger, param_keys=["post_id", "is_published"])
 async def update_post(
     post_id: int,
     title: Optional[str] = None,
@@ -395,16 +401,19 @@ async def update_post(
     return await asyncio.to_thread(_update_post_sync, post_id, title, content, is_published)
 
 
+@tool_logger(logger, param_keys=["post_id"])
 async def delete_post(post_id: int) -> dict[str, Any]:
     """게시글을 삭제합니다."""
     return await asyncio.to_thread(_delete_post_sync, post_id)
 
 
+@tool_logger(logger)
 async def get_database_stats() -> dict[str, Any]:
     """데이터베이스 통계 정보를 조회합니다."""
     return await asyncio.to_thread(_get_stats_sync)
 
 
+@tool_logger(logger, param_keys=["query", "limit"])
 async def search_posts(query: str, limit: int = 10) -> dict[str, Any]:
     """게시글을 검색합니다 (제목 + 내용)."""
     if not query.strip():
@@ -413,6 +422,7 @@ async def search_posts(query: str, limit: int = 10) -> dict[str, Any]:
     return await asyncio.to_thread(_search_posts_sync, query, limit)
 
 
+@tool_logger(logger, param_keys=["query"])
 async def execute_raw_query(
     query: str, params: Optional[dict[str, Any]] = None
 ) -> dict[str, Any]:
@@ -420,6 +430,7 @@ async def execute_raw_query(
     return await asyncio.to_thread(_execute_raw_sync, query, params)
 
 
+@tool_logger(logger, param_keys=["table_name"])
 async def get_table_schema(table_name: str) -> dict[str, Any]:
     """테이블의 컬럼 스키마 정보를 조회합니다."""
     if not re.match(r"^[a-zA-Z0-9_]+$", table_name):

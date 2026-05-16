@@ -5,7 +5,7 @@ import httpx
 from fastmcp import FastMCP
 
 from src.core.config import get_settings
-from src.core.logging import get_logger
+from src.core.logging import get_logger, tool_logger
 from src.news.models import Article, NewsResponse, NewsSource, NewsSourcesResponse
 
 logger = get_logger("news.server")
@@ -54,6 +54,7 @@ def _parse_articles(raw: list[dict]) -> list[Article]:
     ]
 
 
+@tool_logger(logger, param_keys=["country", "category", "page_size"])
 async def get_top_headlines(
     country: str = "kr", category: Optional[str] = None, page_size: int = 10
 ) -> dict[str, Any]:
@@ -98,10 +99,11 @@ async def get_top_headlines(
     except httpx.HTTPStatusError as e:
         return {"error": f"HTTP 오류: {e.response.status_code}"}
     except Exception as e:
-        logger.exception("get_top_headlines failed")
+        logger.exception("get_top_headlines failed", extra={"tool": "get_top_headlines", "country": country})
         return {"error": str(e)}
 
 
+@tool_logger(logger, param_keys=["query", "language", "sort_by", "page_size"])
 async def search_news(
     query: str,
     language: str = "ko",
@@ -150,10 +152,11 @@ async def search_news(
     except httpx.HTTPStatusError as e:
         return {"error": f"HTTP 오류: {e.response.status_code}"}
     except Exception as e:
-        logger.exception(f"search_news failed for query={query}")
+        logger.exception("search_news failed", extra={"tool": "search_news", "query": query})
         return {"error": str(e)}
 
 
+@tool_logger(logger, param_keys=["category", "language", "country"])
 async def get_news_sources(
     category: Optional[str] = None, language: str = "ko", country: str = "kr"
 ) -> dict[str, Any]:
@@ -199,7 +202,7 @@ async def get_news_sources(
     except httpx.HTTPStatusError as e:
         return {"error": f"HTTP 오류: {e.response.status_code}"}
     except Exception as e:
-        logger.exception("get_news_sources failed")
+        logger.exception("get_news_sources failed", extra={"tool": "get_news_sources"})
         return {"error": str(e)}
 
 

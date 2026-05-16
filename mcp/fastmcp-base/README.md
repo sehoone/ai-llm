@@ -281,6 +281,120 @@ flake8 src/ tests/ main.py
 
 ---
 
+## 디버깅
+
+### 1. MCP Inspector (권장)
+
+MCP 공식 인스펙터로 도구 목록 조회·호출을 브라우저에서 인터랙티브하게 테스트할 수 있습니다.
+
+**방법 A — npx (Node.js 필요)**
+
+```bash
+# 서버를 stdio 모드로 인스펙터에 연결
+npx @modelcontextprotocol/inspector uv run python main.py server integrated
+```
+
+실행 후 터미널에 출력된 URL(기본 `http://localhost:5173`)을 브라우저에서 열면 됩니다.
+
+**방법 B — FastMCP dev 명령**
+
+```bash
+uv run fastmcp dev src/integrated/server.py
+uv run fastmcp dev src/weather/server.py
+uv run fastmcp dev src/news/server.py
+uv run fastmcp dev src/database/server.py
+```
+
+---
+
+### 2. 로그 레벨 조정
+
+`.env`에서 `LOG_LEVEL`을 `DEBUG`로 설정하면 요청·응답 전문이 출력됩니다.
+
+```ini
+LOG_LEVEL=DEBUG
+```
+
+실행 시 확인할 수 있는 정보:
+- 도구 호출 파라미터
+- 외부 API 요청/응답
+- DB 쿼리 (database 서버)
+- 예외 스택 트레이스
+
+---
+
+### 3. HTTP 엔드포인트 직접 호출
+
+`streamable-http` transport 사용 시 curl로 MCP 프로토콜을 직접 테스트할 수 있습니다.
+
+```bash
+# 서버 기동 (별도 터미널)
+uv run python main.py server integrated
+
+# 도구 목록 조회
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# 도구 호출 예시 — get_weather
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "get_weather",
+      "arguments": {"city": "Seoul", "country_code": "KR"}
+    }
+  }'
+```
+
+---
+
+### 4. stdio 모드 수동 테스트
+
+stdio transport로 전환 후 JSON-RPC 메시지를 직접 stdin으로 전달합니다.
+
+```bash
+# .env에서 MCP_TRANSPORT=stdio 로 변경 후
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
+  uv run python main.py server integrated
+```
+
+---
+
+### 5. Claude Desktop 로그 확인
+
+Claude Desktop과 연동 시 로그 위치:
+
+| OS | 경로 |
+|---|---|
+| macOS | `~/Library/Logs/Claude/mcp-server-{name}.log` |
+| Windows | `%APPDATA%\Claude\logs\mcp-server-{name}.log` |
+
+```bash
+# macOS 실시간 확인
+tail -f ~/Library/Logs/Claude/mcp-server-fastmcp-integrated.log
+
+# Windows PowerShell 실시간 확인
+Get-Content "$env:APPDATA\Claude\logs\mcp-server-fastmcp-integrated.log" -Wait
+```
+
+---
+
+### 6. DB 연결 진단
+
+```bash
+# PostgreSQL 연결 상태 확인
+uv run python main.py init database
+
+# 테이블 생성 및 확인
+uv run python main.py init tables
+```
+
+---
+
 ## 문제 해결
 
 **API 키 없이 사용** — `demo_key` 유지 시 모든 날씨·뉴스 도구가 샘플 데이터를 반환합니다.

@@ -18,6 +18,7 @@ def _get_engine():
     if _engine is None:
         settings = get_settings()
         _engine = create_engine(settings.database_url, pool_pre_ping=True)
+        logger.info("db_engine_created", extra={"url": settings.database_url.split("@")[-1]})
     return _engine
 
 
@@ -34,8 +35,9 @@ def get_session() -> Generator[Session, None, None]:
     try:
         yield session
         session.commit()
-    except Exception:
+    except Exception as e:
         session.rollback()
+        logger.error("db_session_rollback", extra={"error": str(e)})
         raise
     finally:
         session.close()
@@ -45,7 +47,8 @@ def test_connection() -> bool:
     try:
         with get_session() as session:
             session.execute(text("SELECT 1"))
+        logger.info("db_connection_ok")
         return True
     except Exception as e:
-        logger.error(f"Database connection failed: {e}")
+        logger.error("db_connection_failed", extra={"error": str(e)})
         return False
