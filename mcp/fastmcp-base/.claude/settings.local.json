@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-Object -Property FullName)",
+      "Bash(ConvertTo-Json -Depth 100)",
+      "Bash(uv add *)",
+      "Bash(uv run *)",
+      "Bash(python -c \"import fastmcp\")",
+      "Bash(uv python *)",
+      "Bash(uv sync *)",
+      "WebFetch(domain:gofastmcp.com)",
+      "Bash(Remove-Item -Recurse -Force src\\\\servers, src\\\\models, src\\\\db)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Start-Sleep -Seconds 4)",
+      "Bash(Get-Content \"C:\\\\Users\\\\meras\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--dev-vscodeWorkspace-ai-llm-1-mcp-fastmcp-base\\\\4f415393-f54c-4632-a19a-8035313d58a9\\\\tasks\\\\bklk8h52u.output\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(docker compose *)",
+      "Bash(cp .env.example .env)",
+      "Bash(rm .env)",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\mcp\\\\fastmcp-base\\\\src\\\\auth\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"done\")",
+      "PowerShell(New-Item *)",
+      "Bash(grep -E \"\\\\.py$|^d\")",
+      "Bash(Remove-Item *)"
+    ]
+  }
+}

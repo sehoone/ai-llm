@@ -1,141 +1,126 @@
 #!/usr/bin/env python3
-"""
-FastMCP 프로젝트 메인 실행 파일
+"""FastMCP 베이스 프로젝트 CLI"""
 
-이 스크립트는 프로젝트의 주요 기능들을 실행할 수 있는 통합 인터페이스를 제공합니다.
-"""
-
+import importlib
 import sys
-import asyncio
 from pathlib import Path
+from typing import Optional
 
-# 프로젝트 루트를 경로에 추가
+from fastmcp import FastMCP
+
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+_SERVERS: dict[str, tuple[str, str]] = {
+    "integrated": ("src.integrated.server", "mcp"),
+    "weather": ("src.weather.server", "mcp"),
+    "news": ("src.news.server", "mcp"),
+    "database": ("src.database.server", "mcp"),
+}
 
-def print_usage():
-    """사용법 출력"""
-    print("""
-FastMCP 프로젝트 실행기
+_USAGE = """\
+FastMCP 베이스 프로젝트
 
 사용법:
-    python main.py <command> [options]
-
-명령어:
-    server [integrated|weather|news|database]  - MCP 서버 실행
-    test [simple|tools|database|interactive]   - 테스트 실행
-    init [database]                             - 초기화 실행
-    demo [client|sql]                           - 데모 실행
-    help                                        - 도움말 표시
+    python main.py server [integrated|weather|news|database]
+    python main.py init database
+    python main.py init tables
 
 예제:
-    python main.py server integrated   # 통합 서버 실행
-    python main.py server database     # 데이터베이스 서버 실행
-    python main.py test simple         # 간단한 테스트 실행
-    python main.py test database       # 데이터베이스 테스트 실행
-    python main.py init database       # 데이터베이스 초기화
-    python main.py demo client         # 클라이언트 데모 실행
-    python main.py demo sql             # SQL 쿼리 데모 실행
-""")
+    python main.py server integrated    # 통합 서버 (기본값)
+    python main.py server database      # 데이터베이스 서버
+    python main.py init database        # DB 연결 확인
+    python main.py init tables          # 테이블 생성 (users, posts)
+"""
 
 
-async def run_server(server_type="integrated"):
-    """MCP 서버 실행"""
-    if server_type == "integrated":
-        from src.integrated_server import mcp
-        print("통합 MCP 서버를 시작합니다...")
-        mcp.run()
-    elif server_type == "weather":
-        from src.weather_mcp_server import mcp
-        print("날씨 MCP 서버를 시작합니다...")
-        mcp.run()
-    elif server_type == "news":
-        from src.news_mcp_server import mcp
-        print("뉴스 MCP 서버를 시작합니다...")
-        mcp.run()
-    elif server_type == "database":
-        from src.database_mcp_server import mcp
-        print("데이터베이스 MCP 서버를 시작합니다...")
-        mcp.run()
+def cmd_server(server_type: str = "integrated") -> None:
+    if server_type not in _SERVERS:
+        print(f"알 수 없는 서버: {server_type}")
+        print(f"사용 가능: {', '.join(_SERVERS)}")
+        sys.exit(1)
+
+    module_path, attr = _SERVERS[server_type]
+    module = importlib.import_module(module_path)
+    mcp: FastMCP = getattr(module, attr)
+
+    from src.core.config import get_settings
+    settings = get_settings()
+
+    print(
+        f"{server_type} MCP 서버를 시작합니다... "
+        f"[{settings.mcp_transport}] {settings.mcp_host}:{settings.mcp_port}"
+    )
+
+    if settings.mcp_transport in ("streamable-http", "http", "sse"):
+        _run_http_server(mcp, settings)
     else:
-        print(f"알 수 없는 서버 타입: {server_type}")
-        print("사용 가능한 서버: integrated, weather, news, database")
+        mcp.run(transport=settings.mcp_transport)
 
 
-async def run_test(test_type="simple"):
-    """테스트 실행"""
-    if test_type == "simple":
-        from tests.simple_test import main
-        await main()
-    elif test_type == "tools":
-        from tests.test_tools import main
-        await main()
-    elif test_type == "database":
-        from tests.test_database import main
-        await main()
-    elif test_type == "interactive":
-        from tests.test_tools import interactive_test
-        await interactive_test()
+def _run_http_server(mcp: FastMCP, settings) -> None:
+    import uvicorn
+    from src.auth.setup import setup_auth
+
+    middleware = setup_auth(mcp, settings)
+    app = mcp.http_app(middleware=middleware, transport=settings.mcp_transport)
+    uvicorn.run(
+        app,
+        host=settings.mcp_host,
+        port=settings.mcp_port,
+        access_log=(settings.log_level == "DEBUG"),
+        log_level=settings.log_level.lower(),
+        timeout_keep_alive=30,
+    )
+
+
+def cmd_init(target: str = "database") -> None:
+    if target == "database":
+        from src.database.session import test_connection
+        if test_connection():
+            print("데이터베이스 연결 성공")
+        else:
+            print("데이터베이스 연결 실패 — DATABASE_URL 환경변수를 확인하세요.")
+            sys.exit(1)
+
+    elif target == "tables":
+        from src.database.orm import Base
+        from src.database.session import _get_engine
+        engine = _get_engine()
+        try:
+            Base.metadata.create_all(engine)
+            print("테이블 생성 완료: users, posts")
+        except Exception as e:
+            print(f"테이블 생성 실패: {e}")
+            sys.exit(1)
+
     else:
-        print(f"알 수 없는 테스트 타입: {test_type}")
-        print("사용 가능한 테스트: simple, tools, database, interactive")
+        print(f"알 수 없는 초기화 대상: {target}")
+        print("사용 가능: database, tables")
+        sys.exit(1)
 
 
-async def run_init(init_type="database"):
-    """초기화 실행"""
-    if init_type == "database":
-        from scripts.init_database import main
-        await main()
-    else:
-        print(f"알 수 없는 초기화 타입: {init_type}")
-        print("사용 가능한 초기화: database")
-
-
-async def run_demo(demo_type="client"):
-    """데모 실행"""
-    if demo_type == "client":
-        from examples.client_demo import main
-        await main()
-    elif demo_type == "sql":
-        from examples.sql_query_demo import main
-        await main()
-    else:
-        print(f"알 수 없는 데모 타입: {demo_type}")
-        print("사용 가능한 데모: client, sql")
-
-
-async def main():
-    """메인 함수"""
-    if len(sys.argv) < 2:
-        print_usage()
+def main() -> None:
+    args = sys.argv[1:]
+    if not args or args[0] in ("help", "--help", "-h"):
+        print(_USAGE)
         return
 
-    command = sys.argv[1].lower()
+    command = args[0]
+    sub: Optional[str] = args[1] if len(args) > 1 else None
 
     try:
         if command == "server":
-            server_type = sys.argv[2] if len(sys.argv) > 2 else "integrated"
-            await run_server(server_type)
-        elif command == "test":
-            test_type = sys.argv[2] if len(sys.argv) > 2 else "simple"
-            await run_test(test_type)
+            cmd_server(sub or "integrated")
         elif command == "init":
-            init_type = sys.argv[2] if len(sys.argv) > 2 else "database"
-            await run_init(init_type)
-        elif command == "demo":
-            demo_type = sys.argv[2] if len(sys.argv) > 2 else "client"
-            await run_demo(demo_type)
-        elif command == "help":
-            print_usage()
+            cmd_init(sub or "database")
         else:
             print(f"알 수 없는 명령어: {command}")
-            print_usage()
+            print(_USAGE)
+            sys.exit(1)
     except KeyboardInterrupt:
-        print("\n프로그램이 중단되었습니다.")
-    except Exception as e:
-        print(f"오류 발생: {e}")
+        print("\n종료합니다.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
