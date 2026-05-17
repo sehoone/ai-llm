@@ -1,22 +1,16 @@
-"""통합 MCP 서버 — 날씨, 뉴스, 유틸리티 도구를 하나로 묶습니다."""
-
 import ast
 import operator
 from datetime import datetime
 from typing import Any, Union
 
 import httpx
-from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
 from src.core.config import get_settings
 from src.core.logging import get_logger, tool_logger
-from src.news.server import get_news_sources, get_top_headlines, search_news
-from src.weather.server import get_forecast, get_weather
+from src.core.mcp import mcp
 
-logger = get_logger("integrated.server")
-mcp = FastMCP("Integrated MCP Server")
-
-# ─── Safe math evaluator ──────────────────────────────────────────────────────
+logger = get_logger("utils.tools")
 
 _OPS = {
     ast.Add: operator.add,
@@ -46,8 +40,7 @@ def safe_eval(expression: str) -> Union[int, float]:
     return _eval_node(tree.body)
 
 
-# ─── Utilities ────────────────────────────────────────────────────────────────
-
+@mcp.tool()
 @tool_logger(logger)
 async def get_time() -> dict[str, Any]:
     """현재 시간 정보를 반환합니다."""
@@ -60,6 +53,7 @@ async def get_time() -> dict[str, Any]:
     }
 
 
+@mcp.tool()
 @tool_logger(logger, param_keys=["expression"])
 async def calculate(expression: str) -> dict[str, Any]:
     """수식을 계산합니다. 예: '2 + 3 * 4', '(10 - 2) / 4'"""
@@ -67,18 +61,19 @@ async def calculate(expression: str) -> dict[str, Any]:
         result = safe_eval(expression)
         return {"expression": expression, "result": result, "type": type(result).__name__}
     except (ValueError, ZeroDivisionError, SyntaxError) as e:
-        return {"error": str(e)}
+        raise ToolError(str(e))
 
 
+@mcp.tool()
 @tool_logger(logger, param_keys=["url"])
 async def ping_server(url: str) -> dict[str, Any]:
     """서버의 응답 시간을 확인합니다."""
     settings = get_settings()
     try:
-        start = datetime.now()
         async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+            start = datetime.now()
             response = await client.get(url)
-        elapsed_ms = round((datetime.now() - start).total_seconds() * 1000, 2)
+            elapsed_ms = round((datetime.now() - start).total_seconds() * 1000, 2)
         return {
             "url": url,
             "status_code": response.status_code,
@@ -86,16 +81,4 @@ async def ping_server(url: str) -> dict[str, Any]:
             "success": response.is_success,
         }
     except Exception as e:
-        return {"error": f"연결 실패: {str(e)}"}
-
-
-# ─── Tool registration ────────────────────────────────────────────────────────
-
-mcp.tool()(get_weather)
-mcp.tool()(get_forecast)
-mcp.tool()(get_top_headlines)
-mcp.tool()(search_news)
-mcp.tool()(get_news_sources)
-mcp.tool()(get_time)
-mcp.tool()(calculate)
-mcp.tool()(ping_server)
+        raise ToolError(f"연결 실패: {e}")

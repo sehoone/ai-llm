@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """FastMCP 베이스 프로젝트 CLI"""
 
-import importlib
 import sys
 from pathlib import Path
-from typing import Optional
 
 from fastmcp import FastMCP
 
@@ -15,46 +13,22 @@ from src.core.logging import get_logger  # noqa: E402 — sys.path 설정 후 im
 
 _logger = get_logger("main")
 
-_SERVERS: dict[str, tuple[str, str]] = {
-    "integrated": ("src.integrated.server", "mcp"),
-    "weather": ("src.weather.server", "mcp"),
-    "news": ("src.news.server", "mcp"),
-    "database": ("src.database.server", "mcp"),
-}
-
 _USAGE = """\
 FastMCP 베이스 프로젝트
 
 사용법:
-    python main.py server [integrated|weather|news|database]
-    python main.py init database
-    python main.py init tables
-
-예제:
-    python main.py server integrated    # 통합 서버 (기본값)
-    python main.py server database      # 데이터베이스 서버
-    python main.py init database        # DB 연결 확인
-    python main.py init tables          # 테이블 생성 (users, posts)
+    python main.py server    # 서버 실행 (날씨·뉴스·DB·유틸리티 전체 도구)
 """
 
 
-def cmd_server(server_type: str = "integrated") -> None:
-    if server_type not in _SERVERS:
-        print(f"알 수 없는 서버: {server_type}")
-        print(f"사용 가능: {', '.join(_SERVERS)}")
-        sys.exit(1)
-
-    module_path, attr = _SERVERS[server_type]
-    module = importlib.import_module(module_path)
-    mcp: FastMCP = getattr(module, attr)
-
+def cmd_server() -> None:
+    from src.app import mcp
     from src.core.config import get_settings
-    settings = get_settings()
 
+    settings = get_settings()
     _logger.info(
         "server_starting",
         extra={
-            "server": server_type,
             "transport": settings.mcp_transport,
             "host": settings.mcp_host,
             "port": settings.mcp_port,
@@ -83,52 +57,21 @@ def _run_http_server(mcp: FastMCP, settings) -> None:
     )
 
 
-def cmd_init(target: str = "database") -> None:
-    if target == "database":
-        from src.database.session import test_connection
-        if test_connection():
-            print("데이터베이스 연결 성공")
-        else:
-            print("데이터베이스 연결 실패 — DATABASE_URL 환경변수를 확인하세요.")
-            sys.exit(1)
-
-    elif target == "tables":
-        from src.database.orm import Base
-        from src.database.session import _get_engine
-        engine = _get_engine()
-        try:
-            Base.metadata.create_all(engine)
-            print("테이블 생성 완료: users, posts")
-        except Exception as e:
-            print(f"테이블 생성 실패: {e}")
-            sys.exit(1)
-
-    else:
-        print(f"알 수 없는 초기화 대상: {target}")
-        print("사용 가능: database, tables")
-        sys.exit(1)
-
-
 def main() -> None:
     args = sys.argv[1:]
     if not args or args[0] in ("help", "--help", "-h"):
         print(_USAGE)
         return
 
-    command = args[0]
-    sub: Optional[str] = args[1] if len(args) > 1 else None
-
-    try:
-        if command == "server":
-            cmd_server(sub or "integrated")
-        elif command == "init":
-            cmd_init(sub or "database")
-        else:
-            print(f"알 수 없는 명령어: {command}")
-            print(_USAGE)
-            sys.exit(1)
-    except KeyboardInterrupt:
-        print("\n종료합니다.")
+    if args[0] == "server":
+        try:
+            cmd_server()
+        except KeyboardInterrupt:
+            print("\n종료합니다.")
+    else:
+        print(f"알 수 없는 명령어: {args[0]}")
+        print(_USAGE)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

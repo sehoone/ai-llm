@@ -1,7 +1,11 @@
+import functools
+import inspect
 import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
+from fastmcp import Context
+from fastmcp.exceptions import ToolError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -55,6 +59,25 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         auth = request.headers.get("Authorization", "")
+
+        if self.settings.auth_mode == "per-tool":
+            # 토큰이 있으면 파싱해서 state에 주입, 없으면 통과 (도구가 직접 검증)
+            if auth.startswith("Bearer "):
+                token = auth[7:]
+                try:
+                    payload = decode_token(token, self.settings)
+                except jwt.ExpiredSignatureError:
+                    logger.warning("auth_token_expired", extra={"path": request.url.path})
+                    return JSONResponse({"error": "Token expired"}, status_code=401)
+                except jwt.InvalidTokenError:
+                    logger.warning("auth_token_invalid", extra={"path": request.url.path})
+                    return JSONResponse({"error": "Invalid token"}, status_code=401)
+
+                if payload.get("type") == "access":
+                    request.state.user = payload["sub"]
+            return await call_next(request)
+
+        # global 모드 — 토큰 없으면 즉시 차단
         if not auth.startswith("Bearer "):
             logger.warning(
                 "auth_missing_token",
@@ -78,3 +101,41 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         request.state.user = payload["sub"]
         return await call_next(request)
+
+
+# ── 도구 레벨 인증 ────────────────────────────────────────────────────────────
+
+async def require_auth(ctx: Context) -> str:
+    """인증된 사용자명을 반환. 미인증이면 ToolError. stdio 등 비-HTTP transport는 스킵."""
+    if ctx is None:
+        raise ToolError("Authentication required")
+    try:
+        request = ctx.request_context.request
+        user = getattr(request.state, "user", None)
+    except AttributeError:
+        return ""
+    if user is None:
+        raise ToolError("Authentication required")
+    return user
+
+
+def protected(fn):
+    """인증이 필요한 MCP 도구에 붙이는 데코레이터.
+
+    functools.wraps로 원본 시그니처를 유지하므로 FastMCP 도구 등록에 영향 없음.
+
+    사용법::
+
+        @mcp.tool()
+        @tool_logger(logger)
+        @protected
+        async def my_tool(ctx: Context, ...) -> dict:
+            ...
+    """
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        bound = inspect.signature(fn).bind(*args, **kwargs)
+        bound.apply_defaults()
+        await require_auth(bound.arguments.get("ctx"))
+        return await fn(*args, **kwargs)
+    return wrapper

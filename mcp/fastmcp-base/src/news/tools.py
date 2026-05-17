@@ -2,14 +2,14 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import httpx
-from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
 from src.core.config import get_settings
 from src.core.logging import get_logger, tool_logger
+from src.core.mcp import mcp
 from src.news.models import Article, NewsResponse, NewsSource, NewsSourcesResponse
 
-logger = get_logger("news.server")
-mcp = FastMCP("News MCP Server")
+logger = get_logger("news.tools")
 
 _DEMO_ARTICLES = [
     Article(
@@ -54,6 +54,7 @@ def _parse_articles(raw: list[dict]) -> list[Article]:
     ]
 
 
+@mcp.tool()
 @tool_logger(logger, param_keys=["country", "category", "page_size"])
 async def get_top_headlines(
     country: str = "kr", category: Optional[str] = None, page_size: int = 10
@@ -80,14 +81,12 @@ async def get_top_headlines(
             params["category"] = category
 
         async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(
-                f"{settings.news_base_url}/top-headlines", params=params
-            )
+            response = await client.get(f"{settings.news_base_url}/top-headlines", params=params)
             response.raise_for_status()
             data = response.json()
 
         if data["status"] != "ok":
-            return {"error": data.get("message", "API 오류")}
+            raise ToolError(data.get("message", "API 오류"))
 
         return NewsResponse(
             total_results=data["totalResults"],
@@ -95,14 +94,16 @@ async def get_top_headlines(
             country=country,
             category=category or "all",
         ).model_dump()
-
+    except ToolError:
+        raise
     except httpx.HTTPStatusError as e:
-        return {"error": f"HTTP 오류: {e.response.status_code}"}
+        raise ToolError(f"HTTP 오류: {e.response.status_code}")
     except Exception as e:
-        logger.exception("get_top_headlines failed", extra={"tool": "get_top_headlines", "country": country})
-        return {"error": str(e)}
+        logger.exception("get_top_headlines failed", extra={"country": country})
+        raise ToolError(str(e))
 
 
+@mcp.tool()
 @tool_logger(logger, param_keys=["query", "language", "sort_by", "page_size"])
 async def search_news(
     query: str,
@@ -132,30 +133,29 @@ async def search_news(
             "pageSize": min(page_size, 100),
             "from": from_date,
         }
-
         async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(
-                f"{settings.news_base_url}/everything", params=params
-            )
+            response = await client.get(f"{settings.news_base_url}/everything", params=params)
             response.raise_for_status()
             data = response.json()
 
         if data["status"] != "ok":
-            return {"error": data.get("message", "API 오류")}
+            raise ToolError(data.get("message", "API 오류"))
 
         return NewsResponse(
             total_results=data["totalResults"],
             articles=_parse_articles(data["articles"]),
             query=query,
         ).model_dump()
-
+    except ToolError:
+        raise
     except httpx.HTTPStatusError as e:
-        return {"error": f"HTTP 오류: {e.response.status_code}"}
+        raise ToolError(f"HTTP 오류: {e.response.status_code}")
     except Exception as e:
-        logger.exception("search_news failed", extra={"tool": "search_news", "query": query})
-        return {"error": str(e)}
+        logger.exception("search_news failed", extra={"query": query})
+        raise ToolError(str(e))
 
 
+@mcp.tool()
 @tool_logger(logger, param_keys=["category", "language", "country"])
 async def get_news_sources(
     category: Optional[str] = None, language: str = "ko", country: str = "kr"
@@ -176,14 +176,12 @@ async def get_news_sources(
             params["category"] = category
 
         async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(
-                f"{settings.news_base_url}/sources", params=params
-            )
+            response = await client.get(f"{settings.news_base_url}/sources", params=params)
             response.raise_for_status()
             data = response.json()
 
         if data["status"] != "ok":
-            return {"error": data.get("message", "API 오류")}
+            raise ToolError(data.get("message", "API 오류"))
 
         sources = [
             NewsSource(
@@ -198,14 +196,10 @@ async def get_news_sources(
             for s in data["sources"]
         ]
         return NewsSourcesResponse(sources=sources, total_count=len(sources)).model_dump()
-
+    except ToolError:
+        raise
     except httpx.HTTPStatusError as e:
-        return {"error": f"HTTP 오류: {e.response.status_code}"}
+        raise ToolError(f"HTTP 오류: {e.response.status_code}")
     except Exception as e:
-        logger.exception("get_news_sources failed", extra={"tool": "get_news_sources"})
-        return {"error": str(e)}
-
-
-mcp.tool()(get_top_headlines)
-mcp.tool()(search_news)
-mcp.tool()(get_news_sources)
+        logger.exception("get_news_sources failed")
+        raise ToolError(str(e))

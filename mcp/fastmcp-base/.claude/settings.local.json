@@ -24,7 +24,23 @@
       "Bash(Write-Output \"done\")",
       "PowerShell(New-Item *)",
       "Bash(grep -E \"\\\\.py$|^d\")",
-      "Bash(Remove-Item *)"
+      "Bash(Remove-Item *)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(dir *)",
+      "WebSearch",
+      "Bash(python -c \"from fastmcp import Client; import inspect; print\\(inspect.signature\\(Client.call_tool\\)\\)\")",
+      "Bash(curl *)",
+      "Bash(Stop-Process -Name python -Force -ErrorAction SilentlyContinue)",
+      "Bash(Write-Output \"서버 종료\")",
+      "Bash(pkill -f \"main.py server\")",
+      "Read(//tmp/**)",
+      "Bash(netstat -ano)",
+      "Bash(awk '{print $5}')",
+      "Bash(taskkill //F //PID 21116)",
+      "Bash(xargs -I{} taskkill //F //PID {})",
+      "Bash(git check-ignore *)",
+      "PowerShell(Remove-Item *)"
     ]
   }
 }

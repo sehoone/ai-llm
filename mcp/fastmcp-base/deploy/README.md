@@ -8,17 +8,19 @@ deploy/
 ├── docker-compose.yml        # 로컬/개발용
 ├── docker-compose.prod.yml   # 프로덕션 오버라이드 (리소스 제한, 로그 설정)
 ├── .env.example              # 환경변수 템플릿
+├── loki-config.yml           # Loki 로그 수집 설정
+├── promtail-config.yml       # Promtail 에이전트 설정
 └── README.md
 ```
 
 ## 서비스 구성
 
 | 서비스 | 이미지 | 역할 |
-|---|---|---|
+|--------|--------|------|
 | `postgres` | postgres:16-alpine | 데이터베이스 |
-| `initdb` | 앱 이미지 (일회성) | 테이블 초기화 후 종료 |
 | `mcp` | 앱 이미지 | MCP 서버 (8000포트) |
 | `pgadmin` | dpage/pgadmin4:8 | DB 관리 UI (`--profile admin` 시만 실행) |
+| `loki` / `promtail` / `grafana` | Grafana 스택 | 로그 모니터링 (`--profile monitoring` 시만 실행) |
 
 ---
 
@@ -36,9 +38,11 @@ cp .env.example .env
 ```ini
 POSTGRES_PASSWORD=your_password
 DATABASE_URL=postgresql://postgres:your_password@postgres:5432/fastmcp_db
+JWT_SECRET_KEY=<openssl rand -hex 32>
+AUTH_USERS=admin:your_password
 ```
 
-> `DATABASE_URL`의 호스트는 반드시 `postgres` (docker 서비스명)로 유지해야 합니다.  
+> `DATABASE_URL`의 호스트는 반드시 `postgres` (docker 서비스명)로 유지하세요.  
 > `localhost`로 바꾸면 컨테이너 간 통신이 불가합니다.
 
 ### 2. 빌드 및 실행
@@ -48,16 +52,16 @@ DATABASE_URL=postgresql://postgres:your_password@postgres:5432/fastmcp_db
 docker compose up --build
 ```
 
-최초 실행 시 순서:
-1. `postgres` 기동 및 healthcheck 통과
-2. `initdb` — `users`, `posts` 테이블 생성 후 종료
-3. `mcp` — MCP 서버 기동
+시작 순서:
+1. `postgres` 기동 — 최초 실행 시 `scripts/schema.sql`로 테이블 자동 생성 후 healthcheck 통과
+2. `mcp` 서버 기동
 
 ### 3. 접속 확인
 
 | 서비스 | URL |
-|---|---|
+|--------|-----|
 | MCP 엔드포인트 | http://localhost:8000/mcp |
+| 헬스체크 | http://localhost:8000/health |
 | pgAdmin (선택) | http://localhost:5050 |
 
 ### 4. pgAdmin 포함 실행 (선택)
@@ -81,19 +85,6 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 프로덕션 오버라이드 내용:
 - `mcp`: CPU 1코어·메모리 512MB 제한, 로그 로테이션(10MB × 5)
 - `postgres`: 메모리 1GB 제한, 로그 로테이션, 외부 포트 비노출
-
----
-
-## 서버 타입 변경
-
-`.env`의 `SERVER_TYPE`으로 실행할 서버를 선택합니다.
-
-```ini
-# integrated(기본) | weather | news | database
-SERVER_TYPE=database
-```
-
-`database` 서버 실행 시 `initdb`가 반드시 성공해야 합니다 (`DATABASE_URL` 확인 필수).
 
 ---
 
@@ -135,7 +126,7 @@ PGADMIN_PORT=5051
 
 ## 주의사항
 
-- `.env`는 절대 git에 커밋하지 마세요 (`.gitignore`에 추가되어 있어야 합니다).
+- `.env`는 절대 git에 커밋하지 마세요 (`.gitignore`에 추가되어 있습니다).
 - `POSTGRES_PASSWORD`와 `DATABASE_URL`의 비밀번호는 반드시 일치해야 합니다.
-- `DATABASE_URL` 호스트는 컨테이너 내부에서 `postgres` (서비스명)을 사용합니다.  
-  로컬 직접 실행(uv run)과 docker 실행은 호스트명이 다릅니다.
+- `DATABASE_URL` 호스트는 컨테이너 내부에서 `postgres` (서비스명)을 사용합니다.
+- Docker 환경에서는 `APP_ENV` 파일 분리 방식 대신 `.env`로 환경변수를 직접 주입합니다.

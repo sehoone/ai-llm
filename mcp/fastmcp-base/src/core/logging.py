@@ -82,24 +82,24 @@ def tool_logger(logger_instance, *, param_keys: list[str] | None = None):
             try:
                 result = await fn(*args, **kwargs)
                 duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-
-                if isinstance(result, dict) and "error" in result:
+                logger_instance.info(
+                    "tool_done",
+                    extra={**base_extra, "status": "success", "duration_ms": duration_ms},
+                )
+                return result
+            except Exception as exc:
+                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                # ToolError는 예상된 실패 — warning으로 기록하고 stack trace 생략
+                if type(exc).__name__ == "ToolError":
                     logger_instance.warning(
                         "tool_error",
-                        extra={**base_extra, "status": "error", "duration_ms": duration_ms, "error": result["error"]},
+                        extra={**base_extra, "status": "error", "duration_ms": duration_ms, "error": str(exc)},
                     )
                 else:
-                    logger_instance.info(
-                        "tool_done",
-                        extra={**base_extra, "status": "success", "duration_ms": duration_ms},
+                    logger_instance.exception(
+                        "tool_exception",
+                        extra={**base_extra, "status": "exception", "duration_ms": duration_ms},
                     )
-                return result
-            except Exception:
-                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                logger_instance.exception(
-                    "tool_exception",
-                    extra={**base_extra, "status": "exception", "duration_ms": duration_ms},
-                )
                 raise
 
         return wrapper

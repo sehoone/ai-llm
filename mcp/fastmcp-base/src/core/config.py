@@ -1,10 +1,19 @@
+import os
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# APP_ENV 에 따라 로드할 .env 파일 결정
+# 실행 예: APP_ENV=prod uv run python main.py server
+_APP_ENV = os.getenv("APP_ENV", "local")
+_ENV_FILE = f".env.{_APP_ENV}"
+
 
 class Settings(BaseSettings):
+    app_env: str = _APP_ENV
+
     openweather_api_key: str = Field(default="demo_key")
     openweather_base_url: str = "http://api.openweathermap.org/data/2.5"
 
@@ -36,11 +45,19 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 7
 
+    # 인증 모드
+    # "global"   : 미들웨어가 모든 MCP 요청을 차단 (기본값)
+    # "per-tool" : 미들웨어는 토큰 파싱만, @require_auth 도구가 직접 검증
+    auth_mode: Literal["global", "per-tool"] = "global"
+
     # 인증 사용자 — "username:password,username2:password2" 형식
-    # 예: AUTH_USERS=admin:secret,viewer:pass123
     auth_users: str = Field(default="admin:admin123")
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILE,
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     @property
     def auth_users_dict(self) -> dict[str, str]:
