@@ -108,21 +108,20 @@ async def get_users(limit: int = 10, offset: int = 0, ctx: Context = None) -> di
     session_factory = ctx.lifespan_context["db_session"]
     try:
         async with session_factory() as db:
-            users_result = await db.execute(select(User).offset(offset).limit(limit))
-            users = users_result.scalars().all()
+            users_stmt = (
+                select(User, func.count(Post.id).label("post_count"))
+                .outerjoin(Post, Post.author_id == User.id)
+                .group_by(User.id)
+                .order_by(User.id)
+                .offset(offset)
+                .limit(limit)
+            )
+            users_result = await db.execute(users_stmt)
+            rows = users_result.all()
             total_result = await db.execute(select(func.count()).select_from(User))
             total = total_result.scalar_one()
-            post_counts = {}
-            if users:
-                ids = [u.id for u in users]
-                counts_result = await db.execute(
-                    select(Post.author_id, func.count(Post.id))
-                    .where(Post.author_id.in_(ids))
-                    .group_by(Post.author_id)
-                )
-                post_counts = dict(counts_result.all())
             return {
-                "users": [_user_to_response(u, post_counts.get(u.id, 0)).model_dump() for u in users],
+                "users": [_user_to_response(row.User, row.post_count).model_dump() for row in rows],
                 "total_count": total,
                 "limit": limit,
                 "offset": offset,

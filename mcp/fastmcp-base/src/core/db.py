@@ -8,7 +8,14 @@ logger = get_logger("core.db")
 
 def create_async_engine_from_settings(settings: Settings) -> AsyncEngine:
     url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    engine = create_async_engine(url, pool_pre_ping=True)
+    engine = create_async_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=20,
+        max_overflow=40,
+        pool_recycle=3600,
+        pool_timeout=30,
+    )
     logger.info("db_async_engine_created", extra={"host": settings.database_url.split("@")[-1]})
     return engine
 

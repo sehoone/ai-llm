@@ -1,6 +1,7 @@
 """JWT 인증 라우트 + 미들웨어를 MCP 서버에 등록합니다."""
 
 import jwt
+from sqlalchemy import text
 from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -14,6 +15,7 @@ from src.core.auth import (
 )
 from src.core.config import Settings
 from src.core.logging import get_logger
+from src.core.mcp import _lifespan_context
 
 logger = get_logger("auth.setup")
 
@@ -23,7 +25,20 @@ def setup_auth(mcp, settings: Settings) -> list[Middleware]:
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_request: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok"})
+        session_factory = _lifespan_context.get("db_session")
+        db_ok: bool | None = None
+        if session_factory is not None:
+            try:
+                async with session_factory() as db:
+                    await db.execute(text("SELECT 1"))
+                db_ok = True
+            except Exception:
+                db_ok = False
+        is_ok = db_ok is not False
+        return JSONResponse(
+            {"status": "ok" if is_ok else "degraded", "db": db_ok},
+            status_code=200 if is_ok else 503,
+        )
 
     @mcp.custom_route("/auth/token", methods=["POST"])
     async def issue_token(request: Request) -> JSONResponse:

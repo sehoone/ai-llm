@@ -2,9 +2,11 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import httpx
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 
 from src.core.config import get_settings
+from src.core.http import request_with_retry
 from src.core.logging import get_logger, tool_logger
 from src.core.mcp import mcp
 from src.weather.models import DailyForecast, ForecastResponse, WeatherResponse
@@ -14,7 +16,9 @@ logger = get_logger("weather.tools")
 
 @mcp.tool()
 @tool_logger(logger, param_keys=["city", "country_code"])
-async def get_weather(city: str, country_code: Optional[str] = None) -> dict[str, Any]:
+async def get_weather(
+    city: str, country_code: Optional[str] = None, ctx: Context = None
+) -> dict[str, Any]:
     """현재 날씨 정보를 조회합니다."""
     settings = get_settings()
 
@@ -33,13 +37,16 @@ async def get_weather(city: str, country_code: Optional[str] = None) -> dict[str
 
     try:
         location = f"{city},{country_code}" if country_code else city
-        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(
-                f"{settings.openweather_base_url}/weather",
-                params={"q": location, "appid": settings.openweather_api_key, "units": "metric", "lang": "kr"},
-            )
-            response.raise_for_status()
-            data = response.json()
+        client: httpx.AsyncClient = ctx.lifespan_context["http_client"]
+        response = await request_with_retry(
+            client,
+            "GET",
+            f"{settings.openweather_base_url}/weather",
+            settings.http_max_retries,
+            params={"q": location, "appid": settings.openweather_api_key, "units": "metric", "lang": "kr"},
+        )
+        response.raise_for_status()
+        data = response.json()
         return WeatherResponse(
             city=data["name"],
             country=data["sys"]["country"],
@@ -65,7 +72,7 @@ async def get_weather(city: str, country_code: Optional[str] = None) -> dict[str
 @mcp.tool()
 @tool_logger(logger, param_keys=["city", "country_code", "days"])
 async def get_forecast(
-    city: str, country_code: Optional[str] = None, days: int = 5
+    city: str, country_code: Optional[str] = None, days: int = 5, ctx: Context = None
 ) -> dict[str, Any]:
     """날씨 예보를 조회합니다 (최대 5일)."""
     settings = get_settings()
@@ -86,13 +93,16 @@ async def get_forecast(
 
     try:
         location = f"{city},{country_code}" if country_code else city
-        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(
-                f"{settings.openweather_base_url}/forecast",
-                params={"q": location, "appid": settings.openweather_api_key, "units": "metric", "lang": "kr"},
-            )
-            response.raise_for_status()
-            data = response.json()
+        client: httpx.AsyncClient = ctx.lifespan_context["http_client"]
+        response = await request_with_retry(
+            client,
+            "GET",
+            f"{settings.openweather_base_url}/forecast",
+            settings.http_max_retries,
+            params={"q": location, "appid": settings.openweather_api_key, "units": "metric", "lang": "kr"},
+        )
+        response.raise_for_status()
+        data = response.json()
 
         daily: dict[str, list] = {}
         for item in data["list"]:

@@ -2,9 +2,11 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import httpx
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 
 from src.core.config import get_settings
+from src.core.http import request_with_retry
 from src.core.logging import get_logger, tool_logger
 from src.core.mcp import mcp
 from src.news.models import Article, NewsResponse, NewsSource, NewsSourcesResponse
@@ -57,7 +59,10 @@ def _parse_articles(raw: list[dict]) -> list[Article]:
 @mcp.tool()
 @tool_logger(logger, param_keys=["country", "category", "page_size"])
 async def get_top_headlines(
-    country: str = "kr", category: Optional[str] = None, page_size: int = 10
+    country: str = "kr",
+    category: Optional[str] = None,
+    page_size: int = 10,
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """최신 헤드라인 뉴스를 조회합니다."""
     settings = get_settings()
@@ -80,10 +85,13 @@ async def get_top_headlines(
         if category:
             params["category"] = category
 
-        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(f"{settings.news_base_url}/top-headlines", params=params)
-            response.raise_for_status()
-            data = response.json()
+        client: httpx.AsyncClient = ctx.lifespan_context["http_client"]
+        response = await request_with_retry(
+            client, "GET", f"{settings.news_base_url}/top-headlines",
+            settings.http_max_retries, params=params,
+        )
+        response.raise_for_status()
+        data = response.json()
 
         if data["status"] != "ok":
             raise ToolError(data.get("message", "API 오류"))
@@ -110,6 +118,7 @@ async def search_news(
     language: str = "ko",
     sort_by: str = "publishedAt",
     page_size: int = 10,
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """키워드로 뉴스를 검색합니다."""
     settings = get_settings()
@@ -133,10 +142,13 @@ async def search_news(
             "pageSize": min(page_size, 100),
             "from": from_date,
         }
-        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(f"{settings.news_base_url}/everything", params=params)
-            response.raise_for_status()
-            data = response.json()
+        client: httpx.AsyncClient = ctx.lifespan_context["http_client"]
+        response = await request_with_retry(
+            client, "GET", f"{settings.news_base_url}/everything",
+            settings.http_max_retries, params=params,
+        )
+        response.raise_for_status()
+        data = response.json()
 
         if data["status"] != "ok":
             raise ToolError(data.get("message", "API 오류"))
@@ -158,7 +170,10 @@ async def search_news(
 @mcp.tool()
 @tool_logger(logger, param_keys=["category", "language", "country"])
 async def get_news_sources(
-    category: Optional[str] = None, language: str = "ko", country: str = "kr"
+    category: Optional[str] = None,
+    language: str = "ko",
+    country: str = "kr",
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """뉴스 소스 목록을 조회합니다."""
     settings = get_settings()
@@ -175,10 +190,13 @@ async def get_news_sources(
         if category:
             params["category"] = category
 
-        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            response = await client.get(f"{settings.news_base_url}/sources", params=params)
-            response.raise_for_status()
-            data = response.json()
+        client: httpx.AsyncClient = ctx.lifespan_context["http_client"]
+        response = await request_with_retry(
+            client, "GET", f"{settings.news_base_url}/sources",
+            settings.http_max_retries, params=params,
+        )
+        response.raise_for_status()
+        data = response.json()
 
         if data["status"] != "ok":
             raise ToolError(data.get("message", "API 오류"))
