@@ -19,6 +19,7 @@
 
 ## 빠른 시작
 
+**Linux / macOS**
 ```bash
 # 1. 의존성 설치
 uv sync
@@ -26,8 +27,26 @@ uv sync
 # 2. 환경변수 설정 — deploy/.env.example 참고
 cp deploy/.env.example .env.local
 
-# 3. 서버 실행
+# 3. DB 초기화 (최초 1회)
+psql -U postgres -d fastmcp_db -f scripts/schema.sql
+
+# 4. 서버 실행
 APP_ENV=local uv run python main.py server
+```
+
+**Windows (PowerShell)**
+```powershell
+# 1. 의존성 설치
+uv sync
+
+# 2. 환경변수 설정 — deploy/.env.example 참고
+Copy-Item deploy\.env.example .env.local
+
+# 3. DB 초기화 (최초 1회)
+psql -U postgres -d fastmcp_db -f scripts/schema.sql
+
+# 4. 서버 실행
+$env:APP_ENV="local"; uv run python main.py server
 ```
 
 서버가 `http://0.0.0.0:8000/mcp` 에서 대기합니다.
@@ -46,51 +65,112 @@ APP_ENV=local uv run python main.py server
 
 ### 초기 설정
 
+**Linux / macOS**
 ```bash
-# 환경별 파일 생성 (최초 1회) — deploy/.env.example을 템플릿으로 사용
 cp deploy/.env.example .env.local
 cp deploy/.env.example .env.dev
 cp deploy/.env.example .env.prod
 ```
 
-각 파일에서 실제 값을 채웁니다.
+**Windows (PowerShell)**
+```powershell
+Copy-Item deploy\.env.example .env.local
+Copy-Item deploy\.env.example .env.dev
+Copy-Item deploy\.env.example .env.prod
+```
 
 ### 주요 환경변수
 
 ```ini
-# 외부 API (없으면 demo_key 유지)
+# 외부 API (없으면 demo_key 유지 — 샘플 데이터 반환)
 OPENWEATHER_API_KEY=demo_key
 NEWS_API_KEY=demo_key
 
 # PostgreSQL 연결
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 
-# JWT 인증 (프로덕션: openssl rand -hex 32 로 생성)
+# JWT 인증
+# 프로덕션: openssl rand -hex 32 으로 반드시 교체
 JWT_SECRET_KEY=your-secret-key
+
+# 비밀번호는 평문 또는 bcrypt 해시 지원
+# 해시 생성: python -c "import bcrypt; print(bcrypt.hashpw(b'pw', bcrypt.gensalt()).decode())"
 AUTH_USERS=admin:password
 
 # 서버
 MCP_TRANSPORT=streamable-http   # stdio | streamable-http
 MCP_HOST=0.0.0.0
 MCP_PORT=8000
+MCP_WORKERS=1                   # workers > 1 시 다중 프로세스 (CPU 바운드에 유리)
 
 # 로깅
 LOG_LEVEL=INFO   # DEBUG | INFO | WARNING | ERROR
+
+# HTTPS (nginx 사용 시)
+DOMAIN=your-domain.com
 ```
 
 ---
 
 ## 서버 실행
 
+**Linux / macOS**
 ```bash
-# 로컬 개발
-APP_ENV=local uv run python main.py server
+APP_ENV=local uv run python main.py server   # 로컬 개발
+APP_ENV=dev   uv run python main.py server   # 개발 서버
+APP_ENV=prod  uv run python main.py server   # 프로덕션
+```
 
-# 개발 서버
-APP_ENV=dev uv run python main.py server
+**Windows (PowerShell)**
+```powershell
+$env:APP_ENV="local"; uv run python main.py server   # 로컬 개발
+$env:APP_ENV="dev";   uv run python main.py server   # 개발 서버
+$env:APP_ENV="prod";  uv run python main.py server   # 프로덕션
+```
 
-# 프로덕션
-APP_ENV=prod uv run python main.py server
+---
+
+## HTTP 엔드포인트
+
+| 경로 | 메서드 | 인증 | 설명 |
+|------|--------|------|------|
+| `/mcp` | GET / POST | Bearer | MCP 프로토콜 엔드포인트 |
+| `/health` | GET | 없음 | 헬스체크 (DB 상태 포함) |
+| `/auth/token` | POST | 없음 | 액세스·리프레시 토큰 발급 (5회/분 제한) |
+| `/auth/refresh` | POST | 없음 | 액세스 토큰 갱신 |
+| `/metrics` | GET | 없음 | Prometheus 메트릭 (내부망 전용 권장) |
+
+---
+
+## 인증
+
+HTTP transport 사용 시 모든 MCP 요청에 JWT Bearer 토큰이 필요합니다.
+
+```bash
+# 토큰 발급
+curl -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "your_password"}'
+
+# 응답
+# {"access_token": "eyJ...", "refresh_token": "eyJ...", "token_type": "bearer", "expires_in": 1800}
+```
+
+FastMCP Client 사용 시:
+
+```python
+from fastmcp import Client
+
+async with Client("http://localhost:8000/mcp", auth="<access_token>") as client:
+    tools = await client.list_tools()
+```
+
+토큰 갱신:
+
+```bash
+curl -X POST http://localhost:8000/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "eyJ..."}'
 ```
 
 ---
@@ -132,42 +212,101 @@ APP_ENV=prod uv run python main.py server
 
 | 도구 | 파라미터 | 설명 |
 |------|----------|------|
-| `get_time` | — | 현재 시간 + 요일 |
+| `get_time` | — | 현재 UTC 시간 + 요일 |
 | `calculate` | `expression` | 수식 계산 (AST 기반, eval 미사용) |
 | `ping_server` | `url` | 서버 응답 시간 측정 |
 
 ---
 
-## 인증
+## Docker 배포
 
-HTTP transport 사용 시 모든 요청에 JWT Bearer 토큰이 필요합니다.
-
-```bash
-# 토큰 발급
-curl -X POST http://localhost:8000/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "admin123"}'
-
-# 응답
-# {"access_token": "eyJ...", "token_type": "bearer", "expires_in": 1800}
-```
-
-FastMCP Client 사용 시:
-
-```python
-from fastmcp import Client
-
-async with Client("http://localhost:8000/mcp", auth="<access_token>") as client:
-    tools = await client.list_tools()
-```
-
-토큰 갱신:
+### 개발 환경
 
 ```bash
-curl -X POST http://localhost:8000/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d '{"refresh_token": "eyJ..."}'
+cd deploy
+cp .env.example .env
+# .env 에서 POSTGRES_PASSWORD, JWT_SECRET_KEY, AUTH_USERS 변경
+docker compose up -d
 ```
+
+### 프로덕션 (HTTPS 포함)
+
+```bash
+# 1. SSL 인증서 준비 (Let's Encrypt 예시)
+certbot certonly --standalone -d your-domain.com
+mkdir -p deploy/ssl
+cp /etc/letsencrypt/live/your-domain.com/fullchain.pem deploy/ssl/cert.pem
+cp /etc/letsencrypt/live/your-domain.com/privkey.pem   deploy/ssl/key.pem
+
+# 2. .env 에서 DOMAIN=your-domain.com 설정
+
+# 3. 프로덕션 설정 오버라이드 + nginx 포함하여 실행
+cd deploy
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+프로덕션 컴포즈에서 적용되는 설정:
+- `mcp` 컨테이너의 직접 포트 노출 제거 (nginx가 80/443 처리)
+- nginx 서비스 기본 활성화
+- 리소스 제한 (mcp: CPU 1, MEM 512M / postgres: MEM 1G)
+- 로그 로테이션 (10MB × 5개)
+
+### Prometheus + Grafana 모니터링
+
+```bash
+# 모니터링 스택 함께 실행
+docker compose --profile monitoring up -d
+
+# Grafana: http://localhost:3000  (기본 admin / admin)
+# Prometheus scrape 설정에서 mcp:8000/metrics 를 타겟으로 추가
+```
+
+---
+
+## 아키텍처
+
+```
+src/
+├── core/
+│   ├── config.py       # APP_ENV 기반 환경변수 관리 (pydantic-settings)
+│   ├── logging.py      # JSON 구조화 로그 + request_id 자동 포함 + tool_logger 데코레이터
+│   ├── auth.py         # JWT 토큰 생성·검증·미들웨어 (bcrypt 비밀번호 지원)
+│   ├── db.py           # async SQLAlchemy 엔진·세션 팩토리
+│   ├── http.py         # httpx AsyncClient + 지수 백오프 재시도
+│   ├── context.py      # request_id ContextVar (로그 correlation 용)
+│   └── middleware.py   # RequestIDMiddleware (X-Request-ID 헤더)
+├── auth/
+│   └── setup.py        # /health, /auth/token, /auth/refresh 라우트 + slowapi rate limit
+├── weather/            # 날씨 도메인 (2 tools, 2 resources, 2 prompts)
+├── news/               # 뉴스 도메인 (3 tools, 2 resources, 2 prompts)
+├── users/              # 사용자/게시글 도메인 (11 tools, 2 resources, 1 prompt)
+└── utils/              # 유틸리티 도메인 (3 tools)
+
+src/app.py              # 도메인 모듈 import → 도구 등록 트리거
+src/asgi.py             # ASGI 진입점 — 미들웨어 조합 후 app 빌드 (uvicorn이 import)
+main.py                 # CLI 진입점
+
+deploy/
+├── Dockerfile
+├── docker-compose.yml       # 기본 스택 (postgres, mcp, pgadmin, loki, grafana)
+├── docker-compose.prod.yml  # 프로덕션 오버라이드 (nginx 활성화, 포트 제한)
+├── nginx.conf               # HTTPS 종단, /metrics 외부 차단
+└── .env.example             # 환경변수 템플릿
+```
+
+### 주요 패턴
+
+**단일 인스턴스**: `src/core/mcp.py`에 `mcp = FastMCP(...)` 하나. 모든 도메인이 동일 인스턴스에 등록
+
+**Lifespan Context**: DB 엔진·HTTP 클라이언트를 lifespan에서 초기화 → `ctx.lifespan_context`로 도구에 주입
+
+**JSON 구조화 로그**: 모든 로그 엔트리에 `ts`, `level`, `logger`, `msg`, `request_id` 포함
+
+**비밀번호 보안**: `AUTH_USERS` 값에 bcrypt 해시 저장 가능 (`$2b$` 접두사 자동 감지)
+
+**Rate Limiting**: `/auth/token`에 IP 기반 slowapi 제한 (기본 5회/분)
+
+**Correlation ID**: 요청마다 UUID를 `X-Request-ID` 헤더로 발급, 모든 로그에 자동 포함
 
 ---
 
@@ -191,10 +330,6 @@ curl -X POST http://localhost:8000/auth/refresh \
 ```
 
 ### streamable-http 모드 (서버 별도 기동)
-
-```bash
-APP_ENV=local uv run python main.py server
-```
 
 ```json
 {
@@ -224,27 +359,186 @@ uv run pytest tests/
 
 ---
 
-## 아키텍처
+## 디버깅
 
+### 1. DEBUG 로그 활성화
+
+`.env.local`에서 `LOG_LEVEL=DEBUG` 로 변경하면 uvicorn 액세스 로그와 도구 호출 상세 로그가 출력됩니다.
+
+```bash
+# Linux / macOS — 파일 수정 없이 즉시 확인
+LOG_LEVEL=DEBUG APP_ENV=local uv run python main.py server
 ```
-src/
-├── core/
-│   ├── config.py       # APP_ENV 기반 환경변수 관리 (pydantic-settings)
-│   ├── logging.py      # JSON 구조화 로그 + tool_logger 데코레이터
-│   └── auth.py         # JWT 토큰 생성·검증·미들웨어 클래스
-├── auth/
-│   └── setup.py        # /health, /auth/token, /auth/refresh 라우트 등록
-├── weather/            # 날씨 도메인 (2 tools, 2 resources, 2 prompts)
-├── news/               # 뉴스 도메인 (3 tools, 2 resources, 2 prompts)
-├── database/           # DB 도메인 (11 tools, 2 resources, 1 prompt)
-└── utils/              # 유틸리티 도메인 (3 tools)
+```powershell
+# Windows (PowerShell)
+$env:LOG_LEVEL="DEBUG"; $env:APP_ENV="local"; uv run python main.py server
+```
 
-src/app.py              # 도메인 조합 — 4개 mcp를 mount해 단일 서버 구성
-main.py                 # CLI 진입점
+로그는 JSON 구조로 출력됩니다 (`ts`, `level`, `logger`, `msg`, `request_id`, `tool`, `duration_ms`).
 
-tests/
-├── unit/               # FastMCP Client 기반 단위 테스트
-└── integration/        # PostgreSQL 필요 통합 테스트
+### 2. MCP Inspector (브라우저 UI)
+
+FastMCP 내장 Inspector로 도구를 브라우저에서 대화형으로 테스트합니다. 두 가지 방식이 있습니다.
+
+---
+
+**방식 A — stdio (간단, 토큰 불필요)**
+
+Inspector가 Python 프로세스를 직접 관리합니다. 서버를 따로 띄울 필요 없습니다.
+
+```bash
+# Linux / macOS
+MCP_TRANSPORT=stdio APP_ENV=local uv run fastmcp dev inspector src/app.py
+```
+```powershell
+# Windows (PowerShell)
+$env:APP_ENV="local"; $env:MCP_TRANSPORT="stdio"; uv run fastmcp dev inspector src/app.py
+```
+
+브라우저가 열리면 **Connect 버튼만 클릭**하면 됩니다.
+
+---
+
+**방식 B — StreamableHTTP (실서버 연동, 토큰 필요)**
+
+터미널 두 개를 사용합니다.
+
+터미널 1 — 서버 실행:
+```bash
+# Linux / macOS
+APP_ENV=local uv run python main.py server
+```
+```powershell
+# Windows (PowerShell)
+$env:APP_ENV="local"; uv run python main.py server
+```
+
+터미널 2 — Inspector 실행:
+```bash
+# Linux / macOS
+APP_ENV=local uv run fastmcp dev inspector src/app.py
+```
+```powershell
+# Windows (PowerShell)
+$env:APP_ENV="local"; uv run fastmcp dev inspector src/app.py
+```
+
+JWT 토큰 발급:
+```bash
+# Linux / macOS
+curl -s -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+```powershell
+# Windows (PowerShell)
+$body = '{"username":"admin","password":"admin123"}'
+$token = (irm -Method Post http://localhost:8000/auth/token `
+  -ContentType "application/json" -Body $body).access_token
+echo $token
+```
+
+Inspector UI 연결 설정 — **Connect 전에 Headers를 먼저 입력해야 합니다:**
+
+| 항목 | 값 |
+|------|----|
+| Transport | `StreamableHTTP` |
+| URL | `http://localhost:8000/mcp` |
+| Headers > Key | `Authorization` |
+| Headers > Value | `Bearer <위에서 출력된 토큰값>` |
+
+> Headers를 입력하지 않고 Connect하면 Inspector가 OAuth 자동 탐색을 시도하다 실패합니다. 반드시 토큰을 먼저 입력하세요.
+
+토큰은 30분 후 만료됩니다. 만료 시 재발급하거나 `/auth/refresh`로 갱신하세요.
+
+### 3. 헬스체크 및 엔드포인트 확인
+
+```bash
+# 서버 상태 + DB 연결 확인
+curl http://localhost:8000/health
+
+# 토큰 발급
+curl -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+
+# 도구 목록 확인 (토큰 필요)
+curl http://localhost:8000/mcp \
+  -H "Authorization: Bearer <access_token>"
+```
+
+Windows PowerShell에서는 `curl` 대신 `Invoke-RestMethod`(irm) 사용:
+
+```powershell
+# 헬스체크
+irm http://localhost:8000/health
+
+# 토큰 발급
+$body = '{"username": "admin", "password": "admin123"}'
+$token = (irm -Method Post http://localhost:8000/auth/token `
+  -ContentType "application/json" -Body $body).access_token
+
+# 도구 목록 확인
+irm http://localhost:8000/mcp -Headers @{Authorization="Bearer $token"}
+```
+
+### 4. 로드된 설정값 확인
+
+실제로 어떤 `.env` 파일이 로드됐는지, 환경변수가 올바르게 적용됐는지 확인합니다.
+
+```bash
+# Linux / macOS
+APP_ENV=local uv run python -c \
+  "from src.core.config import get_settings; import json; print(json.dumps(get_settings().model_dump(), indent=2))"
+```
+```powershell
+# Windows (PowerShell)
+$env:APP_ENV="local"; uv run python -c `
+  "from src.core.config import get_settings; import json; print(json.dumps(get_settings().model_dump(), indent=2))"
+```
+
+### 5. Python 클라이언트로 도구 직접 테스트
+
+서버 없이 인메모리로 도구를 호출합니다 (DB·API 키 불필요 시 유용).
+
+```python
+import asyncio
+from fastmcp import Client
+from src.app import mcp
+
+async def main():
+    async with Client(mcp) as client:
+        # 도구 목록
+        tools = await client.list_tools()
+        print([t.name for t in tools])
+
+        # 도구 호출
+        result = await client.call_tool("get_time", {})
+        print(result)
+
+asyncio.run(main())
+```
+
+```bash
+# Linux / macOS
+APP_ENV=local uv run python debug_client.py
+```
+```powershell
+# Windows (PowerShell)
+$env:APP_ENV="local"; uv run python debug_client.py
+```
+
+### 6. DB 연결 확인
+
+```bash
+# Linux / macOS
+APP_ENV=local uv run python -c \
+  "import asyncio; from src.core.db import test_connection; asyncio.run(test_connection())"
+```
+```powershell
+# Windows (PowerShell)
+$env:APP_ENV="local"; uv run python -c `
+  "import asyncio; from src.core.db import test_connection; asyncio.run(test_connection())"
 ```
 
 ---
@@ -255,9 +549,18 @@ tests/
 
 **DB 연결 오류** — `DATABASE_URL`이 올바른지 확인하고, PostgreSQL이 실행 중인지 점검합니다.
 
+**401 Unauthorized** — `/auth/token`으로 토큰을 발급받아 `Authorization: Bearer <token>` 헤더를 추가합니다.
+
+**429 Too Many Requests** — `/auth/token` 요청이 분당 5회를 초과했습니다. 잠시 후 다시 시도하세요.
+
 **패키지 재설치**
 ```bash
+# Linux / macOS
 uv cache clean && uv sync --reinstall
+```
+```powershell
+# Windows (PowerShell)
+uv cache clean; uv sync --reinstall
 ```
 
 **로그 상세 확인** — `.env.local`에서 `LOG_LEVEL=DEBUG` 설정 후 재실행합니다.

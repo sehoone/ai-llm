@@ -1,6 +1,7 @@
 services:
   mcp:
     restart: always
+    ports: []  # nginx가 외부 트래픽을 처리 — mcp 포트 직접 노출 안 함
     environment:
       LOG_LEVEL: WARNING
     deploy:
@@ -28,3 +29,12 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  nginx:
+    restart: always
+    profiles: []  # prod에서는 기본으로 활성화 (profile 제거)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

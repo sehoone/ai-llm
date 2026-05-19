@@ -19,6 +19,15 @@ APP_ENV=local uv run python main.py server   # 로컬
 APP_ENV=dev   uv run python main.py server   # 개발 서버
 APP_ENV=prod  uv run python main.py server   # 프로덕션
 
+# MCP Inspector — stdio 모드 (서버 별도 실행 불필요, 토큰 불필요)
+MCP_TRANSPORT=stdio APP_ENV=local uv run fastmcp dev inspector src/app.py
+# → Inspector UI에서 Connect만 클릭
+
+# MCP Inspector — StreamableHTTP 모드 (터미널 두 개 필요)
+# 터미널 1: APP_ENV=local uv run python main.py server
+# 터미널 2: APP_ENV=local uv run fastmcp dev inspector src/app.py
+# → Inspector UI: Transport=StreamableHTTP, URL=http://localhost:8000/mcp, Headers에 JWT 토큰 추가
+
 # Tests
 uv run pytest tests/unit/          # 단위 테스트 (API 키 / DB 불필요)
 uv run pytest tests/integration/   # 통합 테스트 (PostgreSQL 필요)

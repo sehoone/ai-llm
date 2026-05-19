@@ -84,6 +84,23 @@ services:
       - monitoring
     restart: unless-stopped
 
+  # ── HTTPS 종단 (--profile nginx) ─────────────────────────────────────────────
+  # SSL 인증서를 deploy/ssl/cert.pem, deploy/ssl/key.pem 에 배치 후 사용
+  # Let's Encrypt: certbot certonly --standalone -d your-domain.com
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - mcp
+    profiles:
+      - nginx
+    restart: unless-stopped
+
 volumes:
   pgdata:
   loki_data:

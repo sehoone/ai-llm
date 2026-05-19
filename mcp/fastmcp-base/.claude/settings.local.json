@@ -40,7 +40,13 @@
       "Bash(taskkill //F //PID 21116)",
       "Bash(xargs -I{} taskkill //F //PID {})",
       "Bash(git check-ignore *)",
-      "PowerShell(Remove-Item *)"
+      "PowerShell(Remove-Item *)",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\mcp\\\\fastmcp-base\\\\src\\\\sample\\\\basic\")",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\mcp\\\\fastmcp-base\\\\src\\\\sample\\\\external_api\")",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\mcp\\\\fastmcp-base\\\\src\\\\sample\\\\database\")",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\mcp\\\\fastmcp-base\\\\src\\\\sample\\\\context\")",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\mcp\\\\fastmcp-base\\\\src\\\\sample\\\\auth\")",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\mcp\\\\fastmcp-base\\\\tests\\\\unit\")"
     ]
   }
 }

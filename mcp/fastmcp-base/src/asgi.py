@@ -12,6 +12,10 @@ uvicorn이 workers > 1로 동작할 때 각 워커는 독립된 새 Python 프�
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware import Middleware
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette_prometheus import PrometheusMiddleware
+from starlette_prometheus import metrics as prometheus_metrics
 
 from src.app import mcp
 from src.auth.setup import limiter, setup_auth
@@ -19,7 +23,19 @@ from src.core.config import get_settings
 from src.core.middleware import RequestIDMiddleware
 
 settings = get_settings()
-_middleware = setup_auth(mcp, settings) + [Middleware(RequestIDMiddleware)]
+
+# /metrics — JWT 인증 없이 Prometheus가 스크래핑.
+@mcp.custom_route("/metrics", methods=["GET"])
+async def metrics_endpoint(request: Request) -> Response:
+    return prometheus_metrics(request)
+
+_middleware = (
+    setup_auth(mcp, settings)
+    + [
+        Middleware(PrometheusMiddleware),
+        Middleware(RequestIDMiddleware),
+    ]
+)
 app = mcp.http_app(middleware=_middleware, transport=settings.mcp_transport)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

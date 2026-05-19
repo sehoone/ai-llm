@@ -4,8 +4,12 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, T
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
-def _now() -> datetime:
+def utcnow() -> datetime:
+    """PostgreSQL TIMESTAMP 컬럼용 UTC naive datetime을 반환합니다."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+_now = utcnow  # Column default 참조용 내부 alias
 
 
 class Base(DeclarativeBase):

@@ -16,7 +16,7 @@ from src.core.logging import get_logger
 
 logger = get_logger("core.auth")
 
-_BYPASS_PATHS = frozenset({"/auth/token", "/auth/refresh", "/health"})
+_BYPASS_PATHS = frozenset({"/auth/token", "/auth/refresh", "/health", "/metrics"})
 
 
 # ── Token 생성 ─────────────────────────────────────────────────────────────

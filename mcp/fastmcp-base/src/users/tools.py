@@ -19,7 +19,7 @@ from src.users.models import (
     UserDetailResponse,
     UserResponse,
 )
-from src.users.orm import Post, User
+from src.users.orm import Post, User, utcnow
 
 logger = get_logger("users.tools")
 
@@ -260,7 +260,7 @@ async def update_post(
                 post.content = content
             if is_published is not None:
                 post.is_published = is_published
-            post.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            post.updated_at = utcnow()
             await db.flush()
             await db.refresh(post)
             await db.commit()
