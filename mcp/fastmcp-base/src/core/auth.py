@@ -3,6 +3,7 @@ import inspect
 import secrets
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import jwt
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
@@ -44,6 +45,8 @@ def verify_user(username: str, password: str, settings: Settings) -> bool:
     stored = settings.auth_users_dict.get(username)
     if stored is None:
         return False
+    if stored.startswith(("$2b$", "$2a$", "$2y$")):
+        return bcrypt.checkpw(password.encode(), stored.encode())
     return secrets.compare_digest(stored, password)
 
 

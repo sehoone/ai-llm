@@ -34,6 +34,6 @@ class Post(Base):
     is_published = Column(Boolean, default=False)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
-    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
 
     author = relationship("User", back_populates="posts")

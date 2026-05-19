@@ -18,11 +18,13 @@ _BUILTIN_ATTRS = frozenset({
 
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        from src.core.context import request_id_var
         entry: dict = {
             "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "msg": record.getMessage(),
+            "request_id": request_id_var.get(),
         }
 
         if record.exc_info:

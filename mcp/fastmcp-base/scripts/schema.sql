@@ -22,3 +22,5 @@ CREATE TABLE IF NOT EXISTS posts (
     updated_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
     author_id    INTEGER      REFERENCES users (id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS ix_posts_author_id ON posts (author_id);

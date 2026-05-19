@@ -1,7 +1,8 @@
 import ast
 import operator
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Union
+from urllib.parse import urlparse
 
 import httpx
 from fastmcp.exceptions import ToolError
@@ -43,11 +44,11 @@ def safe_eval(expression: str) -> Union[int, float]:
 @mcp.tool()
 @tool_logger(logger)
 async def get_time() -> dict[str, Any]:
-    """현재 시간 정보를 반환합니다."""
-    now = datetime.now()
+    """현재 시간 정보를 반환합니다 (UTC)."""
+    now = datetime.now(timezone.utc)
     return {
         "current_time": now.isoformat(),
-        "formatted": now.strftime("%Y년 %m월 %d일 %H시 %M분 %S초"),
+        "formatted": now.strftime("%Y년 %m월 %d일 %H시 %M분 %S초 (UTC)"),
         "day_of_week": ["월", "화", "수", "목", "금", "토", "일"][now.weekday()],
         "timestamp": now.timestamp(),
     }

@@ -1,6 +1,7 @@
 """JWT 인증 라우트 + 미들웨어를 MCP 서버에 등록합니다."""
 
 import jwt
+from slowapi import Limiter
 from sqlalchemy import text
 from starlette.middleware import Middleware
 from starlette.requests import Request
@@ -18,6 +19,16 @@ from src.core.logging import get_logger
 from src.core.mcp import _lifespan_context
 
 logger = get_logger("auth.setup")
+
+
+def _get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+limiter = Limiter(key_func=_get_client_ip)
 
 
 def setup_auth(mcp, settings: Settings) -> list[Middleware]:
@@ -41,6 +52,7 @@ def setup_auth(mcp, settings: Settings) -> list[Middleware]:
         )
 
     @mcp.custom_route("/auth/token", methods=["POST"])
+    @limiter.limit("5/1minutes")
     async def issue_token(request: Request) -> JSONResponse:
         try:
             body = await request.json()

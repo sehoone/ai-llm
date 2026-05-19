@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_env: str = _APP_ENV
 
     openweather_api_key: str = Field(default="demo_key")
-    openweather_base_url: str = "http://api.openweathermap.org/data/2.5"
+    openweather_base_url: str = "https://api.openweathermap.org/data/2.5"
 
     news_api_key: str = Field(default="demo_key")
     news_base_url: str = "https://newsapi.org/v2"
@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     mcp_transport: str = "streamable-http"
     mcp_host: str = "0.0.0.0"
     mcp_port: int = 8000
+    mcp_workers: int = 1
 
     # JWT (HTTP transport 전용)
     jwt_secret_key: str = Field(default="change-me-use-openssl-rand-hex-32")

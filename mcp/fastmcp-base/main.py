@@ -4,8 +4,6 @@
 import sys
 from pathlib import Path
 
-from fastmcp import FastMCP
-
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
@@ -22,7 +20,6 @@ FastMCP 베이스 프로젝트
 
 
 def cmd_server() -> None:
-    from src.app import mcp
     from src.core.config import get_settings
 
     settings = get_settings()
@@ -32,25 +29,25 @@ def cmd_server() -> None:
             "transport": settings.mcp_transport,
             "host": settings.mcp_host,
             "port": settings.mcp_port,
+            "workers": settings.mcp_workers,
         },
     )
 
     if settings.mcp_transport in ("streamable-http", "http", "sse"):
-        _run_http_server(mcp, settings)
+        _run_http_server(settings)
     else:
+        from src.app import mcp
         mcp.run(transport=settings.mcp_transport)
 
 
-def _run_http_server(mcp: FastMCP, settings) -> None:
+def _run_http_server(settings) -> None:
     import uvicorn
-    from src.auth.setup import setup_auth
 
-    middleware = setup_auth(mcp, settings)
-    app = mcp.http_app(middleware=middleware, transport=settings.mcp_transport)
     uvicorn.run(
-        app,
+        "src.asgi:app",
         host=settings.mcp_host,
         port=settings.mcp_port,
+        workers=settings.mcp_workers,
         access_log=(settings.log_level == "DEBUG"),
         log_level=settings.log_level.lower(),
         timeout_keep_alive=30,
