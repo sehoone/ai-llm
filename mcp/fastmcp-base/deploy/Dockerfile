@@ -10,6 +10,9 @@ RUN uv sync --frozen --no-dev
 COPY src/ ./src/
 COPY main.py ./
 
+RUN useradd -r -u 1001 -s /sbin/nologin appuser && chown -R appuser /app
+USER appuser
+
 ENV MCP_TRANSPORT=streamable-http \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8000 \

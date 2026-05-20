@@ -30,24 +30,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  pgadmin:
-    image: dpage/pgadmin4:8
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-    ports:
-      - "${PGADMIN_PORT:-5050}:80"
-    depends_on:
-      - postgres
-    profiles:
-      - admin
-    restart: unless-stopped
-
   # ── 로그 모니터링 스택 (--profile monitoring) ──────────────────────────────
   loki:
     image: grafana/loki:3.4
-    ports:
-      - "3100:3100"
+    expose:
+      - "3100"
     volumes:
       - ./loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
@@ -62,6 +49,7 @@ services:
       - ./promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/var/log/promtail
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki
@@ -78,6 +66,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - loki
     profiles:
@@ -89,11 +78,23 @@ services:
   # Let's Encrypt: certbot certonly --standalone -d your-domain.com
   nginx:
     image: nginx:1.27-alpine
+    command:
+      - /bin/sh
+      - -c
+      - |
+        TMPL=/etc/nginx/nginx.conf.template
+        [ "$${NGINX_MODE}" = "http" ] && TMPL=/etc/nginx/nginx-http.conf.template
+        envsubst '$$DOMAIN' < $$TMPL > /etc/nginx/nginx.conf
+        exec nginx -g 'daemon off;'
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      NGINX_MODE: ${NGINX_MODE:-https}
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./nginx-http.conf.template:/etc/nginx/nginx-http.conf.template:ro
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - mcp
@@ -105,3 +106,4 @@ volumes:
   pgdata:
   loki_data:
   grafana_data:
+  promtail_positions:

@@ -7,32 +7,14 @@ http {
         server mcp:8000;
     }
 
-    # HTTP → HTTPS 리다이렉트
     server {
         listen 80;
-        server_name _;
-        return 301 https://$host$request_uri;
-    }
+        server_name ${DOMAIN};
 
-    # HTTPS 종단
-    server {
-        listen 443 ssl;
-        server_name ${DOMAIN:-localhost};
-
-        ssl_certificate     /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-        ssl_protocols       TLSv1.2 TLSv1.3;
-        ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-        ssl_prefer_server_ciphers off;
-        ssl_session_cache   shared:SSL:10m;
-        ssl_session_timeout 1d;
-
-        # 보안 헤더
-        add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
         add_header X-Content-Type-Options nosniff always;
         add_header X-Frame-Options DENY always;
 
-        # /metrics 는 외부 노출 차단 — Prometheus는 내부 네트워크에서 직접 mcp:8000/metrics 스크래핑
+        # /metrics 는 외부 노출 차단
         location /metrics {
             return 403;
         }
