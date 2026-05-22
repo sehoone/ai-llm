@@ -107,7 +107,7 @@ async def get_top_headlines(
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP 오류: {e.response.status_code}")
     except Exception as e:
-        logger.exception("get_top_headlines failed", extra={"country": country})
+        logger.exception("get_top_headlines failed", country=country)
         raise ToolError(str(e))
 
 
@@ -123,16 +123,18 @@ async def search_news(
     """키워드로 뉴스를 검색합니다."""
     settings = get_settings()
 
-    if settings.is_demo_news:
-        filtered = [a for a in _DEMO_ARTICLES if query.lower() in (a.title or "").lower()]
-        return NewsResponse(
-            total_results=len(filtered),
-            articles=filtered[:page_size],
-            query=query,
-            is_demo=True,
-        ).model_dump()
+    logger.info("search_news called", query=query, language=language, sort_by=sort_by, page_size=page_size)
+    # if settings.is_demo_news:
+    #     filtered = [a for a in _DEMO_ARTICLES if query.lower() in (a.title or "").lower()]
+    #     return NewsResponse(
+    #         total_results=len(filtered),
+    #         articles=filtered[:page_size],
+    #         query=query,
+    #         is_demo=True,
+    #     ).model_dump()
 
     try:
+        logger.info("search_news API request", query=query, language=language, sort_by=sort_by, page_size=page_size)
         from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
         params = {
             "apiKey": settings.news_api_key,
@@ -147,8 +149,10 @@ async def search_news(
             client, "GET", f"{settings.news_base_url}/everything",
             settings.http_max_retries, params=params,
         )
+        logger.debug("search_news API response", status_code=response.status_code, params=params)
         response.raise_for_status()
         data = response.json()
+        logger.debug("search_news API response data", data=data)
 
         if data["status"] != "ok":
             raise ToolError(data.get("message", "API 오류"))
@@ -163,7 +167,7 @@ async def search_news(
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP 오류: {e.response.status_code}")
     except Exception as e:
-        logger.exception("search_news failed", extra={"query": query})
+        logger.exception("search_news failed", query=query)
         raise ToolError(str(e))
 
 

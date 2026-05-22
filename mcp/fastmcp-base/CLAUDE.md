@@ -73,8 +73,7 @@ src/
     └── tools.py           # get_time, calculate, ping_server
 
 src/app.py                 # 도메인 모듈 import → 도구 등록 트리거. mcp를 외부에 노출
-src/asgi.py                # ASGI 진입점 — HTTP 배포 시 uvicorn이 이 파일을 로드
-main.py                    # CLI 진입점 — src/asgi.py를 import string으로 참조해 실행
+main.py                    # CLI 진입점 + ASGI 진입점 — FastAPI app 빌드 및 uvicorn 실행
 
 tests/
 ├── conftest.py            # 공통 pytest fixtures

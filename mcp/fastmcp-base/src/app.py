@@ -6,6 +6,7 @@ from src.news import prompts as news_prompts  # noqa: F401
 from src.news import resources as news_resources  # noqa: F401
 from src.news import tools as news_tools  # noqa: F401
 from src.utils import tools as utils_tools  # noqa: F401
+from src.sample.basic import tools as basic_tools  # noqa: F401
 from src.weather import prompts as weather_prompts  # noqa: F401
 from src.weather import resources as weather_resources  # noqa: F401
 from src.weather import tools as weather_tools  # noqa: F401

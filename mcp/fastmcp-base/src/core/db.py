@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
-from src.core.config import Settings, get_settings
+from src.core.config import Settings
 from src.core.logging import get_logger
 
 logger = get_logger("core.db")
@@ -16,7 +16,7 @@ def create_async_engine_from_settings(settings: Settings) -> AsyncEngine:
         pool_recycle=3600,
         pool_timeout=30,
     )
-    logger.info("db_async_engine_created", extra={"host": settings.database_url.split("@")[-1]})
+    logger.info("db_async_engine_created", host=settings.database_url.split("@")[-1])
     return engine
 
 
@@ -32,5 +32,5 @@ async def test_connection(engine: AsyncEngine) -> bool:
         logger.info("db_connection_ok")
         return True
     except Exception as e:
-        logger.error("db_connection_failed", extra={"error": str(e)})
+        logger.error("db_connection_failed", error=str(e))
         return False

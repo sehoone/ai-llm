@@ -1,8 +1,8 @@
 import uuid
 
+from fastapi import Request
+from fastapi.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
 
 from src.core.context import request_id_var
 

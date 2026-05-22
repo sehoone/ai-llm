@@ -133,7 +133,7 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> dict[str, A
     except ToolError:
         raise  # ToolError는 재발생 (로그 중복 방지)
     except Exception as e:
-        logger.exception("get_exchange_rate failed", extra={"from": from_currency, "to": to_currency})
+        logger.exception("get_exchange_rate failed", **{"from": from_currency, "to": to_currency})
         raise ToolError(f"예상치 못한 오류: {e}")
 
 

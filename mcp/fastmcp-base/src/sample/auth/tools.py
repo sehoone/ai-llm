@@ -39,7 +39,7 @@ _ADMIN_USERS = {"admin"}  # 관리자 계정 목록
 # ── Tool 1: @protected — 단순 인증 강제 ──────────────────────────────────────
 @mcp.tool()
 @tool_logger(logger, param_keys=[])
-@protected  # 포인트 ①: 인증 없으면 ToolError("Authentication required")
+@protected  # 포인트 : 인증 없으면 ToolError("Authentication required")
 async def auth_get_my_profile(ctx: Context) -> dict[str, Any]:
     """현재 인증된 사용자 프로필을 반환합니다.
 
@@ -48,10 +48,10 @@ async def auth_get_my_profile(ctx: Context) -> dict[str, Any]:
     """
     # 포인트 ②: require_auth → 검증된 사용자명 반환
     username = await require_auth(ctx)
-    settings = get_settings()
+    # settings = get_settings()
 
     # 설정에서 사용자 정보 조회
-    users = settings.auth_users_dict
+    # users = settings.auth_users_dict
     is_admin = username in _ADMIN_USERS
 
     return {

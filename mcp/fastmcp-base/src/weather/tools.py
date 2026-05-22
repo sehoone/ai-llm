@@ -22,6 +22,7 @@ async def get_weather(
     """현재 날씨 정보를 조회합니다."""
     settings = get_settings()
 
+    print(f"get_weather called with city={city}, country_code={country_code}")
     if settings.is_demo_weather:
         return WeatherResponse(
             city=city,
@@ -38,6 +39,7 @@ async def get_weather(
     try:
         location = f"{city},{country_code}" if country_code else city
         client: httpx.AsyncClient = ctx.lifespan_context["http_client"]
+        print(f"get_weather API call: {settings.openweather_base_url}/weather with params: q={location}, appid={settings.openweather_api_key}, units=metric, lang=kr")
         response = await request_with_retry(
             client,
             "GET",
@@ -65,7 +67,7 @@ async def get_weather(
     except ToolError:
         raise
     except Exception as e:
-        logger.exception("get_weather failed", extra={"city": city})
+        logger.exception("get_weather failed", city=city)
         raise ToolError(str(e))
 
 
@@ -131,5 +133,5 @@ async def get_forecast(
     except ToolError:
         raise
     except Exception as e:
-        logger.exception("get_forecast failed", extra={"city": city})
+        logger.exception("get_forecast failed", city=city)
         raise ToolError(str(e))

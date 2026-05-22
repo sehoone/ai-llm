@@ -63,7 +63,7 @@ async def basic_hello(name: str) -> str:
     Returns:
         인사말 문자열
     """
-    return f"안녕하세요, {name}님! MCP Tool이 정상 작동합니다."
+    return f"안녕하세요, {name}님! MCP Tool이 정상 작동합니다.!"
 
 
 # ── 단계 2: 파라미터 타입 종류 ──────────────────────────────────────────────

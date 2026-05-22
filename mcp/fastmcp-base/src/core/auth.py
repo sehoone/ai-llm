@@ -7,22 +7,25 @@ import bcrypt
 import jwt
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 from src.core.config import Settings
 from src.core.logging import get_logger
 
 logger = get_logger("core.auth")
 
-_BYPASS_PATHS = frozenset({"/auth/token", "/auth/refresh", "/health", "/metrics"})
+_BYPASS_PATHS = frozenset({
+    "/auth/token", "/auth/refresh", "/health", "/metrics",
+    "/docs", "/openapi.json", "/redoc",
+})
 
 
 # ── Token 생성 ─────────────────────────────────────────────────────────────
 
 def create_access_token(sub: str, settings: Settings) -> str:
-    return _encode(sub, "access", timedelta(minutes=settings.jwt_access_token_expire_minutes), settings)
+    return _encode(sub, "access", timedelta(days=settings.jwt_refresh_token_expire_days), settings)
 
 
 def create_refresh_token(sub: str, settings: Settings) -> str:
@@ -70,10 +73,10 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
                 try:
                     payload = decode_token(token, self.settings)
                 except jwt.ExpiredSignatureError:
-                    logger.warning("auth_token_expired", extra={"path": request.url.path})
+                    logger.warning("auth_token_expired", path=request.url.path)
                     return JSONResponse({"error": "Token expired"}, status_code=401)
                 except jwt.InvalidTokenError:
-                    logger.warning("auth_token_invalid", extra={"path": request.url.path})
+                    logger.warning("auth_token_invalid", path=request.url.path)
                     return JSONResponse({"error": "Invalid token"}, status_code=401)
 
                 if payload.get("type") == "access":
@@ -84,7 +87,8 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         if not auth.startswith("Bearer "):
             logger.warning(
                 "auth_missing_token",
-                extra={"path": request.url.path, "method": request.method},
+                path=request.url.path,
+                method=request.method,
             )
             return JSONResponse({"error": "Authorization header missing"}, status_code=401)
 
@@ -92,14 +96,14 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         try:
             payload = decode_token(token, self.settings)
         except jwt.ExpiredSignatureError:
-            logger.warning("auth_token_expired", extra={"path": request.url.path})
+            logger.warning("auth_token_expired", path=request.url.path)
             return JSONResponse({"error": "Token expired"}, status_code=401)
         except jwt.InvalidTokenError:
-            logger.warning("auth_token_invalid", extra={"path": request.url.path})
+            logger.warning("auth_token_invalid", path=request.url.path)
             return JSONResponse({"error": "Invalid token"}, status_code=401)
 
         if payload.get("type") != "access":
-            logger.warning("auth_wrong_token_type", extra={"path": request.url.path})
+            logger.warning("auth_wrong_token_type", path=request.url.path)
             return JSONResponse({"error": "Access token required"}, status_code=401)
 
         request.state.user = payload["sub"]

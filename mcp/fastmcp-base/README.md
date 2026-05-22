@@ -49,7 +49,13 @@ psql -U postgres -d fastmcp_db -f scripts/schema.sql
 $env:APP_ENV="local"; uv run python main.py server
 ```
 
-서버가 `http://0.0.0.0:8000/mcp` 에서 대기합니다.
+서버가 기동되면 아래 주소에서 접속 가능합니다.
+
+| 주소 | 설명 |
+|------|------|
+| `http://localhost:8000/mcp` | MCP 프로토콜 엔드포인트 |
+| `http://localhost:8000/docs` | Swagger UI — REST API 명세 |
+| `http://localhost:8000/health` | 헬스체크 |
 
 ---
 
@@ -139,6 +145,8 @@ $env:APP_ENV="prod";  uv run python main.py server   # 프로덕션
 | `/auth/token` | POST | 없음 | 액세스·리프레시 토큰 발급 (5회/분 제한) |
 | `/auth/refresh` | POST | 없음 | 액세스 토큰 갱신 |
 | `/metrics` | GET | 없음 | Prometheus 메트릭 (내부망 전용 권장) |
+| `/docs` | GET | 없음 | Swagger UI — REST API 명세 자동 생성 |
+| `/redoc` | GET | 없음 | ReDoc UI — 대안 API 문서 |
 
 ---
 
@@ -276,15 +284,14 @@ src/
 │   ├── context.py      # request_id ContextVar (로그 correlation 용)
 │   └── middleware.py   # RequestIDMiddleware (X-Request-ID 헤더)
 ├── auth/
-│   └── setup.py        # /health, /auth/token, /auth/refresh 라우트 + slowapi rate limit
+│   └── setup.py        # FastAPI APIRouter — /health, /auth/token, /auth/refresh + slowapi rate limit
 ├── weather/            # 날씨 도메인 (2 tools, 2 resources, 2 prompts)
 ├── news/               # 뉴스 도메인 (3 tools, 2 resources, 2 prompts)
 ├── users/              # 사용자/게시글 도메인 (11 tools, 2 resources, 1 prompt)
 └── utils/              # 유틸리티 도메인 (3 tools)
 
 src/app.py              # 도메인 모듈 import → 도구 등록 트리거
-src/asgi.py             # ASGI 진입점 — 미들웨어 조합 후 app 빌드 (uvicorn이 import)
-main.py                 # CLI 진입점
+main.py                 # CLI 진입점 + ASGI 진입점 — FastAPI app 빌드 및 uvicorn 실행
 
 deploy/
 ├── Dockerfile
@@ -298,7 +305,9 @@ deploy/
 
 **단일 인스턴스**: `src/core/mcp.py`에 `mcp = FastMCP(...)` 하나. 모든 도메인이 동일 인스턴스에 등록
 
-**Lifespan Context**: DB 엔진·HTTP 클라이언트를 lifespan에서 초기화 → `ctx.lifespan_context`로 도구에 주입
+**FastAPI outer + MCP mount**: `main.py`에서 FastAPI app을 빌드하고 MCP ASGI 앱을 루트(`/`)에 마운트. FastAPI 명시 라우트(인증·헬스·메트릭)가 우선 매칭되고 나머지가 MCP로 전달됨. Swagger UI는 `/docs`에서 자동 제공
+
+**Lifespan Context**: DB 엔진·HTTP 클라이언트를 FastAPI lifespan에서 초기화 → `_lifespan_context` 딕셔너리로 MCP 도구와 라우트에 공유
 
 **JSON 구조화 로그**: 모든 로그 엔트리에 `ts`, `level`, `logger`, `msg`, `request_id` 포함
 
@@ -392,7 +401,7 @@ MCP_TRANSPORT=stdio APP_ENV=local uv run fastmcp dev inspector src/app.py
 ```
 ```powershell
 # Windows (PowerShell)
-$env:APP_ENV="local"; $env:MCP_TRANSPORT="stdio"; uv run fastmcp dev inspector src/app.py
+$env:APP_ENV="local"; uv run fastmcp dev inspector src/app.py
 ```
 
 브라우저가 열리면 **Connect 버튼만 클릭**하면 됩니다.

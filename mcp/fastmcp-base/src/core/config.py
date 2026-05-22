@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
@@ -33,6 +34,8 @@ class Settings(BaseSettings):
 
     # 로깅
     log_level: str = "INFO"
+    log_dir: Path = Path("logs")
+    log_format: str = ""  # 비어있으면 app_env에 따라 자동 결정 (local→console, 그 외→json)
 
     # MCP 서버
     mcp_transport: str = "streamable-http"
