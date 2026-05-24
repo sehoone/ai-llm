@@ -123,18 +123,7 @@ async def require_auth(ctx: Context) -> str:
 
 
 def protected(fn):
-    """인증이 필요한 MCP 도구에 붙이는 데코레이터.
-
-    functools.wraps로 원본 시그니처를 유지하므로 FastMCP 도구 등록에 영향 없음.
-
-    사용법::
-
-        @mcp.tool()
-        @tool_logger(logger)
-        @protected
-        async def my_tool(ctx: Context, ...) -> dict:
-            ...
-    """
+    """인증 필요 MCP 도구 데코레이터 — functools.wraps로 원본 시그니처 유지."""
     @functools.wraps(fn)
     async def wrapper(*args, **kwargs):
         bound = inspect.signature(fn).bind(*args, **kwargs)

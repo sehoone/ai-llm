@@ -1,5 +1,4 @@
-"""
-[케이스 02 - external_api] 외부 HTTP API 호출 패턴
+"""[케이스 02 - external_api] 외부 HTTP API 호출 패턴
 
 다루는 패턴:
   1. httpx.AsyncClient — 비동기 HTTP 요청
@@ -47,13 +46,11 @@ _DEMO_CURRENCIES = [
     CurrencyInfo(code="AUD", name="Australian Dollar"),
 ]
 
-# 실제 프로젝트에서는 Settings 클래스에 exchange_api_key 필드 추가
-# 여기서는 Settings에 없는 값이므로 환경변수에서 직접 읽거나 하드코딩 처리
 _EXCHANGE_BASE_URL = "https://api.frankfurter.app"
 
 
 def _is_demo() -> bool:
-    """API 키가 없으면 데모 모드로 동작"""
+    """API 키 미설정 시 데모 모드."""
     import os
     return os.getenv("EXCHANGE_API_KEY", "demo_key") in ("demo_key", "")
 
@@ -62,7 +59,7 @@ def _is_demo() -> bool:
 @mcp.tool()
 @tool_logger(logger, param_keys=["from_currency", "to_currency"])
 async def get_exchange_rate(from_currency: str, to_currency: str) -> dict[str, Any]:
-    """두 통화 간 현재 환율을 조회합니다.
+    """두 통화 간 현재 환율 조회.
 
     Args:
         from_currency: 기준 통화 코드 (예: USD, EUR, KRW)
@@ -77,7 +74,7 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> dict[str, A
     if from_currency == to_currency:
         raise ToolError("기준 통화와 대상 통화가 같습니다.")
 
-    # 포인트 ①: 데모 모드 분기 — API 키 없어도 동작
+    # API 키 없으면 데모 데이터 반환
     if _is_demo():
         if from_currency == "KRW":
             rate = round(1.0 / _DEMO_RATES.get(to_currency, 0), 6)
@@ -102,14 +99,13 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> dict[str, A
             is_demo=True,
         ).model_dump()
 
-    # 포인트 ②: httpx.AsyncClient — async with 패턴으로 자원 해제 보장
+    # async with — 예외 시에도 연결 자동 해제
     try:
         async with httpx.AsyncClient(timeout=get_settings().http_timeout) as client:
             response = await client.get(
                 f"{_EXCHANGE_BASE_URL}/latest",
                 params={"from": from_currency, "to": to_currency},
             )
-            # 포인트 ③: raise_for_status() → HTTPStatusError 발생
             response.raise_for_status()
             data = response.json()
 
@@ -123,7 +119,7 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> dict[str, A
             rate=rate,
         ).model_dump()
 
-    # 포인트 ④: 예외 처리 체인 — 구체적 예외 먼저, 범용 예외 마지막
+    # 구체적 예외 먼저, 범용 예외 마지막
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             raise ToolError(f"지원하지 않는 통화 코드입니다: {from_currency} → {to_currency}")
@@ -131,7 +127,7 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> dict[str, A
     except httpx.TimeoutException:
         raise ToolError("환율 API 응답 시간 초과")
     except ToolError:
-        raise  # ToolError는 재발생 (로그 중복 방지)
+        raise
     except Exception as e:
         logger.exception("get_exchange_rate failed", extra={"from": from_currency, "to": to_currency})
         raise ToolError(f"예상치 못한 오류: {e}")
@@ -145,7 +141,7 @@ async def convert_currency(
     to_currency: str,
     amount: float,
 ) -> dict[str, Any]:
-    """금액을 다른 통화로 환산합니다.
+    """금액을 다른 통화로 환산.
 
     Args:
         from_currency: 원본 통화 코드 (예: USD)
@@ -158,7 +154,6 @@ async def convert_currency(
     if amount <= 0:
         raise ToolError("금액은 0보다 커야 합니다.")
 
-    # 포인트 ⑤: 기존 tool을 재사용 — DRY 원칙
     rate_result = await get_exchange_rate(from_currency, to_currency)
     rate = rate_result["rate"]
     converted = round(amount * rate, 2)
@@ -177,7 +172,7 @@ async def convert_currency(
 @mcp.tool()
 @tool_logger(logger, param_keys=[])
 async def get_supported_currencies() -> dict[str, Any]:
-    """지원하는 통화 코드 목록을 반환합니다."""
+    """지원 통화 코드 목록 반환."""
     if _is_demo():
         return CurrencyListResponse(
             total=len(_DEMO_CURRENCIES),

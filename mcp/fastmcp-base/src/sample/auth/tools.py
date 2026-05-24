@@ -1,5 +1,4 @@
-"""
-[케이스 05 - auth] 인증 패턴 샘플
+"""[케이스 05 - auth] 인증 패턴 샘플
 
 다루는 패턴:
   1. @protected 데코레이터 — 모든 호출에 인증 강제
@@ -33,24 +32,18 @@ from src.core.mcp import mcp
 
 logger = get_logger("sample.auth")
 
-_ADMIN_USERS = {"admin"}  # 관리자 계정 목록
+_ADMIN_USERS = {"admin"}
 
 
 # ── Tool 1: @protected — 단순 인증 강제 ──────────────────────────────────────
 @mcp.tool()
 @tool_logger(logger, param_keys=[])
-@protected  # 포인트 ①: 인증 없으면 ToolError("Authentication required")
+@protected
 async def auth_get_my_profile(ctx: Context) -> dict[str, Any]:
-    """현재 인증된 사용자 프로필을 반환합니다.
-
-    @protected 데코레이터가 인증을 자동으로 검증합니다.
-    인증되지 않은 요청은 이 함수 자체가 실행되지 않습니다.
-    """
-    # 포인트 ②: require_auth → 검증된 사용자명 반환
+    """현재 인증된 사용자 프로필 반환."""
     username = await require_auth(ctx)
     settings = get_settings()
 
-    # 설정에서 사용자 정보 조회
     users = settings.auth_users_dict
     is_admin = username in _ADMIN_USERS
 
@@ -66,13 +59,9 @@ async def auth_get_my_profile(ctx: Context) -> dict[str, Any]:
 @tool_logger(logger, param_keys=[])
 @protected
 async def auth_admin_only(ctx: Context) -> dict[str, Any]:
-    """관리자만 호출할 수 있는 도구 예시.
-
-    @protected 로 기본 인증 후, 추가로 관리자 권한을 검사합니다.
-    """
+    """관리자만 호출 가능한 도구 예시."""
     username = await require_auth(ctx)
 
-    # 포인트 ③: 역할 기반 접근 제어 (RBAC) — 수동 검사
     if username not in _ADMIN_USERS:
         raise ToolError(f"관리자 권한이 필요합니다. 현재 사용자: {username}")
 
@@ -90,11 +79,8 @@ async def auth_admin_only(ctx: Context) -> dict[str, Any]:
 async def auth_optional(ctx: Context) -> dict[str, Any]:
     """인증 여부에 따라 반환 데이터가 달라지는 도구.
 
-    @protected 없이 require_auth 를 직접 try/except 로 처리합니다.
-    - 인증된 경우: 상세 정보 반환
-    - 비인증인 경우: 공개 정보만 반환
+    @protected 없이 require_auth를 try/except로 처리해 선택적 인증 구현.
     """
-    # 포인트 ④: require_auth 를 try/except 로 감싸면 선택적 인증 구현 가능
     try:
         username = await require_auth(ctx)
         is_authenticated = True
@@ -109,7 +95,6 @@ async def auth_optional(ctx: Context) -> dict[str, Any]:
     }
 
     if is_authenticated:
-        # 인증된 사용자에게만 추가 정보 제공
         public_data.update({
             "username": username,
             "is_admin": username in _ADMIN_USERS,
@@ -123,11 +108,10 @@ async def auth_optional(ctx: Context) -> dict[str, Any]:
 @mcp.tool()
 @tool_logger(logger, param_keys=[])
 async def auth_public_health() -> dict[str, Any]:
-    """인증 없이 누구나 호출할 수 있는 공개 도구.
+    """인증 없이 누구나 호출 가능한 공개 도구.
 
-    @protected 와 require_auth 를 모두 사용하지 않습니다.
     auth_mode = "global" 일 때는 미들웨어가 이 도구도 차단하므로
-    공개 도구는 /health 같은 별도 HTTP 엔드포인트로 노출하는 것을 권장합니다.
+    공개 도구는 /health 같은 별도 HTTP 엔드포인트로 노출 권장.
     """
     return {
         "status": "healthy",

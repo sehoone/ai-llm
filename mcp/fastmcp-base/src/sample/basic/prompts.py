@@ -1,49 +1,34 @@
-"""
-[케이스 01 - basic] Prompt 샘플
+"""[케이스 01 - basic] Prompt 샘플
 
-━━━ MCP Prompt란? ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Prompt = 서버에 저장한 프롬프트 템플릿
+  클라이언트(앱, Claude Desktop 등)가 get_prompt()로 가져와 AI 대화에 주입
+  Tool이 "AI가 실행하는 함수"라면, Prompt는 "AI가 어떤 맥락으로 시작할지 설정"
 
-  Prompt = 클라이언트가 미리 정의한 프롬프트 템플릿
+Prompt vs 직접 메시지 차이:
+  직접 메시지 — 사용자가 채팅창에 매번 긴 지시문 타이핑
+  Prompt      — 서버에 저장된 템플릿, 파라미터만 바꿔 재사용 가능
 
-  클라이언트(앱, Claude Desktop 등)가 get_prompt()로 가져와 AI 대화에 주입합니다.
-  Tool이 "AI가 실행하는 함수"라면, Prompt는 "AI가 어떤 맥락으로 시작할지 설정".
+반환 타입:
+  str           → 단일 user 메시지로 자동 변환
+  list[Message] → role 있는 멀티 메시지 (few-shot 예시 주입에 활용)
 
-  Prompt vs 직접 메시지 차이:
-    직접 메시지  : 사용자가 채팅창에 매번 타이핑
-    Prompt      : 서버에 저장된 템플릿 → 파라미터만 넣으면 재사용 가능
-
-  반환 타입:
-    str             → 단일 user 메시지로 변환
-    list[Message]   → 역할(role)이 있는 멀티 메시지 대화 시작점
-
-━━━ 사용 흐름 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+사용 흐름:
   1. 클라이언트: client.get_prompt("memo_organize", {"category": "업무"})
   2. 서버: 파라미터 대입 후 메시지 반환
   3. 클라이언트: 반환된 메시지를 AI 대화에 주입 → AI가 해당 맥락으로 작업 시작
 
-다루는 패턴:
-  - @mcp.prompt() 등록
-  - 파라미터 없는 단순 프롬프트 (str 반환)
-  - 파라미터 있는 동적 프롬프트 (f-string)
-  - 멀티 메시지 형식 (list[Message] — system + user 역할 분리)
-  - 클라이언트가 get_prompt()로 가져와 AI에 주입
+app.py 등록:
+    from src.sample.basic import prompts as basic_prompts  # noqa: F401
 """
 from fastmcp.prompts.base import Message
 
 from src.core.mcp import mcp
 
 
-# ── 형태 1: 파라미터 없는 단순 프롬프트 ─────────────────────────────────────
-# str을 반환하면 FastMCP가 자동으로 단일 user 메시지로 변환합니다.
-
+# 파라미터 없는 단순 프롬프트 — str 반환 → user 메시지 하나로 자동 변환
 @mcp.prompt()
 def memo_summary() -> str:
-    """전체 메모 요약을 요청하는 프롬프트 (파라미터 없음).
-
-    클라이언트가 이 프롬프트를 가져와 AI 대화 시작 메시지로 사용합니다.
-    사용자가 매번 긴 지시문을 타이핑하지 않아도 됩니다.
-    """
+    """전체 메모 요약 요청 프롬프트."""
     return (
         "저장된 메모 전체를 조회한 뒤, 카테고리별로 분류하고 "
         "각 메모의 핵심 내용을 한 줄로 요약해 주세요. "
@@ -51,16 +36,11 @@ def memo_summary() -> str:
     )
 
 
-# ── 형태 2: 파라미터 있는 동적 프롬프트 ─────────────────────────────────────
-# f-string으로 파라미터를 템플릿에 삽입합니다.
-# 클라이언트는 get_prompt("memo_organize", {"category": "업무"}) 형태로 호출.
-
+# 파라미터 있는 동적 프롬프트 — f-string으로 값 삽입
+# 같은 템플릿 구조를 카테고리마다 재사용 가능
 @mcp.prompt()
 def memo_organize(category: str) -> str:
-    """특정 카테고리 메모 정리를 요청하는 프롬프트 (파라미터 있음).
-
-    파라미터를 f-string으로 주입해 재사용 가능한 템플릿을 만듭니다.
-    "업무", "개인", "아이디어" 등 카테고리마다 같은 프롬프트 구조를 재사용.
+    """특정 카테고리 메모 정리 요청 프롬프트.
 
     Args:
         category: 정리할 카테고리 이름 (예: 업무, 개인)
@@ -72,27 +52,14 @@ def memo_organize(category: str) -> str:
     )
 
 
-# ── 형태 3: 멀티 메시지 프롬프트 — list[Message] 반환 ───────────────────────
-# str 반환과 달리 역할(role)을 명시할 수 있습니다.
+# 멀티 메시지 프롬프트 — list[Message] 반환으로 role 지정 가능
+# assistant 메시지를 포함하면 AI가 특정 형식으로 계속 응답하도록 유도 (few-shot)
 #
 # Message(role="user", content="...")      → 사용자 메시지
 # Message(role="assistant", content="...") → AI 사전 응답 (few-shot 예시)
-#
-# 활용 사례:
-#   - few-shot: 예시 대화를 주입해 AI 출력 형식 제어
-#   - system-like 지시: user 메시지에 상세 지시 포함
-#   - 대화 컨텍스트: AI가 이미 일부 작업을 한 것처럼 시작
-
 @mcp.prompt()
 def memo_create_guide(topic: str) -> list[Message]:
-    """메모 생성을 안내하는 멀티 메시지 프롬프트 (few-shot 예시 포함).
-
-    list[Message]를 반환하면 역할이 있는 대화 형태로 AI에 주입됩니다.
-    assistant 메시지를 포함하면 AI가 특정 형식으로 계속 응답하도록 유도합니다.
-
-    FastMCP Message 사용법:
-      Message(content="텍스트", role="user")      → user 메시지 (기본값)
-      Message(content="텍스트", role="assistant") → assistant 메시지
+    """메모 생성 안내 멀티 메시지 프롬프트 (few-shot 포함).
 
     Args:
         topic: 메모를 작성할 주제 (예: "오늘 할 일", "프로젝트 아이디어")
@@ -117,19 +84,14 @@ def memo_create_guide(topic: str) -> list[Message]:
     ]
 
 
-# ── 형태 4: 구조화된 리포트 요청 프롬프트 ────────────────────────────────────
-# 긴 지시문을 서버에 저장해두고 파라미터로 커스터마이즈합니다.
-# 클라이언트 코드에 긴 프롬프트를 하드코딩하지 않아도 됩니다.
-
+# 구조화된 리포트 요청 — 긴 지시문을 서버에 저장해두고 파라미터로 커스터마이즈
+# 클라이언트 코드에 긴 프롬프트를 하드코딩하지 않아도 됨
 @mcp.prompt()
 def memo_weekly_report(user_name: str = "사용자") -> str:
-    """주간 메모 리포트를 요청하는 구조화 프롬프트.
-
-    복잡한 출력 형식 지시를 프롬프트에 담아두면
-    클라이언트 코드를 단순하게 유지할 수 있습니다.
+    """주간 메모 리포트 요청 프롬프트.
 
     Args:
-        user_name: 리포트 수신자 이름 (기본값: 사용자)
+        user_name: 리포트 수신자 이름
     """
     return f"""
 {user_name}님의 주간 메모 리포트를 작성해 주세요.

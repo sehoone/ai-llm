@@ -58,8 +58,7 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def tool_logger(logger_instance, *, param_keys: list[str] | None = None):
-    """MCP 도구 함수에 tool_start / tool_done / tool_error 로그를 자동으로 추가하는 데코레이터.
-
+    """MCP 도구에 tool_start / tool_done / tool_error 로그 추가 데코레이터.
     Usage:
         @tool_logger(logger, param_keys=["city", "country_code"])
         async def get_weather(city: str, ...):
@@ -92,7 +91,7 @@ def tool_logger(logger_instance, *, param_keys: list[str] | None = None):
                 return result
             except Exception as exc:
                 duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                # ToolError는 예상된 실패 — warning으로 기록하고 stack trace 생략
+                # ToolError는 예상된 실패 — warning 기록, stack trace 생략
                 if type(exc).__name__ == "ToolError":
                     logger_instance.warning(
                         "tool_error",

@@ -9,6 +9,7 @@
 
 - Python 3.10+
 - [uv](https://github.com/astral-sh/uv) 패키지 매니저
+- FastMCP 3.3.1+
 - PostgreSQL (DB 도구 사용 시)
 - OpenWeatherMap API 키 (실제 날씨 데이터 사용 시)
 - NewsAPI 키 (실제 뉴스 데이터 사용 시)
@@ -87,27 +88,40 @@ OPENWEATHER_API_KEY=demo_key
 NEWS_API_KEY=demo_key
 
 # PostgreSQL 연결
-DATABASE_URL=postgresql://user:password@host:5432/dbname
+DATABASE_URL=postgresql://user:password@host:5432/fastmcp_db
 
 # JWT 인증
 # 프로덕션: openssl rand -hex 32 으로 반드시 교체
 JWT_SECRET_KEY=your-secret-key
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30   # 액세스 토큰 유효 시간 (분, 기본 30)
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7      # 리프레시 토큰 유효 시간 (일, 기본 7)
 
-# 비밀번호는 평문 또는 bcrypt 해시 지원
+# 인증 사용자 — "username:password,user2:pass2" 형식 (bcrypt 해시도 지원)
 # 해시 생성: python -c "import bcrypt; print(bcrypt.hashpw(b'pw', bcrypt.gensalt()).decode())"
-AUTH_USERS=admin:password
+AUTH_USERS=admin:admin123
+AUTH_MODE=global   # global(미들웨어 전체 차단) | per-tool(@protected 도구가 직접 검증)
 
 # 서버
-MCP_TRANSPORT=streamable-http   # stdio | streamable-http
+MCP_TRANSPORT=streamable-http   # stdio | streamable-http | sse
 MCP_HOST=0.0.0.0
 MCP_PORT=8000
 MCP_WORKERS=1                   # workers > 1 시 다중 프로세스 (CPU 바운드에 유리)
 
+# HTTP 클라이언트
+HTTP_TIMEOUT=10.0        # 외부 API 타임아웃 (초)
+HTTP_MAX_RETRIES=3       # 5xx / 연결 오류 재시도 횟수
+
+# 데이터베이스 페이지네이션
+DB_MAX_PAGE_SIZE=100     # 목록 조회 최대 페이지 크기
+CONTENT_PREVIEW_LENGTH=200   # 게시글 목록에서 본문 미리보기 길이
+
 # 로깅
 LOG_LEVEL=INFO   # DEBUG | INFO | WARNING | ERROR
+                 # DEBUG 설정 시 uvicorn access log 자동 활성화
 
 # HTTPS (nginx 사용 시)
 DOMAIN=your-domain.com
+NGINX_MODE=https   # https(기본, SSL 필요) | http(SSL 없이 HTTP 전용)
 ```
 
 ---
@@ -127,6 +141,14 @@ $env:APP_ENV="local"; uv run python main.py server   # 로컬 개발
 $env:APP_ENV="dev";   uv run python main.py server   # 개발 서버
 $env:APP_ENV="prod";  uv run python main.py server   # 프로덕션
 ```
+
+`MCP_TRANSPORT` 값에 따라 서버 모드가 달라집니다.
+
+| 값 | 동작 |
+|----|------|
+| `streamable-http` (기본) | uvicorn HTTP 서버, JWT 인증 포함 |
+| `sse` | uvicorn HTTP 서버 (SSE 전용, JWT 인증 포함) |
+| `stdio` | 표준 입출력 모드, Claude Desktop 직접 연결용 (JWT 불필요) |
 
 ---
 
@@ -229,6 +251,12 @@ cp .env.example .env
 docker compose up -d
 ```
 
+SSL 없이 HTTP만 사용하려면 `.env`에 `NGINX_MODE=http` 를 추가하고 nginx 프로파일로 실행합니다.
+
+```bash
+docker compose --profile nginx up -d
+```
+
 ### 프로덕션 (HTTPS 포함)
 
 ```bash
@@ -288,10 +316,11 @@ main.py                 # CLI 진입점
 
 deploy/
 ├── Dockerfile
-├── docker-compose.yml       # 기본 스택 (postgres, mcp, pgadmin, loki, grafana)
-├── docker-compose.prod.yml  # 프로덕션 오버라이드 (nginx 활성화, 포트 제한)
-├── nginx.conf               # HTTPS 종단, /metrics 외부 차단
-└── .env.example             # 환경변수 템플릿
+├── docker-compose.yml          # 기본 스택 (postgres, mcp, pgadmin, loki, grafana)
+├── docker-compose.prod.yml     # 프로덕션 오버라이드 (nginx 활성화, 포트 제한)
+├── nginx.conf.template         # HTTPS 종단, /metrics 외부 차단
+├── nginx-http.conf.template    # HTTP 전용 (NGINX_MODE=http 시 사용)
+└── .env.example                # 환경변수 템플릿
 ```
 
 ### 주요 패턴
@@ -363,7 +392,7 @@ uv run pytest tests/
 
 ### 1. DEBUG 로그 활성화
 
-`.env.local`에서 `LOG_LEVEL=DEBUG` 로 변경하면 uvicorn 액세스 로그와 도구 호출 상세 로그가 출력됩니다.
+`.env.local`에서 `LOG_LEVEL=DEBUG` 로 변경하면 **uvicorn access log** + **도구 호출 상세 로그**가 함께 출력됩니다.
 
 ```bash
 # Linux / macOS — 파일 수정 없이 즉시 확인
@@ -375,6 +404,11 @@ $env:LOG_LEVEL="DEBUG"; $env:APP_ENV="local"; uv run python main.py server
 ```
 
 로그는 JSON 구조로 출력됩니다 (`ts`, `level`, `logger`, `msg`, `request_id`, `tool`, `duration_ms`).
+
+```json
+{"ts":"2026-01-01T00:00:00+00:00","level":"INFO","logger":"weather.tools","msg":"tool_start","request_id":"abc-123","tool":"get_weather","city":"Seoul"}
+{"ts":"2026-01-01T00:00:00.050+00:00","level":"INFO","logger":"weather.tools","msg":"tool_done","request_id":"abc-123","tool":"get_weather","city":"Seoul","status":"success","duration_ms":48.3}
+```
 
 ### 2. MCP Inspector (브라우저 UI)
 
@@ -499,34 +533,45 @@ $env:APP_ENV="local"; uv run python -c `
 
 ### 5. Python 클라이언트로 도구 직접 테스트
 
-서버 없이 인메모리로 도구를 호출합니다 (DB·API 키 불필요 시 유용).
+서버 없이 인메모리로 도구를 호출합니다. JWT 인증이 필요 없고 DB·API 키도 없이 `get_time`, `calculate` 같은 유틸 도구를 즉시 확인할 수 있습니다.
 
-```python
+```bash
+# Linux / macOS
+APP_ENV=local uv run python -c "
 import asyncio
 from fastmcp import Client
 from src.app import mcp
 
 async def main():
     async with Client(mcp) as client:
-        # 도구 목록
         tools = await client.list_tools()
-        print([t.name for t in tools])
-
-        # 도구 호출
-        result = await client.call_tool("get_time", {})
-        print(result)
+        print('등록된 도구:', [t.name for t in tools])
+        result = await client.call_tool('get_time', {})
+        print('get_time 결과:', result)
 
 asyncio.run(main())
+"
 ```
 
-```bash
-# Linux / macOS
-APP_ENV=local uv run python debug_client.py
-```
 ```powershell
 # Windows (PowerShell)
-$env:APP_ENV="local"; uv run python debug_client.py
+$env:APP_ENV="local"; uv run python -c @'
+import asyncio
+from fastmcp import Client
+from src.app import mcp
+
+async def main():
+    async with Client(mcp) as client:
+        tools = await client.list_tools()
+        print("등록된 도구:", [t.name for t in tools])
+        result = await client.call_tool("get_time", {})
+        print("get_time 결과:", result)
+
+asyncio.run(main())
+'@
 ```
+
+> DB 도구(`create_user`, `get_posts` 등)는 `@protected` 데코레이터가 없는 경우 인메모리 테스트에서 호출 가능하지만, PostgreSQL 연결이 없으면 `ToolError`가 발생합니다. 에러 확인 시 `raise_on_error=False` 후 `result.is_error`로 검증하세요.
 
 ### 6. DB 연결 확인
 
@@ -552,6 +597,8 @@ $env:APP_ENV="local"; uv run python -c `
 **401 Unauthorized** — `/auth/token`으로 토큰을 발급받아 `Authorization: Bearer <token>` 헤더를 추가합니다.
 
 **429 Too Many Requests** — `/auth/token` 요청이 분당 5회를 초과했습니다. 잠시 후 다시 시도하세요.
+
+**ping_server가 내부 URL을 거부함** — `ping_server` 도구는 SSRF 방어를 위해 `localhost`, 루프백 IP(`127.x.x.x`), 사설 IP(`192.168.x.x`, `10.x.x.x`), `.local` 호스트명을 차단합니다. 퍼블릭 URL만 사용 가능합니다.
 
 **패키지 재설치**
 ```bash

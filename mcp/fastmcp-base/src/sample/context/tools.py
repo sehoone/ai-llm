@@ -1,5 +1,4 @@
-"""
-[케이스 04 - context] MCP Context 활용 패턴
+"""[케이스 04 - context] MCP Context 활용 패턴
 
 다루는 패턴:
   1. ctx.info / ctx.warning / ctx.error — 클라이언트에 실시간 로그 전송
@@ -30,24 +29,18 @@ logger = get_logger("sample.context")
 @mcp.tool()
 @tool_logger(logger, param_keys=["msg"])  # "message"는 logging 예약어 — 사용 금지
 async def ctx_send_log(message: str, ctx: Context) -> dict[str, Any]:
-    """ctx.info/warning/error 로 클라이언트에 로그를 전송하는 예시.
+    """ctx.info/warning/error 로 클라이언트에 로그 전송.
 
     Args:
         message: 전송할 로그 메시지
         ctx: MCP 컨텍스트 (자동 주입)
-
-    Returns:
-        전송된 로그 수준 정보
     """
-    # 포인트 ①: ctx.info() — 클라이언트(Claude 등)가 볼 수 있는 로그
     await ctx.info(f"[INFO] 작업 시작: {message}")
 
     if "경고" in message or "warn" in message.lower():
-        # 포인트 ②: ctx.warning() — 주의가 필요한 상황
         await ctx.warning(f"[WARNING] 주의 필요: {message}")
         level = "warning"
     elif "오류" in message or "error" in message.lower():
-        # 포인트 ③: ctx.error() — 오류 상황 (ToolError 와는 다름)
         await ctx.error(f"[ERROR] 오류 감지: {message}")
         level = "error"
     else:
@@ -61,9 +54,7 @@ async def ctx_send_log(message: str, ctx: Context) -> dict[str, Any]:
 @mcp.tool()
 @tool_logger(logger, param_keys=["item_count"])
 async def ctx_batch_process(item_count: int, ctx: Context) -> dict[str, Any]:
-    """배치 처리 진행률을 ctx.report_progress 로 보고하는 예시.
-
-    실제 사용 사례: 대량 데이터 처리, 파일 변환, 이메일 발송 등
+    """배치 처리 진행률을 ctx.report_progress 로 보고.
 
     Args:
         item_count: 처리할 항목 수 (1~50)
@@ -77,10 +68,8 @@ async def ctx_batch_process(item_count: int, ctx: Context) -> dict[str, Any]:
     failed = 0
 
     for i in range(item_count):
-        # 포인트 ④: report_progress(현재, 전체) — 클라이언트에 진행률 전송
         await ctx.report_progress(i, item_count)
 
-        # 실제 작업 시뮬레이션
         await asyncio.sleep(0)  # 실제 I/O 작업 자리
         if i % 7 == 6:  # 7번째마다 실패 시뮬레이션
             failed += 1
@@ -88,7 +77,6 @@ async def ctx_batch_process(item_count: int, ctx: Context) -> dict[str, Any]:
         else:
             processed += 1
 
-    # 완료 보고
     await ctx.report_progress(item_count, item_count)
     await ctx.info(f"배치 처리 완료: 성공 {processed}개, 실패 {failed}개")
 
@@ -104,16 +92,7 @@ async def ctx_batch_process(item_count: int, ctx: Context) -> dict[str, Any]:
 @mcp.tool()
 @tool_logger(logger, param_keys=[])
 async def ctx_check_lifespan(ctx: Context) -> dict[str, Any]:
-    """lifespan_context 에서 공유 객체에 접근하는 예시.
-
-    서버 시작 시 lifespan 에서 초기화된 객체(DB 엔진, 캐시 등)에
-    ctx.lifespan_context 딕셔너리를 통해 접근합니다.
-
-    src/core/mcp.py lifespan:
-        yield {"db_session": session_factory}
-        →  ctx.lifespan_context["db_session"] 으로 접근 가능
-    """
-    # 포인트 ⑤: lifespan_context — 타입 검사 후 접근
+    """lifespan_context 에서 공유 객체 접근 예시."""
     lifespan_keys = list(ctx.lifespan_context.keys()) if ctx.lifespan_context else []
 
     db_available = "db_session" in (ctx.lifespan_context or {})
@@ -130,14 +109,13 @@ async def ctx_check_lifespan(ctx: Context) -> dict[str, Any]:
 @mcp.tool()
 @tool_logger(logger, param_keys=[])
 async def ctx_get_request_info(ctx: Context) -> dict[str, Any]:
-    """HTTP request 정보를 ctx.request_context 에서 읽는 예시.
+    """HTTP request 정보를 ctx.request_context 에서 읽기.
 
-    주의: streamable-http transport 에서만 동작합니다.
-          stdio transport 에서는 request_context 가 None 일 수 있습니다.
+    주의: streamable-http transport 에서만 동작.
+          stdio transport 에서는 request_context 가 None 일 수 있음.
     """
     result: dict[str, Any] = {"transport": "unknown"}
 
-    # 포인트 ⑥: transport 종류에 따라 request_context 존재 여부가 다름
     try:
         request = ctx.request_context.request  # type: ignore[union-attr]
         result.update({

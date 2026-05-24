@@ -1,28 +1,20 @@
-"""
-[케이스 01 - basic] 인메모리 메모 관리 + MCP Tool 기초 개념 — 외부 의존성 없음
+"""[케이스 01 - basic] 인메모리 메모 관리 + MCP Tool 기초
 
-━━━ MCP의 3가지 핵심 Primitive ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MCP primitive:
+  Tool      — AI가 직접 호출하는 함수 (읽기·쓰기·외부 API 모두 가능)
+  Resource  — URI로 노출하는 읽기 전용 데이터
+  Prompt    — 클라이언트가 get_prompt()로 가져오는 프롬프트 템플릿
 
-  Tool      | AI가 직접 호출하는 함수. 읽기·쓰기·외부 API 호출 모두 가능.
-  Resource  | URI로 노출하는 읽기 전용 데이터. AI가 컨텍스트로 참조.
-  Prompt    | AI에게 주입할 프롬프트 템플릿. 클라이언트가 get_prompt()로 요청.
+Tool 등록 흐름:
+  1. @mcp.tool() 데코레이터 → FastMCP에 함수 등록
+  2. FastMCP가 파라미터 이름·타입힌트·docstring으로 JSON Schema 자동 생성
+  3. AI(Claude 등)가 Schema 읽고 언제·어떻게 호출할지 결정
+  4. 반환값은 JSON 직렬화 가능한 타입 모두 허용 (str, dict, list, int …)
 
-━━━ Tool 동작 원리 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  1. @mcp.tool() 데코레이터로 함수를 등록
-  2. FastMCP가 파라미터 이름·타입 힌트·docstring으로 JSON Schema 자동 생성
-  3. AI(Claude 등)가 이 Schema를 읽고 언제·어떻게 호출할지 결정
-  4. 반환값은 JSON 직렬화 가능한 모든 타입 허용 (str, dict, list, int …)
-
-━━━ 이 파일의 구성 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  PART 1 — Tool 기초 개념 (초보자용 단계별 예제)
-    basic_hello          : 가장 단순한 Tool — 문자열 반환
-    basic_type_demo      : 파라미터 타입 종류 (str, int, float, bool, Optional)
-    basic_divide         : 입력 검증과 ToolError 사용법
-
-  PART 2 — 실전 패턴 (메모 CRUD)
-    @tool_logger 조합 순서, Pydantic 모델 반환, 부분 수정(model_copy) 등
+구성:
+  PART 1 — Tool 기초: basic_hello / basic_type_demo / basic_divide
+  PART 2 — 메모 CRUD: create / get / list / update / delete / stats
+           패턴: @tool_logger 조합 / Pydantic .model_dump() / model_copy 부분 수정
 
 app.py 등록:
     from src.sample.basic import tools as basic_tools  # noqa: F401
@@ -39,43 +31,25 @@ from src.sample.basic.models import Memo, MemoListResponse, MemoStatsResponse
 logger = get_logger("sample.basic")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PART 1: Tool 기초 개념 — 초보자용 단계별 예제
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── PART 1: Tool 기초 예제 ────────────────────────────────────────────────────
 
-# ── 단계 1: Hello World — 가장 단순한 Tool ───────────────────────────────────
-# @mcp.tool() 하나로 AI가 호출 가능한 함수가 됩니다.
-# 반환 타입은 str, int, list, dict 등 JSON 직렬화 가능하면 모두 OK.
-# dict가 아니어도 됩니다.
-
+# @mcp.tool() 로 등록된 함수:
+#   - 파라미터 타입힌트 → JSON Schema 자동 생성 (AI가 어떤 값을 넣을지 이 Schema로 판단)
+#   - docstring 첫 줄 → AI에게 보이는 도구 설명
+#   - 반환값 → dict 아니어도 OK, JSON 직렬화 가능하면 모두 허용
 @mcp.tool()
 async def basic_hello(name: str) -> str:
-    """이름을 받아 인사말을 반환하는 MCP Tool 최소 예제.
-
-    이 Tool은 MCP의 가장 단순한 형태를 보여줍니다:
-      - @mcp.tool() 데코레이터 한 줄로 등록 완료
-      - 파라미터(name)와 타입 힌트(str)가 AI에게 보이는 스키마
-      - docstring이 AI가 읽는 도구 설명서
-
-    Args:
-        name: 인사할 대상 이름
-
-    Returns:
-        인사말 문자열
-    """
+    """이름을 받아 인사말 반환 — @mcp.tool() 최소 예제."""
     return f"안녕하세요, {name}님! MCP Tool이 정상 작동합니다."
 
 
-# ── 단계 2: 파라미터 타입 종류 ──────────────────────────────────────────────
-# Python 타입 힌트 → AI에게 전달되는 JSON Schema 타입으로 자동 변환됩니다.
-#
-#   Python 타입       JSON Schema type         AI 동작
-#   str             → "type": "string"       → 텍스트 입력
-#   int             → "type": "integer"      → 정수 입력
-#   float           → "type": "number"       → 소수점 포함 숫자
-#   bool            → "type": "boolean"      → true/false
-#   Optional[X]     → required: false        → 생략 가능한 파라미터
-
+# Python 타입힌트 → JSON Schema 변환 (FastMCP가 자동으로 처리):
+#   str         → "type": "string"    텍스트 입력
+#   int         → "type": "integer"   정수 입력
+#   float       → "type": "number"    소수 포함 숫자
+#   bool        → "type": "boolean"   true / false
+#   Optional[X] → required에서 제외   생략 가능한 파라미터
+#   기본값(= 값) 있으면 선택적, 없으면 필수
 @mcp.tool()
 async def basic_type_demo(
     text: str,
@@ -84,10 +58,7 @@ async def basic_type_demo(
     uppercase: bool = False,
     prefix: Optional[str] = None,
 ) -> dict[str, Any]:
-    """다양한 파라미터 타입을 보여주는 예제 Tool.
-
-    AI는 각 파라미터의 타입을 보고 어떤 값을 넣어야 할지 판단합니다.
-    기본값(= 값)이 있으면 선택적 파라미터, 없으면 필수 파라미터입니다.
+    """다양한 파라미터 타입 예제.
 
     Args:
         text: 처리할 텍스트 (str, 필수)
@@ -117,24 +88,17 @@ async def basic_type_demo(
     }
 
 
-# ── 단계 3: 입력 검증과 ToolError ───────────────────────────────────────────
-# 예상된 실패(잘못된 입력, 찾을 수 없음 등)는 반드시 ToolError를 사용하세요.
-#
-#   ToolError vs 일반 Exception 차이:
-#     ToolError    → AI가 "도구 호출 실패, 메시지: X" 로 인식하고 대응 가능
-#     Exception    → 서버 500 에러, stack trace 발생, AI가 이유를 모름
-#
-#   ToolError는 클라이언트에게 스택 트레이스 없이 깔끔한 에러 메시지만 전달합니다.
-
+# ToolError vs Exception — 반드시 구분해서 사용:
+#   ToolError  → AI가 에러 메시지를 읽고 다른 값으로 재시도하거나 사용자에게 안내 가능
+#              → 스택트레이스 없이 깔끔한 메시지만 클라이언트에 전달
+#   Exception  → 서버 500 에러 + 스택트레이스, AI가 원인을 알 수 없어 재시도 불가
+# 예상 가능한 실패(잘못된 입력, 리소스 없음 등)는 항상 ToolError
 @mcp.tool()
 async def basic_divide(numerator: float, denominator: float) -> dict[str, Any]:
-    """두 수를 나누는 Tool — ToolError 사용법을 보여줍니다.
-
-    0으로 나누기처럼 예상 가능한 실패에는 ToolError를 사용하세요.
-    AI는 ToolError 메시지를 읽고 다른 값으로 재시도하거나 사용자에게 안내합니다.
+    """두 수 나누기 — ToolError 사용법 예제.
 
     Args:
-        numerator: 분자 (나눌 수)
+        numerator: 분자
         denominator: 분모 (0이면 ToolError 발생)
 
     Returns:
@@ -151,17 +115,13 @@ async def basic_divide(numerator: float, denominator: float) -> dict[str, Any]:
     }
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PART 2: 실전 패턴 — 메모 CRUD (인메모리 저장소)
-# ═══════════════════════════════════════════════════════════════════════════════
-# 여기서 다루는 추가 패턴:
-#   ① @mcp.tool() + @tool_logger 데코레이터 조합 순서
-#   ② Pydantic 모델 → .model_dump() dict 반환
-#   ③ 부분 수정: model_copy(update={...})
-#   ④ 복합 응답 모델 (MemoListResponse, MemoStatsResponse)
-# ═══════════════════════════════════════════════════════════════════════════════
-
+# ── PART 2: 실전 패턴 — 메모 CRUD ────────────────────────────────────────────
 # 인메모리 저장소 — 서버 재시작 시 초기화됨
+# 추가로 다루는 패턴:
+#   @tool_logger: 실행 로그 자동 기록 (tool_start / tool_done / tool_error)
+#   .model_dump(): Pydantic 모델 → dict 변환 (MCP 응답은 JSON 직렬화 가능해야 함)
+#   model_copy(update={...}): 불변 모델의 일부 필드만 교체
+#   MemoListResponse: 여러 항목을 묶는 복합 응답 모델
 _store: dict[int, Memo] = {}
 _next_id: int = 1
 
@@ -170,21 +130,19 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 포인트 ①: 데코레이터 적용 순서
-#   @mcp.tool()      ← 가장 바깥 (FastMCP가 함수를 tool로 등록)
-#   @tool_logger(...)← 안쪽 (실행 로그를 감싸는 래퍼)
-#   async def fn():  ← 실제 함수
-# ─────────────────────────────────────────────────────────────────────────────
-
+# 데코레이터 적용 순서 (위 → 아래 = 바깥 → 안쪽):
+#   @mcp.tool()       ← FastMCP가 이 함수를 MCP tool로 등록
+#   @tool_logger(...) ← 실행 시 로그를 남기는 래퍼
+#   async def fn():   ← 실제 비즈니스 로직
+# 순서가 바뀌면 @tool_logger 자체가 tool로 등록되거나 로그가 누락됨
 @mcp.tool()
 @tool_logger(logger, param_keys=["title", "category"])
 async def basic_create_memo(title: str, content: str, category: str = "일반") -> dict[str, Any]:
-    """새 메모를 작성합니다.
+    """새 메모 작성.
 
     Args:
-        title: 메모 제목 (필수, 공백 불가)
-        content: 메모 본문 (필수, 공백 불가)
+        title: 메모 제목 (공백 불가)
+        content: 메모 본문 (공백 불가)
         category: 분류 태그 (기본값: 일반)
 
     Returns:
@@ -195,7 +153,6 @@ async def basic_create_memo(title: str, content: str, category: str = "일반") 
     """
     global _next_id
 
-    # 포인트 ②: 입력 검증은 ToolError로 — MCP 프로토콜 수준 에러 반환
     if not title.strip():
         raise ToolError("제목은 비울 수 없습니다.")
     if not content.strip():
@@ -213,24 +170,25 @@ async def basic_create_memo(title: str, content: str, category: str = "일반") 
     _store[_next_id] = memo
     _next_id += 1
 
-    # 포인트 ③: Pydantic → dict 변환 후 반환
-    return memo.model_dump()
+    return memo.model_dump()  # Pydantic 모델 → dict (MCP 응답에 필요)
 
 
 @mcp.tool()
 @tool_logger(logger, param_keys=["memo_id"])
 async def basic_get_memo(memo_id: int) -> dict[str, Any]:
-    """ID로 메모를 조회합니다.
+    """ID로 메모 조회.
 
     Args:
         memo_id: 조회할 메모 ID
 
+    Returns:
+        Memo 딕셔너리
+
     Raises:
-        ToolError: 해당 ID 메모가 없을 때 (404 상황)
+        ToolError: 해당 ID 메모가 없을 때
     """
     memo = _store.get(memo_id)
     if memo is None:
-        # 포인트 ④: 찾을 수 없음 → ToolError (warning 레벨 로그, stack trace 없음)
         raise ToolError(f"메모 ID {memo_id}를 찾을 수 없습니다.")
     return memo.model_dump()
 
@@ -238,7 +196,7 @@ async def basic_get_memo(memo_id: int) -> dict[str, Any]:
 @mcp.tool()
 @tool_logger(logger, param_keys=["category"])
 async def basic_list_memos(category: Optional[str] = None) -> dict[str, Any]:
-    """메모 목록을 조회합니다.
+    """메모 목록 조회.
 
     Args:
         category: 필터링 카테고리 — 생략하면 전체 반환
@@ -250,7 +208,6 @@ async def basic_list_memos(category: Optional[str] = None) -> dict[str, Any]:
     if category:
         memos = [m for m in memos if m.category == category]
 
-    # 포인트 ⑤: 복합 응답은 전용 Response 모델 사용
     return MemoListResponse(total=len(memos), memos=memos).model_dump()
 
 
@@ -262,19 +219,23 @@ async def basic_update_memo(
     content: Optional[str] = None,
     category: Optional[str] = None,
 ) -> dict[str, Any]:
-    """메모를 부분 수정합니다 — 전달한 필드만 변경됩니다.
+    """메모 부분 수정 — 전달한 필드만 변경.
 
     Args:
         memo_id: 수정할 메모 ID
         title: 새 제목 (생략하면 기존 값 유지)
         content: 새 본문 (생략하면 기존 값 유지)
         category: 새 카테고리 (생략하면 기존 값 유지)
+
+    Returns:
+        수정된 Memo 딕셔너리
     """
     memo = _store.get(memo_id)
     if memo is None:
         raise ToolError(f"메모 ID {memo_id}를 찾을 수 없습니다.")
 
-    # 포인트 ⑥: Pydantic model_copy — 불변 객체처럼 업데이트
+    # model_copy(update={...}) — Pydantic 모델을 직접 수정하지 않고 새 객체 반환
+    # None 체크 후 전달된 값만 교체, 나머지는 기존 값 유지
     updated = memo.model_copy(
         update={
             "title": title.strip() if title else memo.title,
@@ -290,7 +251,7 @@ async def basic_update_memo(
 @mcp.tool()
 @tool_logger(logger, param_keys=["memo_id"])
 async def basic_delete_memo(memo_id: int) -> dict[str, Any]:
-    """메모를 삭제합니다.
+    """메모 삭제.
 
     Returns:
         { deleted: bool, id: int, title: str }
@@ -304,7 +265,11 @@ async def basic_delete_memo(memo_id: int) -> dict[str, Any]:
 @mcp.tool()
 @tool_logger(logger, param_keys=[])
 async def basic_get_memo_stats() -> dict[str, Any]:
-    """카테고리별 메모 통계를 반환합니다."""
+    """카테고리별 메모 통계 반환.
+
+    Returns:
+        { total: int, categories: { 카테고리명: 개수 } }
+    """
     categories: dict[str, int] = {}
     for memo in _store.values():
         categories[memo.category] = categories.get(memo.category, 0) + 1
