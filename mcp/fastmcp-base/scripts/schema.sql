@@ -24,3 +24,14 @@ CREATE TABLE IF NOT EXISTS posts (
 );
 
 CREATE INDEX IF NOT EXISTS ix_posts_author_id ON posts (author_id);
+
+-- sample/database 케이스용 테이블
+CREATE TABLE IF NOT EXISTS products (
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(200) NOT NULL,
+    price      NUMERIC(12,2) NOT NULL DEFAULT 0,
+    stock      INTEGER NOT NULL DEFAULT 0,
+    category   VARCHAR(100) NOT NULL DEFAULT '기타',
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);

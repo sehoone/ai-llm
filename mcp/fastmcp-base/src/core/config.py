@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     http_max_retries: int = 3
 
     # 데이터베이스 페이지네이션
-    db_page_size: int = 10
     db_max_page_size: int = 100
     content_preview_length: int = 200
 

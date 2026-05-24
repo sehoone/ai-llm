@@ -17,7 +17,7 @@ logger = get_logger("weather.tools")
 @mcp.tool()
 @tool_logger(logger, param_keys=["city", "country_code"])
 async def get_weather(
-    city: str, country_code: Optional[str] = None, ctx: Context = None
+    city: str, ctx: Context, country_code: Optional[str] = None
 ) -> dict[str, Any]:
     """현재 날씨 정보를 조회합니다."""
     settings = get_settings()
@@ -72,7 +72,7 @@ async def get_weather(
 @mcp.tool()
 @tool_logger(logger, param_keys=["city", "country_code", "days"])
 async def get_forecast(
-    city: str, country_code: Optional[str] = None, days: int = 5, ctx: Context = None
+    city: str, ctx: Context, country_code: Optional[str] = None, days: int = 5
 ) -> dict[str, Any]:
     """날씨 예보를 조회합니다 (최대 5일)."""
     settings = get_settings()

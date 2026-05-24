@@ -18,8 +18,8 @@ async def request_with_retry(
     **kwargs,
 ) -> httpx.Response:
     """지수 백오프 재시도. 5xx·연결 오류만 재시도, 4xx는 즉시 반환."""
-    last_error: Optional[Exception] = None
-    for attempt in range(max_retries + 1):
+    last_error: Optional[Exception] = RuntimeError("max_retries must be >= 0")
+    for attempt in range(max(0, max_retries) + 1):
         try:
             response = await client.request(method, url, **kwargs)
             if response.status_code < 500:

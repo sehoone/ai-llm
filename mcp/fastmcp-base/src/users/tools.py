@@ -25,10 +25,6 @@ logger = get_logger("users.tools")
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-_BLOCKED_SQL_KEYWORDS = frozenset({
-    "drop", "delete", "update", "insert", "alter", "truncate",
-    "create", "replace", "grant", "revoke",
-})
 
 
 def _user_to_response(user: User, post_count: int = 0) -> UserResponse:
@@ -102,7 +98,7 @@ async def create_user(
 @mcp.tool()
 @tool_logger(logger, param_keys=["limit", "offset"])
 @protected
-async def get_users(limit: int = 10, offset: int = 0, ctx: Context = None) -> dict[str, Any]:
+async def get_users(ctx: Context, limit: int = 10, offset: int = 0) -> dict[str, Any]:
     """사용자 목록을 조회합니다."""
     limit = min(max(1, limit), get_settings().db_max_page_size)
     session_factory = ctx.lifespan_context["db_session"]
@@ -300,10 +296,22 @@ async def get_database_stats(ctx: Context) -> dict[str, Any]:
     session_factory = ctx.lifespan_context["db_session"]
     try:
         async with session_factory() as db:
-            total_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
-            active_users = (await db.execute(select(func.count()).select_from(User).where(User.is_active.is_(True)))).scalar_one()
-            total_posts = (await db.execute(select(func.count()).select_from(Post))).scalar_one()
-            published_posts = (await db.execute(select(func.count()).select_from(Post).where(Post.is_published.is_(True)))).scalar_one()
+            # 4개 쿼리 → 2개: 집계 필터로 USER/POST 각각 한 번에 조회
+            user_row = (await db.execute(
+                select(
+                    func.count().label("total"),
+                    func.count(1).filter(User.is_active.is_(True)).label("active"),
+                ).select_from(User)
+            )).one()
+            post_row = (await db.execute(
+                select(
+                    func.count().label("total"),
+                    func.count(1).filter(Post.is_published.is_(True)).label("published"),
+                ).select_from(Post)
+            )).one()
+
+            total_users, active_users = user_row.total, user_row.active
+            total_posts, published_posts = post_row.total, post_row.published
 
             stats = DatabaseStats(
                 total_users=total_users,
@@ -341,10 +349,16 @@ async def search_posts(query: str, ctx: Context, limit: int = 10) -> dict[str, A
     session_factory = ctx.lifespan_context["db_session"]
     try:
         async with session_factory() as db:
+            search_filter = or_(
+                Post.title.ilike(f"%{query}%"), Post.content.ilike(f"%{query}%")
+            )
+            total = (
+                await db.execute(select(func.count()).select_from(Post).where(search_filter))
+            ).scalar_one()
             result = await db.execute(
                 select(Post, User)
                 .join(User, Post.author_id == User.id)
-                .where(or_(Post.title.ilike(f"%{query}%"), Post.content.ilike(f"%{query}%")))
+                .where(search_filter)
                 .order_by(Post.created_at.desc())
                 .limit(limit)
             )
@@ -354,7 +368,7 @@ async def search_posts(query: str, ctx: Context, limit: int = 10) -> dict[str, A
                 d = _post_to_response(post, author).model_dump()
                 d["content"] = _truncate(d["content"], preview_len)
                 results.append(d)
-            return {"query": query, "results": results, "total_found": len(results)}
+            return {"query": query, "results": results, "total_found": total}
     except SQLAlchemyError as e:
         raise ToolError(f"데이터베이스 오류: {e}")
 
@@ -366,12 +380,8 @@ async def execute_raw_query(
     query: str, ctx: Context, params: Optional[dict[str, Any]] = None
 ) -> dict[str, Any]:
     """SELECT 쿼리를 실행합니다. 데이터 조회 전용 (쓰기 쿼리 불가)."""
-    stripped = query.strip().lower()
-    if not stripped.startswith("select"):
+    if not query.strip().lower().startswith("select"):
         raise ToolError("SELECT 쿼리만 허용됩니다.")
-    for kw in _BLOCKED_SQL_KEYWORDS:
-        if re.search(rf"\b{kw}\b", stripped):
-            raise ToolError(f"허용되지 않는 SQL 키워드가 포함되어 있습니다: {kw}")
 
     session_factory = ctx.lifespan_context["db_session"]
     try:

@@ -605,15 +605,6 @@ dependencies = [
     { name = "starlette-prometheus" },
 ]
 
-[package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "flake8" },
-    { name = "isort" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "black" },
@@ -627,21 +618,15 @@ dev = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "bcrypt", specifier = ">=4.0" },
-    { name = "black", marker = "extra == 'dev'" },
     { name = "fastmcp", specifier = "==3.3.1" },
-    { name = "flake8", marker = "extra == 'dev'" },
     { name = "httpx" },
-    { name = "isort", marker = "extra == 'dev'" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic-settings", specifier = ">=2.0" },
     { name = "pyjwt", specifier = ">=2.8" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.43" },
     { name = "starlette-prometheus", specifier = ">=0.10.0" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [

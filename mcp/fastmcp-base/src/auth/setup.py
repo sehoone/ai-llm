@@ -16,7 +16,7 @@ from src.core.auth import (
 )
 from src.core.config import Settings
 from src.core.logging import get_logger
-from src.core.mcp import _lifespan_context
+from src.core.mcp import get_lifespan_context
 
 logger = get_logger("auth.setup")
 
@@ -36,7 +36,7 @@ def setup_auth(mcp, settings: Settings) -> list[Middleware]:
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_request: Request) -> JSONResponse:
-        session_factory = _lifespan_context.get("db_session")
+        session_factory = get_lifespan_context().get("db_session")
         db_ok: bool | None = None
         if session_factory is not None:
             try:

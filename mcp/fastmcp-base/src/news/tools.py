@@ -59,10 +59,10 @@ def _parse_articles(raw: list[dict]) -> list[Article]:
 @mcp.tool()
 @tool_logger(logger, param_keys=["country", "category", "page_size"])
 async def get_top_headlines(
+    ctx: Context,
     country: str = "kr",
     category: Optional[str] = None,
     page_size: int = 10,
-    ctx: Context = None,
 ) -> dict[str, Any]:
     """최신 헤드라인 뉴스를 조회합니다."""
     settings = get_settings()
@@ -115,10 +115,10 @@ async def get_top_headlines(
 @tool_logger(logger, param_keys=["query", "language", "sort_by", "page_size"])
 async def search_news(
     query: str,
+    ctx: Context,
     language: str = "ko",
     sort_by: str = "publishedAt",
     page_size: int = 10,
-    ctx: Context = None,
 ) -> dict[str, Any]:
     """키워드로 뉴스를 검색합니다."""
     settings = get_settings()
@@ -170,10 +170,10 @@ async def search_news(
 @mcp.tool()
 @tool_logger(logger, param_keys=["category", "language", "country"])
 async def get_news_sources(
+    ctx: Context,
     category: Optional[str] = None,
     language: str = "ko",
     country: str = "kr",
-    ctx: Context = None,
 ) -> dict[str, Any]:
     """뉴스 소스 목록을 조회합니다."""
     settings = get_settings()

@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Commands
 
 ```bash
@@ -15,13 +17,10 @@ cp deploy/.env.example .env.prod    # 프로덕션
 psql -U postgres -d fastmcp_db -f scripts/schema.sql
 
 # Run server — APP_ENV 로 환경 선택 (기본값: local)
-APP_ENV=local uv run python main.py server   # 로컬
-APP_ENV=dev   uv run python main.py server   # 개발 서버
-APP_ENV=prod  uv run python main.py server   # 프로덕션
+APP_ENV=local uv run python main.py server
 
 # MCP Inspector — stdio 모드 (서버 별도 실행 불필요, 토큰 불필요)
 MCP_TRANSPORT=stdio APP_ENV=local uv run fastmcp dev inspector src/app.py
-# → Inspector UI에서 Connect만 클릭
 
 # MCP Inspector — StreamableHTTP 모드 (터미널 두 개 필요)
 # 터미널 1: APP_ENV=local uv run python main.py server
@@ -31,12 +30,18 @@ MCP_TRANSPORT=stdio APP_ENV=local uv run fastmcp dev inspector src/app.py
 # Tests
 uv run pytest tests/unit/          # 단위 테스트 (API 키 / DB 불필요)
 uv run pytest tests/integration/   # 통합 테스트 (PostgreSQL 필요)
-uv run pytest tests/               # 전체
+uv run pytest tests/unit/test_foo.py::test_bar  # 단일 테스트
 
 # Lint & format
 black src/ tests/ main.py
 isort src/ tests/ main.py
 flake8 src/ tests/ main.py
+
+# Docker (deploy/ 디렉토리에서 실행)
+docker compose up --build                                  # 기본 (mcp + postgres)
+docker compose --profile monitoring up --build             # + Loki/Grafana
+docker compose --profile nginx up --build                  # + Nginx 리버스 프록시
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile nginx up -d --build  # 프로덕션
 ```
 
 ## Architecture
@@ -46,60 +51,69 @@ flake8 src/ tests/ main.py
 ```
 src/
 ├── core/                  # 공통 인프라 (도메인 무관)
-│   ├── mcp.py             # 단일 FastMCP 인스턴스 + DB lifespan
-│   ├── config.py          # pydantic-settings 환경변수 관리
+│   ├── mcp.py             # 단일 FastMCP 인스턴스 + DB/HTTP lifespan
+│   ├── config.py          # pydantic-settings 환경변수 관리 (APP_ENV 파일 분리)
 │   ├── logging.py         # get_logger(name), tool_logger 데코레이터
-│   ├── auth.py            # JWT 토큰 생성·검증·미들웨어 클래스
-│   └── db.py              # async engine factory, session factory, test_connection
-├── auth/                  # HTTP 인증 라우트
-│   └── setup.py           # /health, /auth/token, /auth/refresh 등록 + 미들웨어 반환
-├── weather/               # 날씨 도메인
-│   ├── models.py          # WeatherResponse, ForecastResponse
-│   ├── tools.py           # get_weather, get_forecast
-│   ├── resources.py       # weather://supported-units, weather://demo-info
-│   └── prompts.py         # weather_analysis, weather_comparison
+│   ├── auth.py            # JWT 생성·검증, JWTAuthMiddleware, @protected, require_auth
+│   ├── db.py              # async engine factory, session factory, test_connection
+│   ├── http.py            # create_http_client, request_with_retry (지수 백오프)
+│   ├── middleware.py      # RequestIDMiddleware — X-Request-ID 헤더 전파
+│   └── context.py         # request_id_var (ContextVar) — 로거가 읽어 JSON 로그에 삽입
+├── auth/
+│   └── setup.py           # /health, /auth/token, /auth/refresh 등록 + rate limiter
+├── weather/               # 날씨 도메인 (tools / resources / prompts / models)
 ├── news/                  # 뉴스 도메인
-│   ├── models.py          # NewsResponse, Article, NewsSource
-│   ├── tools.py           # get_top_headlines, search_news, get_news_sources
-│   ├── resources.py       # news://categories, news://languages
-│   └── prompts.py         # news_summary, daily_briefing
-├── users/                 # 사용자/게시글 도메인
-│   ├── models.py          # UserResponse, PostResponse 등 Pydantic 모델
-│   ├── orm.py             # SQLAlchemy ORM (User, Post)
-│   ├── tools.py           # CRUD 11개 도구
-│   ├── resources.py       # db://schema, db://tables
-│   └── prompts.py         # db_tool_guide
-└── utils/                 # 유틸리티 도메인
-    └── tools.py           # get_time, calculate, ping_server
+├── users/                 # 사용자/게시글 도메인 (SQLAlchemy ORM 포함)
+├── utils/                 # get_time, calculate, ping_server
+└── sample/                # 학습용 참조 구현 (app.py 미등록 — 필요 시 직접 추가)
+    ├── basic/             # 케이스 01: Tool·Resource·Prompt 기초, 인메모리 CRUD
+    ├── external_api/      # 케이스 02: httpx AsyncClient, 데모 모드, 예외 처리 체인
+    ├── database/          # 케이스 03: SQLAlchemy async CRUD, flush→refresh→commit
+    ├── context/           # 케이스 04: ctx.info/warning/error, report_progress, lifespan_context
+    └── auth/              # 케이스 05: @protected, require_auth, 선택적 인증, RBAC
 
-src/app.py                 # 도메인 모듈 import → 도구 등록 트리거. mcp를 외부에 노출
-src/asgi.py                # ASGI 진입점 — HTTP 배포 시 uvicorn이 이 파일을 로드
-main.py                    # CLI 진입점 — src/asgi.py를 import string으로 참조해 실행
+src/app.py                 # 도메인 모듈 import → @mcp.tool() 데코레이터 실행 → 등록 트리거
+src/asgi.py                # ASGI 진입점 — Prometheus/RequestID 미들웨어, rate limiter, /metrics
+main.py                    # CLI: "python main.py server" → uvicorn("src.asgi:app") 실행
 
 tests/
 ├── conftest.py            # 공통 pytest fixtures
-├── unit/                  # FastMCP Client 기반 단위 테스트
+├── unit/                  # FastMCP Client 기반 단위 테스트 (API 키 / DB 불필요)
 └── integration/           # PostgreSQL 필요 통합 테스트
 ```
 
 ## Key patterns
 
-**단일 인스턴스**: `src/core/mcp.py`에 `mcp = FastMCP(...)` 하나. 모든 도메인 파일이 `from src.core.mcp import mcp`로 import해 동일 인스턴스에 등록
+**단일 인스턴스**: `src/core/mcp.py`에 `mcp = FastMCP(...)` 하나. 모든 도메인 파일이 `from src.core.mcp import mcp`로 import해 동일 인스턴스에 등록.
 
-**도구 등록 트리거**: `app.py`가 각 도메인 모듈을 import하는 시점에 `@mcp.tool()` 데코레이터가 실행되어 등록됨. `# noqa: F401`로 lint 경고 억제
+**도구 등록 트리거**: `app.py`가 각 도메인 모듈을 import하는 시점에 `@mcp.tool()` 데코레이터가 실행되어 등록됨. `# noqa: F401`로 lint 경고 억제. `sample/` 아래 도구는 `app.py`에 미등록 — 사용하려면 직접 추가.
 
-**도메인 확장**: 새 도메인 추가 시 `tools.py`에서 `from src.core.mcp import mcp` 후 `@mcp.tool()` 등록, `app.py`에 import 한 줄 추가
+**도메인 확장**: 새 도메인 추가 시 `tools.py`에서 `from src.core.mcp import mcp` 후 `@mcp.tool()` 등록, `app.py`에 import 한 줄 추가.
 
-**Tool registration**: `@mcp.tool()` 데코레이터 방식. `@tool_logger` 와 조합 시 내부 적용 후 외부 등록
+**데코레이터 적용 순서**:
+```python
+@mcp.tool()        # 가장 바깥 — FastMCP가 tool로 등록
+@tool_logger(logger, param_keys=["city"])  # 중간 — 실행 로그 래퍼
+@protected         # 가장 안쪽 — 인증 검사 후 원본 함수 호출
+async def my_tool(city: str, ctx: Context) -> dict:
+    ...
+```
 
-**Lifespan + Context**: `src/core/mcp.py`의 lifespan에서 DB 엔진 초기화 → `ctx.lifespan_context["db_session"]`으로 database 도구에 주입
+**Lifespan + Context**: `src/core/mcp.py`의 lifespan에서 DB 엔진(`db_session`)과 HTTP 클라이언트(`http_client`) 초기화 → `ctx.lifespan_context["db_session"]`으로 도구에 주입.
 
-**DB session**: async SQLAlchemy + asyncpg. `async_sessionmaker` 로 세션 생성, `async with session() as db:` 패턴
+**DB session**: async SQLAlchemy + asyncpg. `async with session_factory() as db:` 패턴. 쓰기 시 `db.flush()` → `db.refresh(obj)` → `db.commit()` 순서.
 
-**Error handling**: `ToolError` (fastmcp.exceptions) raise — dict 반환 대신 MCP 프로토콜 수준 에러
+**HTTP 클라이언트**: 외부 API 호출 시 lifespan에서 생성한 공유 `httpx.AsyncClient` 사용 권장. 재시도가 필요하면 `core/http.py`의 `request_with_retry` 사용 (5xx·연결 오류만 재시도, 지수 백오프).
 
-**Testing**: `from src.app import mcp` 후 `async with Client(mcp) as client: await client.call_tool(...)` — in-memory 전체 스택 테스트. 에러 검증은 `raise_on_error=False` 후 `result.is_error` 확인
+**Error handling**: `ToolError` (fastmcp.exceptions) raise — dict 반환 대신 MCP 프로토콜 수준 에러. `ToolError`는 `tool_logger`에서 warning으로 기록(스택 없음), 일반 Exception은 exception으로 기록.
 
-**Demo mode**: API 키가 `demo_key` 이면 샘플 데이터 반환. `is_demo: True` 필드로 구분 가능
+**인증 (HTTP transport)**:
+- `auth_mode = "global"` (기본): `JWTAuthMiddleware`가 모든 MCP 요청을 차단. `/health`, `/auth/token`, `/auth/refresh`, `/metrics`는 bypass.
+- `auth_mode = "per-tool"`: 미들웨어는 토큰 파싱만, `@protected` 또는 `require_auth(ctx)` 도구가 직접 검증.
+- `verify_user`는 평문 비밀번호와 bcrypt 해시 모두 지원.
 
-**Safe eval**: `utils/tools.py`의 `safe_eval()`은 `ast` 모듈 기반 — `eval()` 미사용
+**Testing**: `from src.app import mcp` 후 `async with Client(mcp) as client: await client.call_tool(...)` — in-memory 전체 스택 테스트. 에러 검증은 `raise_on_error=False` 후 `result.is_error` 확인.
+
+**Demo mode**: `OPENWEATHER_API_KEY=demo_key` 또는 `NEWS_API_KEY=demo_key` 시 샘플 데이터 반환. `is_demo: True` 필드로 구분.
+
+**Observability**: 모든 로그는 JSON 구조화 로그 (stdout). 각 로그 항목에 `request_id`가 자동 포함 (`RequestIDMiddleware` → `request_id_var` → `_JsonFormatter`). Prometheus 메트릭은 `/metrics` 엔드포인트 (JWT 인증 없이 스크래핑 가능).

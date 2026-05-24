@@ -1,13 +1,14 @@
 import ast
+import ipaddress
 import operator
 from datetime import datetime, timezone
 from typing import Any, Union
 from urllib.parse import urlparse
 
 import httpx
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 
-from src.core.config import get_settings
 from src.core.logging import get_logger, tool_logger
 from src.core.mcp import mcp
 
@@ -65,21 +66,42 @@ async def calculate(expression: str) -> dict[str, Any]:
         raise ToolError(str(e))
 
 
+def _validate_ping_url(url: str) -> None:
+    """SSRF 방어: http/https scheme 강제, 사설·루프백 IP 차단."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ToolError("http 또는 https URL만 허용됩니다.")
+    hostname = parsed.hostname
+    if not hostname:
+        raise ToolError("유효하지 않은 URL입니다.")
+    _BLOCKED_HOSTS = {"localhost", "metadata.google.internal"}
+    if hostname.lower() in _BLOCKED_HOSTS or hostname.endswith(".local"):
+        raise ToolError("내부 호스트명은 허용되지 않습니다.")
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ToolError("사설/루프백 IP 주소는 허용되지 않습니다.")
+    except ValueError:
+        pass  # 도메인 이름 — IP 검사 불필요
+
+
 @mcp.tool()
 @tool_logger(logger, param_keys=["url"])
-async def ping_server(url: str) -> dict[str, Any]:
+async def ping_server(url: str, ctx: Context) -> dict[str, Any]:
     """서버의 응답 시간을 확인합니다."""
-    settings = get_settings()
+    _validate_ping_url(url)
+    client: httpx.AsyncClient = ctx.lifespan_context["http_client"]
     try:
-        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-            start = datetime.now()
-            response = await client.get(url)
-            elapsed_ms = round((datetime.now() - start).total_seconds() * 1000, 2)
+        start = datetime.now()
+        response = await client.get(url)
+        elapsed_ms = round((datetime.now() - start).total_seconds() * 1000, 2)
         return {
             "url": url,
             "status_code": response.status_code,
             "response_time_ms": elapsed_ms,
             "success": response.is_success,
         }
+    except ToolError:
+        raise
     except Exception as e:
         raise ToolError(f"연결 실패: {e}")

@@ -20,15 +20,6 @@ dependencies = [
     "starlette-prometheus>=0.10.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-asyncio",
-    "black",
-    "isort",
-    "flake8",
-]
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

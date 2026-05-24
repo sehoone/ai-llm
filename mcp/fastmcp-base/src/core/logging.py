@@ -53,6 +53,7 @@ def get_logger(name: str) -> logging.Logger:
         handler.setFormatter(_JsonFormatter())
         logger.addHandler(handler)
         logger.setLevel(level)
+        logger.propagate = False
     return logger
 
 
