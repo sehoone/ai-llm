@@ -1,0 +1,38 @@
+services:
+  mcp:
+    restart: always
+    ports:
+      - "${MCP_PORT:-8000}:8000"  # stg: 직접 접근 허용 (디버깅용)
+    env_file: .env.stg
+    environment:
+      LOG_LEVEL: INFO
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    restart: always
+    ports: []
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    restart: always
+    profiles: []  # stg에서도 기본 활성화
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

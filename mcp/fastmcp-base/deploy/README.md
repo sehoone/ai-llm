@@ -5,9 +5,13 @@
 ```
 deploy/
 ├── Dockerfile                          # 앱 이미지 (Python 3.13-slim + uv, 비root 실행)
-├── docker-compose.yml                  # 로컬/개발용
-├── docker-compose.prod.yml             # 프로덕션 오버라이드 (리소스 제한, 로그 설정)
+├── deploy.sh                           # 배포 스크립트 (stg/prd, http/https 선택)
+├── docker-compose.yml                  # 공통 베이스 (postgres, mcp, loki, nginx 정의)
+├── docker-compose.stg.yml              # 스테이징 오버라이드 (리소스 제한, .env.stg 주입)
+├── docker-compose.prd.yml              # 프로덕션 오버라이드 (리소스 제한, .env.prd 주입)
 ├── .env.example                        # 환경변수 템플릿
+├── .env.stg                            # 스테이징 환경변수 (git 커밋 금지)
+├── .env.prd                            # 프로덕션 환경변수 (git 커밋 금지)
 ├── nginx.conf.template                 # Nginx HTTPS 설정 템플릿 (DOMAIN 변수 치환)
 ├── nginx-http.conf.template            # Nginx HTTP 설정 템플릿 (SSL 없음)
 ├── loki-config.yml                     # Loki 로그 수집 설정
@@ -113,12 +117,7 @@ docker compose --profile nginx up --build
 SSL 인증서 준비:
 
 ```bash
-# Let's Encrypt (도메인 필요)
-certbot certonly --standalone -d your-domain.com
-cp /etc/letsencrypt/live/your-domain.com/fullchain.pem deploy/ssl/cert.pem
-cp /etc/letsencrypt/live/your-domain.com/privkey.pem   deploy/ssl/key.pem
-
-# 또는 자체 서명 인증서 (테스트용)
+# 자체 서명 인증서 (로컬 테스트용)
 mkdir -p deploy/ssl
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout deploy/ssl/key.pem -out deploy/ssl/cert.pem \
@@ -127,7 +126,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 ```ini
 # .env
-DOMAIN=your-domain.com
+DOMAIN=localhost
 NGINX_MODE=https
 ```
 
@@ -139,24 +138,108 @@ docker compose --profile nginx up --build
 
 ---
 
-## 프로덕션 환경 실행
+## 스테이징 환경 배포
 
-`docker-compose.prod.yml`을 오버라이드로 추가:
+### 1. 환경변수 설정
 
-```bash
-# 기본 (mcp + postgres + nginx)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-  --profile nginx up -d --build
+`.env.stg`의 기본값을 실제 값으로 교체:
 
-# 모니터링 포함
-docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-  --profile nginx --profile monitoring up -d --build
+```ini
+POSTGRES_PASSWORD=<실제 비밀번호>
+DATABASE_URL=postgresql://postgres:<실제 비밀번호>@postgres:5432/fastmcp_db
+
+# openssl rand -hex 32
+JWT_SECRET_KEY=<랜덤 32바이트 hex>
+AUTH_USERS=admin:<실제 비밀번호>
+
+DOMAIN=stg.your-domain.com
+GRAFANA_PASSWORD=<실제 비밀번호>
 ```
 
-프로덕션 오버라이드 내용:
-- `mcp`: CPU 1코어·메모리 512MB 제한, 로그 로테이션(10MB × 5)
-- `postgres`: 메모리 1GB 제한, 로그 로테이션, 외부 포트 비노출
-- `nginx`: 프로필 없이 기본 활성화, `restart: always`
+> `POSTGRES_PASSWORD`와 `DATABASE_URL`의 비밀번호는 반드시 일치해야 합니다.
+
+### 2. 배포 실행
+
+```bash
+cd deploy
+
+# HTTP 모드 (SSL 인증서 불필요 — 스테이징 권장)
+bash deploy.sh stg http
+
+# HTTPS 모드 (SSL 인증서 필요)
+bash deploy.sh stg https
+
+# 모니터링 스택 포함
+bash deploy.sh stg http --monitoring
+```
+
+### 3. 접속 확인
+
+| 항목 | URL |
+|------|-----|
+| MCP 엔드포인트 | http://stg.your-domain.com/mcp |
+| 헬스체크 | http://stg.your-domain.com/health |
+| MCP 직접 접근 (디버깅용) | http://stg.your-domain.com:8000/mcp |
+| Grafana (--monitoring) | http://stg.your-domain.com:3000 |
+
+> stg는 MCP 포트(8000)가 호스트에 직접 노출됩니다 (디버깅 목적). prd에서는 비노출.
+
+스테이징 오버라이드 내용(`docker-compose.stg.yml`):
+- `mcp`: CPU 0.5코어·메모리 256MB 제한, 포트 8000 직접 노출
+- `postgres`: 외부 포트 비노출
+- `nginx`: 프로필 없이 기본 활성화 (`restart: always`)
+
+---
+
+## 프로덕션 환경 배포
+
+### 1. 환경변수 설정
+
+`.env.prd` 수정 (`.env.stg`와 동일한 항목):
+
+```ini
+POSTGRES_PASSWORD=<실제 비밀번호>
+DATABASE_URL=postgresql://postgres:<실제 비밀번호>@postgres:5432/fastmcp_db
+JWT_SECRET_KEY=<openssl rand -hex 32>
+AUTH_USERS=admin:<실제 비밀번호>
+DOMAIN=your-domain.com
+```
+
+### 2. SSL 인증서 준비 (HTTPS 배포 시)
+
+```bash
+# Let's Encrypt
+certbot certonly --standalone -d your-domain.com
+mkdir -p deploy/ssl
+cp /etc/letsencrypt/live/your-domain.com/fullchain.pem deploy/ssl/cert.pem
+cp /etc/letsencrypt/live/your-domain.com/privkey.pem   deploy/ssl/key.pem
+
+# 또는 자체 서명 인증서 (테스트용)
+mkdir -p deploy/ssl
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout deploy/ssl/key.pem -out deploy/ssl/cert.pem \
+  -subj "/CN=your-domain.com"
+```
+
+### 3. 배포 실행
+
+```bash
+cd deploy
+
+# HTTPS 배포 (기본)
+bash deploy.sh prd https
+
+# HTTP 배포 (SSL 없음)
+bash deploy.sh prd http
+
+# 모니터링 스택 포함
+bash deploy.sh prd https --monitoring
+```
+
+프로덕션 오버라이드 내용(`docker-compose.prd.yml`):
+- `mcp`: CPU 1코어·메모리 512MB 제한, 로그 로테이션(10MB × 5), 포트 비노출
+- `postgres`: 메모리 1GB 제한, 외부 포트 비노출
+- `nginx`: 프로필 없이 기본 활성화 (`restart: always`)
 
 ---
 
