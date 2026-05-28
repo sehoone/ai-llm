@@ -1,0 +1,58 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:1.0.0"
+    }
+}
+
+dependencies {
+    // Spring AI MCP Server (SSE/WebMVC transport)
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+
+    // Spring Security (API Key 인증)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Actuator (헬스체크)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Database — PostgreSQL + MyBatis + JPA
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

@@ -1,0 +1,17 @@
+package com.example.mcpserver.sample.db.mapper;
+
+import com.example.mcpserver.sample.db.entity.SampleItem;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface SampleItemMapper {
+
+    List<SampleItem> findAll();
+
+    SampleItem findById(@Param("id") Long id);
+
+    List<SampleItem> findByName(@Param("name") String name);
+}

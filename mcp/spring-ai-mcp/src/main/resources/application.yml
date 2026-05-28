@@ -1,0 +1,51 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: spring-ai-mcp-server
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sample_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update          # 최초 실행 시 sample_item 테이블 자동 생성
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+  ai:
+    mcp:
+      server:
+        name: Spring AI MCP Server
+        version: 1.0.0
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.mcpserver.sample.db.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+app:
+  security:
+    api-key: ${API_KEY:change-me-in-production}
+  todo:
+    base-url: ${TODO_API_URL:https://jsonplaceholder.typicode.com}
