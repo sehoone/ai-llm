@@ -36,13 +36,20 @@ dependencies {
     // Spring Security (API Key 인증)
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
-    // Actuator (헬스체크)
+    // Actuator (헬스체크 + Prometheus 메트릭)
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
 
     // Database — PostgreSQL + MyBatis + JPA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
     runtimeOnly 'org.postgresql:postgresql'
+
+    // AOP (공통 로깅)
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // JSON 구조화 로깅 (운영 환경)
+    implementation 'net.logstash.logback:logstash-logback-encoder:8.0'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'

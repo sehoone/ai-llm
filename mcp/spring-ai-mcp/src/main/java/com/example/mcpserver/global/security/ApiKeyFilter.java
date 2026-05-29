@@ -10,14 +10,25 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 public class ApiKeyFilter extends OncePerRequestFilter {
 
     private static final String API_KEY_HEADER = "X-API-Key";
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/actuator/health", "/actuator/info", "/actuator/prometheus"
+    );
+
     private final String validApiKey;
 
     public ApiKeyFilter(String validApiKey) {
         this.validApiKey = validApiKey;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
     }
 
     @Override

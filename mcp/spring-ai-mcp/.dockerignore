@@ -1,0 +1,6 @@
+.gradle
+build
+.vscode
+.claude
+*.md
+deploy
