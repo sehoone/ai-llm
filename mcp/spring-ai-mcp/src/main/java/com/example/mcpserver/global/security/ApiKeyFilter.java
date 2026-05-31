@@ -17,20 +17,19 @@ import java.util.List;
 public class ApiKeyFilter extends OncePerRequestFilter {
 
     private static final String API_KEY_HEADER = "X-API-Key";
-    private static final List<String> PUBLIC_PATHS = List.of(
-            "/actuator/health", "/actuator/info", "/actuator/prometheus"
-    );
 
     private final byte[] validApiKeyBytes;
+    private final List<String> publicPaths;
 
-    public ApiKeyFilter(String validApiKey) {
+    public ApiKeyFilter(String validApiKey, List<String> publicPaths) {
         this.validApiKeyBytes = validApiKey.getBytes(StandardCharsets.UTF_8);
+        this.publicPaths = publicPaths;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        return publicPaths.stream().anyMatch(path::startsWith);
     }
 
     @Override

@@ -10,9 +10,15 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.util.List;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/actuator/health", "/actuator/info", "/actuator/prometheus"
+    );
 
     @Value("${app.security.api-key}")
     private String apiKey;
@@ -32,9 +38,9 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(new ApiKeyFilter(apiKey), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new ApiKeyFilter(apiKey, PUBLIC_PATHS), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
+                        .requestMatchers(PUBLIC_PATHS.toArray(new String[0])).permitAll()
                         .anyRequest().authenticated()
                 );
         return http.build();

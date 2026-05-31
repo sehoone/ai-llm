@@ -35,7 +35,6 @@ public class SampleTool {
     // ── Case 6용 InMemory 저장소 ─────────────────────────────────────────────────
     private static final int MAX_MEMO_SIZE = 1_000;
     private final ConcurrentHashMap<String, String> memoStore = new ConcurrentHashMap<>();
-    private final Object memoLock = new Object();
 
     public SampleTool(@Value("${app.todo.base-url}") String todoBaseUrl) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -55,7 +54,6 @@ public class SampleTool {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
         }
-        log.info("sampleGreet called");
         return "Hello, " + name + "! (Sample Tool)";
     }
 
@@ -69,7 +67,6 @@ public class SampleTool {
         if (productId == null || productId.isBlank()) {
             throw new IllegalArgumentException("productId must not be blank");
         }
-        log.info("sampleGetProduct called: productId={}", productId);
         return new SampleProduct(productId, "Product-" + productId, new BigDecimal("29.99"), 100);
     }
 
@@ -92,7 +89,6 @@ public class SampleTool {
         if (quantity <= 0) {
             throw new IllegalArgumentException("quantity must be greater than 0, provided: " + quantity);
         }
-        log.info("sampleCreateOrder called: quantity={}, urgent={}", quantity, urgent);
         String orderId = "ORD-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
         BigDecimal surcharge = urgent ? URGENT_SURCHARGE : BigDecimal.ONE;
         BigDecimal totalPrice = UNIT_PRICE
@@ -112,16 +108,13 @@ public class SampleTool {
         if (id < 1 || id > 200) {
             throw new IllegalArgumentException("id must be between 1 and 200, provided: " + id);
         }
-        log.info("sampleGetTodo called: id={}", id);
         try {
-            SampleTodo result = restClient.get()
+            return restClient.get()
                     .uri("/todos/{id}", id)
                     .retrieve()
                     .body(SampleTodo.class);
-            log.info("sampleGetTodo success: id={}", id);
-            return result;
         } catch (Exception e) {
-            log.error("sampleGetTodo failed: id={}, errorType={}", id, e.getClass().getSimpleName());
+            log.error("sampleGetTodo failed: errorType={}", e.getClass().getSimpleName());
             throw new RuntimeException("Failed to fetch todo with id=" + id);
         }
     }
@@ -134,7 +127,6 @@ public class SampleTool {
     public String sampleValidateAge(
             @ToolParam(description = "Age value to validate (expected range: 0 to 150)") int age
     ) {
-        log.info("sampleValidateAge called");
         if (age < MIN_AGE) return "Error: Age cannot be negative. Provided: " + age;
         if (age > MAX_AGE) return "Error: Age exceeds maximum (" + MAX_AGE + "). Provided: " + age;
         String category = age < 18 ? "minor" : age < 65 ? "adult" : "senior";
@@ -156,7 +148,7 @@ public class SampleTool {
         if (content.length() > 10_000) throw new IllegalArgumentException("content must not exceed 10,000 characters");
 
         // size 체크와 put을 원자적으로 처리하여 race condition 방지
-        synchronized (memoLock) {
+        synchronized (memoStore) {
             if (!memoStore.containsKey(key) && memoStore.size() >= MAX_MEMO_SIZE) {
                 throw new IllegalStateException("Memo storage is full (max " + MAX_MEMO_SIZE + " entries)");
             }
@@ -171,7 +163,6 @@ public class SampleTool {
             @ToolParam(description = "Key of the memo to retrieve") String key
     ) {
         if (key == null || key.isBlank()) throw new IllegalArgumentException("key must not be blank");
-        log.info("sampleGetMemo called");
         String content = memoStore.get(key);
         return content != null
                 ? new SampleMemo(key, content, "FOUND")

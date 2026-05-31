@@ -64,10 +64,10 @@
     </springProfile>
 
     <!-- ════════════════════════════════════════════════════════════
-         prod: JSON 콘솔 + JSON 롤링 파일, INFO
-               MDC 필드(requestId·method·uri·clientIp)가 JSON에 자동 포함됨
+         stg | prod: JSON 콘솔 + JSON 롤링 파일, INFO
+                     MDC 필드(requestId·method·uri·clientIp)가 JSON에 자동 포함됨
          ════════════════════════════════════════════════════════════ -->
-    <springProfile name="prod">
+    <springProfile name="stg | prod">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="net.logstash.logback.encoder.LogstashEncoder">
                 <customFields>{"app":"${APP_NAME}"}</customFields>

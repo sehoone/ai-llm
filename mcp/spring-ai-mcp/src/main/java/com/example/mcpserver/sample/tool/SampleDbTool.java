@@ -4,7 +4,6 @@ import com.example.mcpserver.sample.db.entity.SampleItem;
 import com.example.mcpserver.sample.db.mapper.SampleItemMapper;
 import com.example.mcpserver.sample.db.repository.SampleItemRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.PageRequest;
@@ -21,7 +20,6 @@ import java.util.List;
  * 대상 테이블: sample_item (id, name, description, price)
  * DDL 참고:   src/main/resources/db/migration/V1__init_schema.sql
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class SampleDbTool {
@@ -41,7 +39,6 @@ public class SampleDbTool {
     ) {
         int safeLimit = resolveLimit(limit);
         int safeOffset = offset != null && offset >= 0 ? offset : 0;
-        log.info("myBatisFindAllItems called: limit={}, offset={}", safeLimit, safeOffset);
         return sampleItemMapper.findAll(safeLimit, safeOffset);
     }
 
@@ -52,7 +49,6 @@ public class SampleDbTool {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException("id must be a positive number");
         }
-        log.info("myBatisFindItemById called: id={}", id);
         SampleItem item = sampleItemMapper.findById(id);
         if (item == null) {
             throw new RuntimeException("Item not found with id=" + id);
@@ -69,7 +65,6 @@ public class SampleDbTool {
             throw new IllegalArgumentException("name must not be blank");
         }
         int safeLimit = resolveLimit(limit);
-        log.info("myBatisFindItemsByName called: limit={}", safeLimit);
         return sampleItemMapper.findByName(name, safeLimit);
     }
 
@@ -82,7 +77,6 @@ public class SampleDbTool {
     ) {
         int safeLimit = resolveLimit(limit);
         int safePage = page != null && page >= 0 ? page : 0;
-        log.info("jpaFindAllItems called: limit={}, page={}", safeLimit, safePage);
         return sampleItemRepository.findAll(PageRequest.of(safePage, safeLimit)).getContent();
     }
 
@@ -93,7 +87,6 @@ public class SampleDbTool {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException("id must be a positive number");
         }
-        log.info("jpaFindItemById called: id={}", id);
         return sampleItemRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Item not found with id=" + id));
     }
@@ -107,7 +100,6 @@ public class SampleDbTool {
             throw new IllegalArgumentException("name must not be blank");
         }
         int safeLimit = resolveLimit(limit);
-        log.info("jpaFindItemsByName called: limit={}", safeLimit);
         return sampleItemRepository.findByNameContainingIgnoreCase(name, PageRequest.of(0, safeLimit));
     }
 

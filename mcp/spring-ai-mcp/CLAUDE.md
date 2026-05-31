@@ -79,8 +79,6 @@ Tool은 `McpConfig`의 `MethodToolCallbackProvider`에 명시적으로 추가해
 - **MyBatis**: `SampleItemMapper.java` (인터페이스) + `src/main/resources/mapper/SampleItemMapper.xml` (SQL). 복잡한 쿼리·동적 SQL에 사용.
 - **JPA**: `SampleItemRepository.java` (Spring Data). 단순 CRUD·타입 안전성에 사용.
 
-**Flyway 마이그레이션**: `src/main/resources/db/migration/V{n}__{desc}.sql` 규칙. 최초 실행 시 자동 적용되며 테스트에서도 Testcontainers가 마이그레이션을 실행한다.
-
 ### 보안
 
 `app.security.api-key`가 기본값(`change-me-in-production`)이거나 비어 있으면 **앱 시작 시 즉시 실패**한다 (`SecurityConfig.validateApiKey()`). 환경변수 `API_KEY`로 전달하는 것이 표준이다.
@@ -107,7 +105,7 @@ ForwardedHeaderFilter (HIGHEST_PRECEDENCE)
 
 ### 테스트
 
-`McpServerApplicationTests`는 Testcontainers로 PostgreSQL 컨테이너를 띄운 뒤 Flyway 마이그레이션까지 포함한 전체 컨텍스트를 검증한다. Docker가 없으면 자동으로 skip된다. Windows에서는 Docker Desktop의 named pipe(`npipe:////./pipe/dockerDesktopLinuxEngine`)를 사용하거나 `DOCKER_HOST` 환경변수를 설정한다.
+`McpServerApplicationTests`는 Testcontainers로 PostgreSQL 컨테이너를 띄워 전체 컨텍스트를 검증한다. Docker가 없으면 자동으로 skip된다. Windows에서는 Docker Desktop의 named pipe(`npipe:////./pipe/dockerDesktopLinuxEngine`)를 사용하거나 `DOCKER_HOST` 환경변수를 설정한다.
 
 ### Streamable HTTP 엔드포인트 및 검증
 
