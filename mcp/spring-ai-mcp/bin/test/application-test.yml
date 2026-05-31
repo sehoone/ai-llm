@@ -1,0 +1,13 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  flyway:
+    baseline-on-migrate: true
+
+app:
+  security:
+    api-key: test-integration-api-key-do-not-use-in-production
+  todo:
+    base-url: https://jsonplaceholder.typicode.com

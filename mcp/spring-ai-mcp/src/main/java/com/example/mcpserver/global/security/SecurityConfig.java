@@ -1,5 +1,6 @@
 package com.example.mcpserver.global.security;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +16,16 @@ public class SecurityConfig {
 
     @Value("${app.security.api-key}")
     private String apiKey;
+
+    @PostConstruct
+    void validateApiKey() {
+        if (apiKey == null || apiKey.isBlank() || "change-me-in-production".equals(apiKey)) {
+            throw new IllegalStateException(
+                    "app.security.api-key is set to the default placeholder value. " +
+                    "Set a secure API key via the API_KEY environment variable or profile config."
+            );
+        }
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {

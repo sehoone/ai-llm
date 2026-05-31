@@ -10,7 +10,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     show-sql: false
 
 management:
@@ -18,7 +18,7 @@ management:
     port: 8081
   endpoint:
     health:
-      show-details: never
+      show-details: when-authorized
 
 app:
   security:

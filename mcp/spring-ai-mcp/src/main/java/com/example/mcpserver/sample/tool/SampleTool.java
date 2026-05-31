@@ -3,6 +3,7 @@ package com.example.mcpserver.sample.tool;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -34,14 +35,15 @@ public class SampleTool {
     // ── Case 6용 InMemory 저장소 ─────────────────────────────────────────────────
     private static final int MAX_MEMO_SIZE = 1_000;
     private final ConcurrentHashMap<String, String> memoStore = new ConcurrentHashMap<>();
+    private final Object memoLock = new Object();
 
-    public SampleTool() {
+    public SampleTool(@Value("${app.todo.base-url}") String todoBaseUrl) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(3));
         factory.setReadTimeout(Duration.ofSeconds(5));
         this.restClient = RestClient.builder()
                 .requestFactory(factory)
-                .baseUrl("https://jsonplaceholder.typicode.com")
+                .baseUrl(todoBaseUrl)
                 .build();
     }
 
@@ -132,7 +134,7 @@ public class SampleTool {
     public String sampleValidateAge(
             @ToolParam(description = "Age value to validate (expected range: 0 to 150)") int age
     ) {
-        log.info("sampleValidateAge called: age={}", age);
+        log.info("sampleValidateAge called");
         if (age < MIN_AGE) return "Error: Age cannot be negative. Provided: " + age;
         if (age > MAX_AGE) return "Error: Age exceeds maximum (" + MAX_AGE + "). Provided: " + age;
         String category = age < 18 ? "minor" : age < 65 ? "adult" : "senior";
@@ -152,10 +154,14 @@ public class SampleTool {
         if (key.length() > 100) throw new IllegalArgumentException("key must not exceed 100 characters");
         if (content == null || content.isBlank()) throw new IllegalArgumentException("content must not be blank");
         if (content.length() > 10_000) throw new IllegalArgumentException("content must not exceed 10,000 characters");
-        if (!memoStore.containsKey(key) && memoStore.size() >= MAX_MEMO_SIZE) {
-            throw new IllegalStateException("Memo storage is full (max " + MAX_MEMO_SIZE + " entries)");
+
+        // size 체크와 put을 원자적으로 처리하여 race condition 방지
+        synchronized (memoLock) {
+            if (!memoStore.containsKey(key) && memoStore.size() >= MAX_MEMO_SIZE) {
+                throw new IllegalStateException("Memo storage is full (max " + MAX_MEMO_SIZE + " entries)");
+            }
+            memoStore.put(key, content);
         }
-        memoStore.put(key, content);
         log.info("sampleAddMemo: key.length={}", key.length());
         return new SampleMemo(key, content, "SAVED");
     }
@@ -165,7 +171,7 @@ public class SampleTool {
             @ToolParam(description = "Key of the memo to retrieve") String key
     ) {
         if (key == null || key.isBlank()) throw new IllegalArgumentException("key must not be blank");
-        log.info("sampleGetMemo: key.length={}", key.length());
+        log.info("sampleGetMemo called");
         String content = memoStore.get(key);
         return content != null
                 ? new SampleMemo(key, content, "FOUND")

@@ -7,8 +7,6 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-
 @Slf4j
 @Aspect
 @Component
@@ -20,13 +18,14 @@ public class LoggingAspect {
     @Around("toolMethods()")
     public Object logToolExecution(ProceedingJoinPoint pjp) throws Throwable {
         String name = pjp.getSignature().toShortString();
-        Object[] args = pjp.getArgs();
+        int argCount = pjp.getArgs().length;
         long start = System.currentTimeMillis();
 
-        log.info("[TOOL] START {} | args={}", name, Arrays.toString(args));
+        // 파라미터 값은 로깅하지 않음 — PII/민감 데이터 유출 방지
+        log.info("[TOOL] START {} | args.count={}", name, argCount);
         try {
             Object result = pjp.proceed();
-            log.info("[TOOL] END   {} | elapsed={}ms | result={}", name, elapsed(start), summarize(result));
+            log.info("[TOOL] END   {} | elapsed={}ms", name, elapsed(start));
             return result;
         } catch (Exception e) {
             log.error("[TOOL] ERROR {} | elapsed={}ms | error={}", name, elapsed(start), e.getMessage(), e);
@@ -36,11 +35,5 @@ public class LoggingAspect {
 
     private long elapsed(long start) {
         return System.currentTimeMillis() - start;
-    }
-
-    private String summarize(Object result) {
-        if (result == null) return "null";
-        String str = result.toString();
-        return str.length() > 200 ? str.substring(0, 200) + "..." : str;
     }
 }

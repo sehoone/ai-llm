@@ -2,6 +2,7 @@ package com.example.mcpserver.sample.resource;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -19,6 +20,18 @@ import java.util.List;
 @Configuration
 public class SampleResource {
 
+    @Value("${server.port:8080}")
+    private int serverPort;
+
+    @Value("${spring.application.name}")
+    private String appName;
+
+    @Value("${spring.ai.mcp.server.version}")
+    private String mcpVersion;
+
+    @Value("${spring.ai.mcp.server.protocol}")
+    private String mcpProtocol;
+
     @Bean
     public List<McpServerFeatures.SyncResourceSpecification> sampleResources() {
         return List.of(appConfigResource(), serverInfoResource());
@@ -26,21 +39,20 @@ public class SampleResource {
 
     // ── Case A: text/plain 정적 리소스 ──────────────────────────────────────────
     private McpServerFeatures.SyncResourceSpecification appConfigResource() {
-        var resource = new McpSchema.Resource(
-                "resource://config/app",
-                "Application Config",
-                "Current application configuration values",
-                "text/plain",
-                null
-        );
+        var resource = McpSchema.Resource.builder()
+                .uri("resource://config/app")
+                .name("Application Config")
+                .description("Current application configuration values")
+                .mimeType("text/plain")
+                .build();
         return new McpServerFeatures.SyncResourceSpecification(resource, (exchange, req) ->
                 new McpSchema.ReadResourceResult(List.of(
                         new McpSchema.TextResourceContents(
                                 req.uri(),
                                 "text/plain",
-                                "server.port=8080\n" +
-                                "spring.application.name=spring-ai-mcp-server\n" +
-                                "app.version=1.0.0"
+                                "server.port=" + serverPort + "\n" +
+                                "spring.application.name=" + appName + "\n" +
+                                "mcp.version=" + mcpVersion
                         )
                 ))
         );
@@ -49,13 +61,12 @@ public class SampleResource {
     // ── Case B: application/json 리소스 ─────────────────────────────────────────
     // 실제 운영에서는 DB 조회 결과나 외부 API 응답을 여기서 반환한다.
     private McpServerFeatures.SyncResourceSpecification serverInfoResource() {
-        var resource = new McpSchema.Resource(
-                "resource://info/server",
-                "Server Info",
-                "Runtime information about this MCP server in JSON format",
-                "application/json",
-                null
-        );
+        var resource = McpSchema.Resource.builder()
+                .uri("resource://info/server")
+                .name("Server Info")
+                .description("Runtime information about this MCP server in JSON format")
+                .mimeType("application/json")
+                .build();
         return new McpServerFeatures.SyncResourceSpecification(resource, (exchange, req) ->
                 new McpSchema.ReadResourceResult(List.of(
                         new McpSchema.TextResourceContents(
@@ -63,12 +74,11 @@ public class SampleResource {
                                 "application/json",
                                 """
                                 {
-                                  "name": "Spring AI MCP Server",
-                                  "version": "1.0.0",
-                                  "transport": "SSE",
-                                  "tools": ["greet", "getProduct", "createOrder", "getTodo", "validateAge", "addMemo", "getMemo"]
+                                  "name": "%s",
+                                  "version": "%s",
+                                  "transport": "%s"
                                 }
-                                """
+                                """.formatted(appName, mcpVersion, mcpProtocol)
                         )
                 ))
         );

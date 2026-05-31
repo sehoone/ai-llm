@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -18,22 +19,30 @@ import java.util.List;
  * JPA:      메서드 이름 기반 쿼리 자동 생성 → 단순 CRUD, 타입 안전성에 유리
  *
  * 대상 테이블: sample_item (id, name, description, price)
- * DDL 참고:   src/main/resources/sql/sample_schema.sql
+ * DDL 참고:   src/main/resources/db/migration/V1__init_schema.sql
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SampleDbTool {
 
+    private static final int DEFAULT_LIMIT = 100;
+    private static final int MAX_LIMIT = 500;
+
     private final SampleItemMapper sampleItemMapper;         // MyBatis
     private final SampleItemRepository sampleItemRepository; // JPA
 
     // ── MyBatis ───────────────────────────────────────────────────────────────
 
-    @Tool(description = "[MyBatis] Retrieves all items from the sample_item table")
-    public List<SampleItem> myBatisFindAllItems() {
-        log.info("myBatisFindAllItems called");
-        return sampleItemMapper.findAll();
+    @Tool(description = "[MyBatis] Retrieves items from sample_item table with pagination")
+    public List<SampleItem> myBatisFindAllItems(
+            @ToolParam(description = "Maximum number of items to return (1–500, default 100)") Integer limit,
+            @ToolParam(description = "Number of items to skip for pagination (default 0)") Integer offset
+    ) {
+        int safeLimit = resolveLimit(limit);
+        int safeOffset = offset != null && offset >= 0 ? offset : 0;
+        log.info("myBatisFindAllItems called: limit={}, offset={}", safeLimit, safeOffset);
+        return sampleItemMapper.findAll(safeLimit, safeOffset);
     }
 
     @Tool(description = "[MyBatis] Finds a sample item by its ID using MyBatis XML mapper")
@@ -53,21 +62,28 @@ public class SampleDbTool {
 
     @Tool(description = "[MyBatis] Finds items whose name contains the given keyword (case-insensitive, PostgreSQL ILIKE)")
     public List<SampleItem> myBatisFindItemsByName(
-            @ToolParam(description = "Keyword to search in item name") String name
+            @ToolParam(description = "Keyword to search in item name") String name,
+            @ToolParam(description = "Maximum number of items to return (1–500, default 100)") Integer limit
     ) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
         }
-        log.info("myBatisFindItemsByName called");
-        return sampleItemMapper.findByName(name);
+        int safeLimit = resolveLimit(limit);
+        log.info("myBatisFindItemsByName called: limit={}", safeLimit);
+        return sampleItemMapper.findByName(name, safeLimit);
     }
 
     // ── JPA (Spring Data) ─────────────────────────────────────────────────────
 
-    @Tool(description = "[JPA] Retrieves all items from the sample_item table using Spring Data JPA")
-    public List<SampleItem> jpaFindAllItems() {
-        log.info("jpaFindAllItems called");
-        return sampleItemRepository.findAll();
+    @Tool(description = "[JPA] Retrieves items from sample_item table using Spring Data JPA with pagination")
+    public List<SampleItem> jpaFindAllItems(
+            @ToolParam(description = "Maximum number of items to return (1–500, default 100)") Integer limit,
+            @ToolParam(description = "Page number starting from 0 (default 0)") Integer page
+    ) {
+        int safeLimit = resolveLimit(limit);
+        int safePage = page != null && page >= 0 ? page : 0;
+        log.info("jpaFindAllItems called: limit={}, page={}", safeLimit, safePage);
+        return sampleItemRepository.findAll(PageRequest.of(safePage, safeLimit)).getContent();
     }
 
     @Tool(description = "[JPA] Finds a sample item by its ID using Spring Data JPA")
@@ -84,12 +100,19 @@ public class SampleDbTool {
 
     @Tool(description = "[JPA] Finds items whose name contains the given keyword using Spring Data JPA (case-insensitive)")
     public List<SampleItem> jpaFindItemsByName(
-            @ToolParam(description = "Keyword to search in item name") String name
+            @ToolParam(description = "Keyword to search in item name") String name,
+            @ToolParam(description = "Maximum number of items to return (1–500, default 100)") Integer limit
     ) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
         }
-        log.info("jpaFindItemsByName called");
-        return sampleItemRepository.findByNameContainingIgnoreCase(name);
+        int safeLimit = resolveLimit(limit);
+        log.info("jpaFindItemsByName called: limit={}", safeLimit);
+        return sampleItemRepository.findByNameContainingIgnoreCase(name, PageRequest.of(0, safeLimit));
+    }
+
+    private int resolveLimit(Integer requested) {
+        if (requested == null || requested <= 0) return DEFAULT_LIMIT;
+        return Math.min(requested, MAX_LIMIT);
     }
 }
