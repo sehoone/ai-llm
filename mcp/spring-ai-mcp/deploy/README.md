@@ -4,7 +4,11 @@
 
 ```
 deploy/
+├── Dockerfile
 ├── dev/
+│   ├── docker-compose.yml
+│   └── .env.example
+├── stg/
 │   ├── docker-compose.yml
 │   └── .env.example
 ├── prod/
@@ -49,6 +53,29 @@ docker compose down
 
 ---
 
+## stg
+
+`ddl-auto: none` · 모든 환경변수 필수 · 네트워크: `spring-ai-mcp-stg-net`
+
+```bash
+cd deploy/stg
+cp .env.example .env && vi .env   # 빈 값 없이 채울 것
+docker compose up -d
+docker compose down               # 볼륨 유지
+docker compose down -v            # 볼륨 삭제
+```
+
+| 변수 | 설명 |
+|------|------|
+| `DB_NAME` | DB명 |
+| `DB_USERNAME` | DB 사용자 |
+| `DB_PASSWORD` | DB 비밀번호 |
+| `API_KEY` | X-API-Key 인증 키 (32자 이상 권장) |
+| `TODO_API_URL` | 외부 API URL |
+| `PORT` | 앱 포트 (기본값: `8080`) |
+
+---
+
 ## prod
 
 `ddl-auto: none` · 모든 환경변수 필수
@@ -88,7 +115,7 @@ docker compose down
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
 | `GRAFANA_PASSWORD` | `admin` | Grafana 관리자 비밀번호 |
-| `APP_NETWORK` | `spring-ai-mcp-net` | 연결할 앱 네트워크 (prod: `spring-ai-mcp-prod-net`) |
+| `APP_NETWORK` | `spring-ai-mcp-net` | 연결할 앱 네트워크 (stg: `spring-ai-mcp-stg-net` / prod: `spring-ai-mcp-prod-net`) |
 
 **접속**
 

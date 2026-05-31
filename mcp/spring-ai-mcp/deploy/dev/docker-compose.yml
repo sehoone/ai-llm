@@ -9,7 +9,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../../src/main/resources/sql/sample_schema.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
       interval: 5s
@@ -19,7 +18,7 @@ services:
   app:
     build:
       context: ../..
-      dockerfile: Dockerfile
+      dockerfile: deploy/Dockerfile
     ports:
       - "${PORT:-8080}:8080"
     environment:
@@ -29,13 +28,22 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       API_KEY: ${API_KEY:-change-me-in-dev}
       TODO_API_URL: ${TODO_API_URL:-https://jsonplaceholder.typicode.com}
+    volumes:
+      - app_logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  app_logs:
 
 networks:
   default:

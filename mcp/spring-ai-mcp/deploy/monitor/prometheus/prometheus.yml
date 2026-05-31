@@ -5,8 +5,9 @@ global:
 scrape_configs:
   - job_name: 'spring-ai-mcp'
     metrics_path: '/actuator/prometheus'
+    # management.server.port=8081 (내부 전용, 외부 미노출)
     static_configs:
-      - targets: ['app:8080']
+      - targets: ['app:8081']
     relabel_configs:
       - target_label: application
         replacement: spring-ai-mcp-server

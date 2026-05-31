@@ -21,7 +21,7 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: stg
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -46,4 +46,4 @@ volumes:
 
 networks:
   default:
-    name: spring-ai-mcp-prod-net
+    name: spring-ai-mcp-stg-net
