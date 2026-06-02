@@ -9,11 +9,30 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ../initdb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "9191:8080"
+    volumes:
+      - ../keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
+    healthcheck:
+      # curl/wget 없음 → bash /dev/tcp로 8080 포트 오픈 여부 확인
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   app:
     build:
@@ -26,12 +45,19 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sample_db}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      API_KEY: ${API_KEY:-change-me-in-dev}
+      # issuer-uri: JWT iss 클레임 검증용 (외부 URL — 토큰 발급 시 사용된 URL)
+      KEYCLOAK_ISSUER_URI: http://localhost:9191/realms/mcp
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-mcp-client}
+      # jwk-set-uri: JWKS 조회용 (내부 Docker 네트워크 URL — OIDC discovery 불필요)
+      # jwk-set-uri가 설정되면 Spring Boot은 OIDC discovery 없이 직접 JWKS를 사용한다.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/mcp/protocol/openid-connect/certs
       TODO_API_URL: ${TODO_API_URL:-https://jsonplaceholder.typicode.com}
     volumes:
       - app_logs:/app/logs
     depends_on:
       postgres:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]

@@ -21,7 +21,5 @@ management:
       show-details: when-authorized
 
 app:
-  security:
-    api-key: ${API_KEY}
   todo:
     base-url: ${TODO_API_URL:https://jsonplaceholder.typicode.com}

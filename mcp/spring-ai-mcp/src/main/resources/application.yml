@@ -17,11 +17,41 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Keycloak issuer URI — startup 시 OIDC discovery 엔드포인트를 호출하여 JWK 주소를 자동 구성
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:9090/realms/mcp}
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.example.mcpserver.sample.db.entity
   configuration:
     map-underscore-to-camel-case: true
+
+app:
+  auth:
+    # AUTH_MODE=keycloak (기본): Keycloak JWKS로 Bearer JWT 검증
+    # AUTH_MODE=local          : POST /auth/token 으로 자체 JWT 발급 후 검증
+    mode: ${AUTH_MODE:keycloak}
+
+    local:
+      # LOCAL_JWT_SECRET: HMAC-SHA256 서명 키 (최소 32자, 운영 환경에서는 256비트 이상 권장)
+      jwt-secret: ${LOCAL_JWT_SECRET:}
+      # 토큰 유효시간 (초)
+      jwt-expiration-seconds: ${LOCAL_JWT_EXPIRATION_SECONDS:3600}
+      # 인증 가능 사용자 목록 (비밀번호 형식: {noop}plain 또는 {bcrypt}$2a$...)
+      users:
+        - username: ${LOCAL_AUTH_USERNAME:mcp-client}
+          password: ${LOCAL_AUTH_PASSWORD:change-me-in-production}
+          roles:
+            - mcp-user
+
+  security:
+    jwt:
+      # JwtAuthConverter(Keycloak 모드)가 resource_access 클레임에서 역할을 추출할 클라이언트 ID
+      resource-id: ${KEYCLOAK_CLIENT_ID:mcp-client}
 
 server:
   forward-headers-strategy: FRAMEWORK

@@ -1,0 +1,54 @@
+{
+  "realm": "mcp",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 300,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      {
+        "name": "mcp-user",
+        "description": "MCP Tool 호출 권한"
+      },
+      {
+        "name": "mcp-admin",
+        "description": "MCP 관리 기능 포함 전체 권한"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "spring-ai-mcp",
+      "enabled": true,
+      "description": "MCP Resource Server — 토큰 검증 전용, 발급 불가",
+      "publicClient": false,
+      "bearerOnly": true,
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "mcp-client",
+      "enabled": true,
+      "description": "MCP 호출 클라이언트 — Client Credentials Flow로 토큰 발급",
+      "secret": "dev-secret-change-me",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["openid", "roles"],
+      "optionalClientScopes": []
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-mcp-client",
+      "enabled": true,
+      "serviceAccountClientId": "mcp-client",
+      "realmRoles": ["mcp-user"]
+    }
+  ]
+}

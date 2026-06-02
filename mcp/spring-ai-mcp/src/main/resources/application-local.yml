@@ -1,0 +1,34 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sample_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  todo:
+    base-url: https://jsonplaceholder.typicode.com
+
+# local 모드 샘플 (AUTH_MODE=local 로 실행할 때 참고)
+# AUTH_MODE=local 환경변수 설정 시 아래 값들이 적용됨
+# app:
+#   auth:
+#     local:
+#       jwt-secret: local-dev-secret-at-least-32-chars!
+#       users:
+#         - username: mcp-client
+#           password: "{noop}local-dev-password"
+#           roles: [mcp-user]
