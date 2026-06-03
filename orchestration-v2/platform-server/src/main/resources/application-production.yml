@@ -1,0 +1,17 @@
+auth:
+  mode: keycloak  # 프로덕션: Keycloak RS256
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+server:
+  tomcat:
+    threads:
+      max: 200
+
+logging:
+  level:
+    root: WARN
+    com.llmonl.platform: INFO

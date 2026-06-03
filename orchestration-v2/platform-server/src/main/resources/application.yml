@@ -1,0 +1,82 @@
+spring:
+  application:
+    name: platform-server
+  profiles:
+    active: ${APP_ENV:local}
+
+  datasource:
+    # currentSchema는 Flyway가 스키마를 생성한 뒤에만 유효 → URL에서 제거
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:llm_db}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: platform-pool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      # Flyway가 스키마를 만든 뒤 커넥션의 search_path를 설정
+      connection-init-sql: "SET search_path TO ${POSTGRES_SCHEMA:llmonl},public"
+
+  jackson:
+    mapper:
+      accept-case-insensitive-enums: true   # admin-front가 소문자로 role 전송 ('admin' → UserRole.ADMIN)
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${POSTGRES_SCHEMA:llmonl}
+        format_sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    schemas: ${POSTGRES_SCHEMA:llmonl}
+    table: flyway_platform_history
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    out-of-order: false
+
+jwt:
+  secret-key: ${JWT_SECRET_KEY:placeholder-only-used-in-jwt-mode}
+  access-token-expire-minutes: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:10}
+  refresh-token-expire-minutes: ${JWT_REFRESH_TOKEN_EXPIRE_MINUTES:10080}
+
+# 인증 모드: "jwt" (기본, HS256 공유 비밀키) | "keycloak" (RS256 JWKS)
+auth:
+  mode: ${AUTH_MODE:jwt}
+
+keycloak:
+  server-url: ${KEYCLOAK_URL:http://keycloak:8080}
+  realm: ${KEYCLOAK_REALM:llm-platform}
+  client-id: ${KEYCLOAK_CLIENT_ID:orchestrator-app}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+  admin-user: ${KEYCLOAK_ADMIN_USER:admin}
+  admin-password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+
+orchestrator:
+  base-url: ${ORCHESTRATOR_URL:http://app:8000}
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui/index.html
+    operations-sorter: method

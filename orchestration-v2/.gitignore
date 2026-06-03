@@ -1,0 +1,87 @@
+# ──────────────────────────────────────────
+# Environment & Secrets
+# ──────────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.staging
+.env.production
+.env.*.local
+!.env.example
+
+# ──────────────────────────────────────────
+# Python (orchestrator-server)
+# ──────────────────────────────────────────
+__pycache__/
+*.py[oc]
+.venv/
+.uv/
+dist/
+wheels/
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+*.jsonl
+
+# Model evaluation reports
+orchestrator-server/evals/reports/
+
+# ──────────────────────────────────────────
+# Java / Gradle (platform-server)
+# ──────────────────────────────────────────
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+out/
+.classpath
+.project
+.settings/
+bin/
+
+# ──────────────────────────────────────────
+# Node.js / Next.js (admin-front)
+# ──────────────────────────────────────────
+node_modules/
+.next/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.local
+tsconfig.tsbuildinfo
+
+# ──────────────────────────────────────────
+# Docker / Deploy
+# ──────────────────────────────────────────
+deploy/.env
+deploy/.env.*
+!deploy/.env.example
+
+# ──────────────────────────────────────────
+# OS & Editor
+# ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.sw?
+
+# ──────────────────────────────────────────
+# Logs
+# ──────────────────────────────────────────
+logs/
+*.log
+
+# ──────────────────────────────────────────
+# Uploads (runtime generated)
+# ──────────────────────────────────────────
+uploads/

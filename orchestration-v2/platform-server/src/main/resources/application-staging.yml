@@ -1,0 +1,12 @@
+auth:
+  mode: keycloak  # 스테이징: Keycloak RS256
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    root: INFO
+    com.llmonl.platform: INFO
