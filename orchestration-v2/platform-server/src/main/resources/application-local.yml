@@ -8,13 +8,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
-  # Flyway가 llmonl 스키마 생성 및 테이블 마이그레이션 담당
-  flyway:
-    create-schemas: true
 
 logging:
   level:
     com.llmonl.platform: DEBUG
     org.hibernate.SQL: DEBUG
     org.springframework.security: DEBUG
-    org.flywaydb: DEBUG

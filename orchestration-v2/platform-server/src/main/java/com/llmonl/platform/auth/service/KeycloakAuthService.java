@@ -1,15 +1,11 @@
 package com.llmonl.platform.auth.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.llmonl.platform.auth.dto.LoginRequest;
-import com.llmonl.platform.auth.dto.LoginResponse;
-import com.llmonl.platform.common.config.KeycloakProperties;
-import com.llmonl.platform.common.exception.BusinessException;
-import com.llmonl.platform.common.exception.ErrorCode;
-import com.llmonl.platform.user.domain.User;
-import com.llmonl.platform.user.domain.UserRole;
-import com.llmonl.platform.user.dto.UserResponse;
-import com.llmonl.platform.user.repository.UserRepository;
+import java.io.IOException;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
@@ -21,12 +17,19 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.llmonl.platform.auth.dto.LoginRequest;
+import com.llmonl.platform.auth.dto.LoginResponse;
+import com.llmonl.platform.common.config.KeycloakProperties;
+import com.llmonl.platform.common.exception.BusinessException;
+import com.llmonl.platform.common.exception.ErrorCode;
+import com.llmonl.platform.user.domain.User;
+import com.llmonl.platform.user.domain.UserRole;
+import com.llmonl.platform.user.dto.UserResponse;
+import com.llmonl.platform.user.repository.UserRepository;
 
 /**
  * Keycloak Direct Access Grant를 통해 로그인/갱신을 처리하고,
@@ -86,7 +89,6 @@ public class KeycloakAuthService {
         return buildLoginResponse(tokens);
     }
 
-    @SuppressWarnings("unchecked")
     private LoginResponse buildLoginResponse(Map<String, Object> tokens) {
         String accessToken = (String) tokens.get("access_token");
         String newRefreshToken = (String) tokens.get("refresh_token");
@@ -111,7 +113,7 @@ public class KeycloakAuthService {
         } catch (HttpClientErrorException.Unauthorized | HttpClientErrorException.BadRequest e) {
             log.warn("keycloak_login_failed status={}", e.getStatusCode());
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
-        } catch (Exception e) {
+        } catch (RestClientException e) {
             log.error("keycloak_token_endpoint_error", e);
             throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "Keycloak 인증 서버에 연결할 수 없습니다.");
         }
@@ -127,7 +129,7 @@ public class KeycloakAuthService {
             String[] parts = token.split("\\.");
             byte[] decoded = Base64.getUrlDecoder().decode(parts[1]);
             return objectMapper.readValue(decoded, Map.class);
-        } catch (Exception e) {
+        } catch (IOException e) {
             log.error("keycloak_token_decode_error", e);
             throw new BusinessException(ErrorCode.TOKEN_INVALID, "Keycloak 토큰 파싱 실패");
         }

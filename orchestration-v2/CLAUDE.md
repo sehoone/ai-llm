@@ -9,11 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Directory | Stack | Description |
 |-----------|-------|-------------|
 | `orchestrator-server/` | Python 3.13+, FastAPI, LangGraph | LLM 채팅·RAG·워크플로우 엔진 |
-| `platform-server/` | Java 21, Spring Boot 3.4, Flyway | 인증·사용자·LLM 리소스 관리 |
+| `platform-server/` | Java 21, Spring Boot 3.4 | 인증·사용자·LLM 리소스 관리 |
 | `admin-front/` | Next.js 16, TypeScript, pnpm | 관리자 프론트엔드 |
 | `deploy/` | Docker Compose, Nginx | 프로덕션 배포 |
 
-모듈 상세: `orchestrator-server/CLAUDE.md`, `admin-front/CLAUDE.md`
+모듈 상세: `orchestrator-server/CLAUDE.md`, `admin-front/CLAUDE.md`, `platform-server/CLAUDE.md`
 
 ---
 
@@ -40,12 +40,15 @@ Browser / API client
         └── /*                      → admin-front:3000 (Next.js)
 
 JWT 흐름
-  Client → POST /api/v1/auth/login → platform-server 발급 (HS256)
+  Client → POST /api/v1/auth/login → platform-server 발급 (HS256 또는 Keycloak RS256)
                                    → orchestrator-server 동일 JWT_SECRET_KEY로 검증
+  AUTH_MODE=jwt (기본): platform-server가 HS256으로 발급·검증
+  AUTH_MODE=keycloak: Keycloak RS256 JWKS로 검증, platform-server는 사용자 동기화만 수행
 
 PostgreSQL + pgvector  (schema: llmonl)
+  ├── 스키마 생성: deploy/postgres/init.sql (Docker 볼륨 최초 1회) 또는 수동 생성
   ├── platform-server 소유: users, api_key, refresh_token, llm_resource
-  │   └── Flyway 마이그레이션 (flyway_platform_history 테이블)
+  │   └── JPA ddl-auto: validate (기동 시 스키마 검증, 테이블 생성 없음)
   └── orchestrator-server 소유: session, gpt_chat_message, rag_embedding, workflow, ...
       └── SQLModel ORM 자동 생성
 
@@ -68,12 +71,12 @@ Langfuse v3 (LLM 트레이싱)
 ```powershell
 cd platform-server
 cp .env.example .env.local   # JWT_SECRET_KEY, POSTGRES_* 설정
-# Gradle wrapper 없으면: gradle wrapper (Gradle 전역 설치 필요)
 $env:APP_ENV='local'; ./gradlew bootRun
 ```
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 
 > **중요**: `JWT_SECRET_KEY`는 orchestrator-server와 반드시 동일한 값이어야 합니다.
+> `local` 프로필은 `ddl-auto: none` — DB에 `llmonl` 스키마와 테이블이 미리 존재해야 합니다.
 
 ### orchestrator-server (`orchestrator-server/`)
 ```powershell
@@ -104,10 +107,6 @@ pnpm dev                     # http://localhost:3000
 cp orchestrator-server/.env.example ../orchestration/.env.staging
 # admin-front env 파일
 cp admin-front/.env.example ../admin/llm-admin/.env.production
-
-# platform-server는 orchestrator-server env 파일을 자동으로 공유
-# 별도 설정이 필요한 경우에만 생성:
-# cp platform-server/.env.example platform-server/.env.staging
 ```
 
 ### 배포 / 중지 / 로그
@@ -139,15 +138,14 @@ cp admin-front/.env.example ../admin/llm-admin/.env.production
 ### 단일 서비스 재빌드
 ```bash
 cd deploy
-# platform-server (Spring Boot)
 APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --build platform
-
-# orchestrator-server (FastAPI)
 APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --build app
-
-# admin-front (Next.js)
 APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --build llm-admin
 ```
+
+### DB 스키마 초기화
+`deploy/postgres/init.sql`이 PostgreSQL 볼륨 최초 생성 시 자동 실행되어 `llmonl`, `keycloak` 스키마를 생성합니다.
+로컬 개발 시 DB에 직접 실행: `CREATE SCHEMA IF NOT EXISTS llmonl;`
 
 ### MinIO 버킷 초기화 (최초 배포 1회)
 ```bash
@@ -188,8 +186,9 @@ docker exec minio mc mb local/langfuse-exports
 | `app` 컨테이너 시작 안 됨 | `OPENAI_API_KEY` / `JWT_SECRET_KEY` env 파일 누락 |
 | 401 Unauthorized | platform-server와 orchestrator-server의 `JWT_SECRET_KEY`가 다름 |
 | DB 연결 거부 | `POSTGRES_HOST=db` (서비스명, `localhost` 아님) |
+| platform SchemaValidationException | `llmonl` 스키마·테이블 미생성 — `deploy/postgres/init.sql` 실행 후 platform-server 테이블 수동 생성 필요 |
 | CORS 오류 | `ALLOWED_ORIGINS`에 Nginx 주소(`http://<ip>:8060`) 포함 필요 |
 | WebSocket 실패 | `NEXT_PUBLIC_WS_URL` 포트가 Nginx 포트(8060)와 일치해야 함 |
 | Langfuse 시작 안 됨 | `docker compose ps clickhouse redis minio` — 모두 healthy여야 함 |
 | Next.js 빌드 실패 | `admin/llm-admin/.env.production` 빌드 전 존재해야 함 |
-| platform Flyway 오류 | `llmonl` 스키마가 없으면 Flyway가 자동 생성 (`create-schemas: true`) |
+| `AUTH_MODE=keycloak` 인데 Keycloak 미기동 | `docker compose ps keycloak` 확인; start_period 90s 대기 |

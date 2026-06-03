@@ -12,8 +12,6 @@ spring:
         default_schema: llmonl
         dialect: org.hibernate.dialect.H2Dialect
     show-sql: false
-  flyway:
-    enabled: false
 
 jwt:
   secret-key: test-secret-key-must-be-at-least-32-chars-long!!

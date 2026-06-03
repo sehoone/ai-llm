@@ -5,7 +5,6 @@ spring:
     active: ${APP_ENV:local}
 
   datasource:
-    # currentSchema는 Flyway가 스키마를 생성한 뒤에만 유효 → URL에서 제거
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:llm_db}
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:postgres}
@@ -17,7 +16,6 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      # Flyway가 스키마를 만든 뒤 커넥션의 search_path를 설정
       connection-init-sql: "SET search_path TO ${POSTGRES_SCHEMA:llmonl},public"
 
   jackson:
@@ -32,14 +30,6 @@ spring:
         default_schema: ${POSTGRES_SCHEMA:llmonl}
         format_sql: false
     open-in-view: false
-
-  flyway:
-    enabled: true
-    schemas: ${POSTGRES_SCHEMA:llmonl}
-    table: flyway_platform_history
-    locations: classpath:db/migration
-    baseline-on-migrate: true
-    out-of-order: false
 
 jwt:
   secret-key: ${JWT_SECRET_KEY:placeholder-only-used-in-jwt-mode}

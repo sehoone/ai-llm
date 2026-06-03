@@ -1,5 +1,7 @@
 # CLAUDE.md — platform-server
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 인증·사용자·LLM 리소스 설정을 담당하는 Spring Boot 서비스.  
 orchestrator-server(FastAPI)와 동일한 PostgreSQL DB(`llmonl` 스키마)를 공유하며,  
 JWT를 발급하여 두 서버가 같은 시크릿으로 검증합니다.
@@ -11,8 +13,8 @@ JWT를 발급하여 두 서버가 같은 시크릿으로 검증합니다.
 | 언어 | Java 21 |
 | 프레임워크 | Spring Boot 3.4 |
 | 빌드 | Gradle (Groovy DSL) |
-| DB 마이그레이션 | Flyway (`flyway_platform_history` 히스토리 테이블) |
-| 인증 | JWT HS256 (JJWT 0.12) |
+| DB 스키마 | JPA `ddl-auto: validate` — 테이블은 수동 생성 또는 `deploy/postgres/init.sql` |
+| 인증 | JWT HS256 (JJWT 0.12) 또는 Keycloak RS256 (`AUTH_MODE` 환경변수로 전환) |
 | API 문서 | springdoc-openapi 2.7 |
 
 ## Common Commands
@@ -21,8 +23,11 @@ JWT를 발급하여 두 서버가 같은 시크릿으로 검증합니다.
 # 의존성 다운로드 + 컴파일
 ./gradlew compileJava
 
-# 테스트 (H2 인메모리 DB, application-test.yml)
+# 테스트 (H2 인메모리 DB, application-test.yml, ddl-auto: create-drop)
 ./gradlew test
+
+# 단일 테스트 클래스 실행
+./gradlew test --tests "com.llmonl.platform.auth.AuthServiceTest"
 
 # 실행 가능 JAR 생성 (build/libs/*.jar)
 ./gradlew bootJar
@@ -37,6 +42,9 @@ $env:POSTGRES_DB='mydb'; $env:POSTGRES_USER='postgres'; $env:POSTGRES_PASSWORD='
 
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 
+> **로컬 실행 전**: DB에 `llmonl` 스키마와 테이블이 존재해야 합니다 (`ddl-auto: none`).  
+> 테이블 생성 SQL은 `deploy/postgres/init.sql` + 엔티티 DDL을 직접 실행.
+
 ## Architecture
 
 ```
@@ -44,21 +52,21 @@ src/main/java/com/llmonl/platform/
 ├── PlatformApplication.java
 ├── common/
 │   ├── config/
-│   │   ├── SecurityConfig.java      # Spring Security + JWT 필터 체인
-│   │   └── OpenApiConfig.java       # Swagger Bearer Auth 설정
+│   │   ├── SecurityConfig.java           # Spring Security + 인증 모드별 필터 체인
+│   │   └── OpenApiConfig.java            # Swagger Bearer Auth 설정
 │   ├── security/
-│   │   ├── JwtProvider.java         # 토큰 발급·검증 (HS256)
+│   │   ├── JwtProvider.java              # 토큰 발급·검증 (HS256)
 │   │   └── JwtAuthenticationFilter.java  # 요청당 JWT 파싱 → SecurityContext
-│   ├── domain/BaseEntity.java       # createdAt / updatedAt (JPA Auditing)
-│   ├── dto/ApiResponse.java         # 공통 응답 래퍼 {success, message, data}
+│   ├── domain/BaseEntity.java            # createdAt / updatedAt (JPA Auditing)
+│   ├── dto/ApiResponse.java              # 공통 응답 래퍼 {success, message, data}
 │   └── exception/
-│       ├── ErrorCode.java           # 에러 코드 enum (HTTP 상태 포함)
-│       ├── BusinessException.java   # 도메인 예외
+│       ├── ErrorCode.java                # 에러 코드 enum (HTTP 상태 포함)
+│       ├── BusinessException.java        # 도메인 예외
 │       └── GlobalExceptionHandler.java
 ├── auth/
 │   ├── domain/   ApiKey, RefreshToken
 │   ├── repository/
-│   ├── service/  AuthService, ApiKeyService
+│   ├── service/  AuthService, ApiKeyService, KeycloakAuthService
 │   ├── dto/      LoginRequest, LoginResponse, RegisterRequest, ...
 │   └── api/      AuthController, ApiKeyController
 ├── user/
@@ -74,6 +82,15 @@ src/main/java/com/llmonl/platform/
     ├── dto/      LlmResourceCreateRequest, LlmResourceUpdateRequest, LlmResourceResponse
     └── api/      LlmResourceController
 ```
+
+## 인증 모드 (AUTH_MODE)
+
+`AUTH_MODE` 환경변수로 런타임 전환:
+
+| 값 | 동작 |
+|----|------|
+| `jwt` (기본) | platform-server가 HS256으로 JWT 발급·검증. `JWT_SECRET_KEY` 필수 |
+| `keycloak` | Keycloak RS256 JWKS로 검증. platform-server는 사용자 동기화만 수행. `KEYCLOAK_*` 설정 필수 |
 
 ## API Endpoints
 
@@ -117,14 +134,14 @@ orchestrator-server는 동일한 `JWT_SECRET_KEY`로 서명 검증 후 `sub`(use
 
 ## Database
 
-PostgreSQL `llmonl` 스키마, Flyway로 관리 (`flyway_platform_history`).
+PostgreSQL `llmonl` 스키마. JPA `ddl-auto: validate`로 기동 시 스키마 검증.
 
-| 테이블 | 소유 서비스 | 설명 |
-|--------|------------|------|
-| `users` | platform-server | 사용자 계정 |
-| `api_key` | platform-server | API 키 |
-| `refresh_token` | platform-server | Refresh 토큰 (폐기 가능) |
-| `llm_resource` | platform-server | LLM 모델 리소스 설정 |
+| 테이블 | 설명 |
+|--------|------|
+| `users` | 사용자 계정 (`keycloak_id` 컬럼 포함) |
+| `api_key` | API 키 |
+| `refresh_token` | Refresh 토큰 (폐기 가능) |
+| `llm_resource` | LLM 모델 리소스 설정 |
 
 > orchestrator-server의 나머지 테이블(`gpt_session`, `rag_embedding` 등)은 SQLModel이 자동 생성.
 
@@ -141,16 +158,17 @@ PostgreSQL `llmonl` 스키마, Flyway로 관리 (`flyway_platform_history`).
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` | DB 인증 |
 | `POSTGRES_SCHEMA` | 스키마명 (`llmonl`) |
 | `APP_ENV` | 실행 환경: `local` \| `development` \| `staging` \| `production` |
+| `AUTH_MODE` | `jwt` (기본) 또는 `keycloak` |
 
 ## Spring Profile → 환경 파일 매핑
 
 | APP_ENV | 로드되는 파일 |
 |---------|--------------|
-| `local` | `application-local.yml` (Flyway on, ddl-auto: none) |
+| `local` | `application-local.yml` (ddl-auto: none) |
 | `development` | `application-development.yml` (ddl-auto: validate) |
 | `staging` | `application-staging.yml` |
-| `production` | `application-production.yml` (thread max: 200) |
-| `test` | `application-test.yml` (H2 인메모리, Flyway off) |
+| `production` | `application-production.yml` |
+| `test` | `application-test.yml` (H2 인메모리, ddl-auto: create-drop) |
 
 ## Code Style
 
@@ -158,4 +176,3 @@ PostgreSQL `llmonl` 스키마, Flyway로 관리 (`flyway_platform_history`).
 - 레이어 패턴: `api/` → `service/` → `domain/` + `repository/` + `dto/`
 - 공통 응답: `ApiResponse<T>` record 사용
 - 예외: `BusinessException(ErrorCode)` → `GlobalExceptionHandler`
-- 주석 없이 자기 설명적 코드 작성

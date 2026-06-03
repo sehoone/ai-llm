@@ -10,45 +10,46 @@ LLM orchestration service built with FastAPI + LangGraph + Langfuse. Multi-bot R
 
 ## Common Commands
 
-### Development (Linux/macOS)
+Task runner: **poethepoet** (`uv run poe <task>`). List all tasks: `uv run poe --help`
+
+### Setup
 ```bash
-make install              # Install dependencies (uv sync)
-make dev                  # Run dev server with reload (port 8000)
-make lint                 # Run ruff linter
-make format               # Run ruff formatter
+uv sync --group dev       # Install dependencies including poe
 ```
 
-### Development (Windows PowerShell)
-```powershell
-uv sync                                                          # Install dependencies
-$env:APP_ENV='development'; uv run uvicorn src.main:app --reload --port 8000  # Run dev server
-ruff check .                                                     # Lint
-ruff format .                                                    # Format
+### Development
+```bash
+uv run poe dev            # Start dev server with hot reload (port 8000)
+uv run poe lint           # Run ruff linter
+uv run poe format         # Run ruff formatter
+uv run poe test           # Run pytest
+uv run poe clean          # Remove .venv and caches
 ```
 
 ### Testing
 ```bash
-pytest                    # Run all tests
-pytest -m "not slow"      # Skip slow tests
-pytest -v path/to/test.py # Run specific test file
+uv run poe test                       # Run all tests
+uv run pytest -m "not slow"           # Skip slow tests
+uv run pytest -v path/to/test.py      # Run specific test file
 ```
 
 Test coverage is minimal — only a handful of config-level tests exist. Rely on the dev server and Swagger UI (`/docs`) for manual validation.
 
 ### Local Docker (db + app only)
 ```bash
-make docker-run   # Start db + app (port 8061)
-make docker-stop  # Stop containers
-make docker-logs  # Follow logs
+uv run poe docker-run     # Build and start db + app containers
+uv run poe docker-stop    # Stop containers
+uv run poe docker-logs    # Follow logs
 ```
 
 Full stack with monitoring → use `deploy/deploy.sh` (see workspace root `CLAUDE.md`)
 
 ### Model Evaluation
 ```bash
-make eval                 # Interactive evaluation mode
-make eval-quick           # Quick evaluation with defaults
-make eval-no-report       # Evaluation without report generation
+uv run poe eval                       # Interactive evaluation (development env)
+ENV=staging uv run poe eval           # Interactive evaluation (staging env)
+uv run poe eval-quick                 # Quick evaluation with defaults
+uv run poe eval-no-report             # Evaluation without report
 ```
 
 ## Architecture
