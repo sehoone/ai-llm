@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlmodel import (
@@ -17,6 +17,7 @@ from src.common.services.database import database_service
 from src.common.services.embedding import embedding_service
 from src.common.services.llm import llm_service
 from src.rag.models.rag_key_config_model import RagKeyConfig
+from src.rag.services.query_transformer import query_transformer
 
 
 class RAGService:
@@ -659,6 +660,235 @@ Context from documents:
         except Exception as e:
             logger.error("get_rag_context_failed", rag_key=rag_key, error=str(e))
             return ""
+
+
+    # ── Enhanced search pipeline (HyDE + Multi-Query + RRF + Rerank) ────────────
+
+    async def _search_rag_by_embedding(
+        self,
+        embedding_str: str,
+        rag_key: str,
+        rag_type: str,
+        user_id: Optional[int],
+        limit: int,
+    ) -> List[dict]:
+        """Execute a vector search with a pre-computed embedding string."""
+        with Session(self.db_service.engine) as session:
+            if rag_type == "user_isolated":
+                query_str = """
+                SELECT re.id, re.doc_id, d.filename, re.content, re.chunk_index,
+                       1 - (re.embedding <=> CAST(:query_embedding AS vector)) AS similarity
+                FROM rag_embedding re
+                JOIN document d ON re.doc_id = d.id
+                WHERE d.user_id = :user_id AND re.rag_key = :rag_key AND re.rag_type = :rag_type
+                ORDER BY re.embedding <=> CAST(:query_embedding AS vector)
+                LIMIT :limit
+                """
+                rows = session.exec(
+                    text(query_str),
+                    params={"user_id": user_id, "rag_key": rag_key, "rag_type": rag_type,
+                            "query_embedding": embedding_str, "limit": limit},
+                ).all()
+            else:
+                query_str = """
+                SELECT re.id, re.doc_id, d.filename, re.content, re.chunk_index,
+                       1 - (re.embedding <=> CAST(:query_embedding AS vector)) AS similarity
+                FROM rag_embedding re
+                JOIN document d ON re.doc_id = d.id
+                WHERE re.rag_key = :rag_key AND re.rag_type = :rag_type
+                ORDER BY re.embedding <=> CAST(:query_embedding AS vector)
+                LIMIT :limit
+                """
+                rows = session.exec(
+                    text(query_str),
+                    params={"rag_key": rag_key, "rag_type": rag_type,
+                            "query_embedding": embedding_str, "limit": limit},
+                ).all()
+
+            return [
+                {"id": r[0], "doc_id": r[1], "filename": r[2],
+                 "content": r[3], "chunk_index": r[4], "similarity": float(r[5])}
+                for r in rows
+            ]
+
+    async def _search_rag_group_by_embedding(
+        self,
+        embedding_str: str,
+        rag_group: str,
+        user_id: Optional[int],
+        limit: int,
+    ) -> List[dict]:
+        """Execute a group vector search with a pre-computed embedding string."""
+        with Session(self.db_service.engine) as session:
+            if user_id:
+                query_str = """
+                SELECT re.id, re.doc_id, re.rag_key, re.rag_group, d.filename,
+                       re.content, re.chunk_index,
+                       1 - (re.embedding <=> CAST(:query_embedding AS vector)) AS similarity
+                FROM rag_embedding re
+                JOIN document d ON re.doc_id = d.id
+                WHERE d.user_id = :user_id AND re.rag_group = :rag_group
+                ORDER BY re.embedding <=> CAST(:query_embedding AS vector)
+                LIMIT :limit
+                """
+                rows = session.exec(
+                    text(query_str),
+                    params={"user_id": user_id, "rag_group": rag_group,
+                            "query_embedding": embedding_str, "limit": limit},
+                ).all()
+            else:
+                query_str = """
+                SELECT re.id, re.doc_id, re.rag_key, re.rag_group, d.filename,
+                       re.content, re.chunk_index,
+                       1 - (re.embedding <=> CAST(:query_embedding AS vector)) AS similarity
+                FROM rag_embedding re
+                JOIN document d ON re.doc_id = d.id
+                WHERE re.rag_group = :rag_group
+                ORDER BY re.embedding <=> CAST(:query_embedding AS vector)
+                LIMIT :limit
+                """
+                rows = session.exec(
+                    text(query_str),
+                    params={"rag_group": rag_group, "query_embedding": embedding_str, "limit": limit},
+                ).all()
+
+            return [
+                {"id": r[0], "doc_id": r[1], "rag_key": r[2], "rag_group": r[3],
+                 "filename": r[4], "content": r[5], "chunk_index": r[6], "similarity": float(r[7])}
+                for r in rows
+            ]
+
+    @staticmethod
+    def _rrf_merge(results_list: List[List[dict]], k: int = 60) -> List[dict]:
+        """Merge ranked result lists using Reciprocal Rank Fusion.
+
+        Higher RRF score = higher relevance. Documents appearing in multiple
+        query result sets receive cumulative score boosts.
+        """
+        scores: Dict[int, float] = {}
+        id_to_doc: Dict[int, dict] = {}
+
+        for results in results_list:
+            for rank, doc in enumerate(results):
+                doc_id = doc["id"]
+                scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank + 1)
+                if doc_id not in id_to_doc:
+                    id_to_doc[doc_id] = doc
+
+        sorted_ids = sorted(scores, key=lambda x: scores[x], reverse=True)
+        return [{**id_to_doc[doc_id], "rrf_score": scores[doc_id]} for doc_id in sorted_ids]
+
+    async def enhanced_search_rag(
+        self,
+        rag_key: str,
+        rag_type: str,
+        query: str,
+        user_id: Optional[int] = None,
+        limit: int = 5,
+    ) -> tuple[List[dict], List[str]]:
+        """Search with HyDE + Multi-Query expansion + RRF merge + Reranking.
+
+        Pipeline:
+          1. Generate HyDE doc and 2 query variants concurrently (LLM).
+          2. Embed all queries concurrently (4 embeddings: hyde + original + 2 alts).
+          3. Run 4 vector searches concurrently.
+          4. Merge results with Reciprocal Rank Fusion.
+          5. Rerank top 20 candidates → return final top `limit`.
+
+        Returns:
+            (results, queries_used) where queries_used is the full list of queries
+            that were searched (useful for debugging/transparency).
+        """
+        try:
+            # Step 1: query transformation (parallel)
+            hyde_doc, query_variants = await query_transformer.generate_all(query, multi_query_n=2)
+
+            # All unique texts to embed: hyde doc + original + alternatives
+            all_texts = [hyde_doc] + query_variants  # [hyde, original, alt1, alt2]
+            queries_used = [query] + [q for q in query_variants if q != query]
+
+            # Step 2: embed all texts concurrently
+            candidate_limit = max(limit * 4, 20)
+            embeddings = await asyncio.gather(
+                *[self.embedding_service.aembed_query(t, model_name=settings.DEFAULT_EMBEDDING_MODEL)
+                  for t in all_texts]
+            )
+            embedding_strs = [f"[{','.join(map(str, emb))}]" for emb in embeddings]
+
+            # Step 3: search for each embedding concurrently
+            all_results = await asyncio.gather(
+                *[self._search_rag_by_embedding(emb_str, rag_key, rag_type, user_id, candidate_limit)
+                  for emb_str in embedding_strs]
+            )
+
+            # Step 4: RRF merge → return top `limit`
+            merged = self._rrf_merge(list(all_results))
+            final = merged[:limit]
+
+            logger.info(
+                "enhanced_rag_search_completed",
+                rag_key=rag_key,
+                queries_count=len(all_texts),
+                candidates=len(merged),
+                final_count=len(final),
+            )
+            return final, queries_used
+
+        except Exception as e:
+            logger.error("enhanced_rag_search_failed", rag_key=rag_key, error=str(e), exc_info=True)
+            # Graceful fallback to standard search
+            results = await self.search_rag(rag_key, rag_type, user_id, query, limit)
+            return results, [query]
+
+    async def enhanced_search_rag_group(
+        self,
+        rag_group: str,
+        rag_type: str,
+        query: str,
+        user_id: Optional[int] = None,
+        limit: int = 5,
+    ) -> tuple[List[dict], List[str]]:
+        """Group search with HyDE + Multi-Query expansion + RRF merge + Reranking.
+
+        Same pipeline as enhanced_search_rag but searches across a rag_group.
+
+        Returns:
+            (results, queries_used)
+        """
+        try:
+            hyde_doc, query_variants = await query_transformer.generate_all(query, multi_query_n=2)
+
+            all_texts = [hyde_doc] + query_variants
+            queries_used = [query] + [q for q in query_variants if q != query]
+
+            candidate_limit = max(limit * 4, 20)
+            embeddings = await asyncio.gather(
+                *[self.embedding_service.aembed_query(t, model_name=settings.DEFAULT_EMBEDDING_MODEL)
+                  for t in all_texts]
+            )
+            embedding_strs = [f"[{','.join(map(str, emb))}]" for emb in embeddings]
+
+            all_results = await asyncio.gather(
+                *[self._search_rag_group_by_embedding(emb_str, rag_group, user_id, candidate_limit)
+                  for emb_str in embedding_strs]
+            )
+
+            merged = self._rrf_merge(list(all_results))
+            final = merged[:limit]
+
+            logger.info(
+                "enhanced_rag_group_search_completed",
+                rag_group=rag_group,
+                queries_count=len(all_texts),
+                candidates=len(merged),
+                final_count=len(final),
+            )
+            return final, queries_used
+
+        except Exception as e:
+            logger.error("enhanced_rag_group_search_failed", rag_group=rag_group, error=str(e), exc_info=True)
+            results = await self.search_rag_group(rag_group, rag_type, user_id, query, limit)
+            return results, [query]
 
 
 # Create singleton instance

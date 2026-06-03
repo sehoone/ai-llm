@@ -20,6 +20,8 @@ from src.user.models.user_model import User
 from src.rag.schemas.rag_schema import (
     DocumentDetailResponse,
     DocumentResponse,
+    EnhancedRAGSearchResponse,
+    EnhancedRAGSearchResult,
     RAGSearchResponse,
     RAGSearchResult,
 )
@@ -411,6 +413,116 @@ async def search_rag_group(
     except Exception as e:
         logger.error("rag_group_search_failed", rag_group=rag_group, query=query, user_id=user.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to search RAG group")
+
+
+@router.post(
+    "/enhanced-search",
+    response_model=EnhancedRAGSearchResponse,
+    summary="향상된 RAG 검색 (HyDE + Multi-Query + Rerank)",
+    description="HyDE, Multi-Query 확장, RRF 병합, Reranking을 적용한 고품질 RAG 검색입니다.",
+)
+async def enhanced_search_rag(
+    request: Request,
+    rag_key: str = Form(...),
+    rag_type: str = Form(...),
+    query: str = Form(...),
+    limit: int = Form(default=5),
+    user: User = Depends(get_current_user),
+):
+    """Enhanced RAG search using HyDE + Multi-Query + RRF + Reranking."""
+    try:
+        _validate_rag_type(rag_type)
+
+        query = sanitize_string(query)
+        if not query:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+        limit = min(max(1, limit), 20)
+
+        logger.info("enhanced_rag_search_started", rag_key=rag_key, rag_type=rag_type, query=query, user_id=user.id)
+
+        results, queries_used = await rag_service.enhanced_search_rag(
+            rag_key=rag_key,
+            rag_type=rag_type,
+            query=query,
+            user_id=user.id if rag_type == "user_isolated" else None,
+            limit=limit,
+        )
+
+        search_results = [
+            EnhancedRAGSearchResult(
+                doc_id=r["doc_id"],
+                filename=r["filename"],
+                content=r["content"][:500],
+                similarity=r["similarity"],
+                rrf_score=r.get("rrf_score"),
+            )
+            for r in results
+        ]
+
+        logger.info("enhanced_rag_search_completed", user_id=user.id, results_count=len(search_results))
+        return EnhancedRAGSearchResponse(query=query, queries_used=queries_used, results=search_results)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("enhanced_rag_search_failed", query=query, user_id=user.id, error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to perform enhanced search")
+
+
+@router.post(
+    "/enhanced-search-group",
+    response_model=EnhancedRAGSearchResponse,
+    summary="향상된 RAG 그룹 검색 (HyDE + Multi-Query + Rerank)",
+    description="그룹 내 여러 RAG에 HyDE, Multi-Query 확장, RRF 병합, Reranking을 적용합니다.",
+)
+async def enhanced_search_rag_group(
+    request: Request,
+    rag_group: str = Form(...),
+    rag_type: str = Form(...),
+    query: str = Form(...),
+    limit: int = Form(default=5),
+    user: User = Depends(get_current_user),
+):
+    """Enhanced group RAG search using HyDE + Multi-Query + RRF + Reranking."""
+    try:
+        _validate_rag_type(rag_type)
+
+        query = sanitize_string(query)
+        if not query:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+        limit = min(max(1, limit), 20)
+
+        logger.info("enhanced_rag_group_search_started", rag_group=rag_group, rag_type=rag_type, query=query, user_id=user.id)
+
+        results, queries_used = await rag_service.enhanced_search_rag_group(
+            rag_group=rag_group,
+            rag_type=rag_type,
+            query=query,
+            user_id=user.id if rag_type == "user_isolated" else None,
+            limit=limit,
+        )
+
+        search_results = [
+            EnhancedRAGSearchResult(
+                doc_id=r["doc_id"],
+                filename=r["filename"],
+                content=r["content"][:500],
+                similarity=r["similarity"],
+                rrf_score=r.get("rrf_score"),
+            )
+            for r in results
+        ]
+
+        logger.info("enhanced_rag_group_search_completed", user_id=user.id, results_count=len(search_results))
+        return EnhancedRAGSearchResponse(query=query, queries_used=queries_used, results=search_results)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("enhanced_rag_group_search_failed", query=query, user_id=user.id, error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to perform enhanced group search")
 
 
 @router.post("/natural-language-search", summary="자연어 검색 (Streaming)", description="RAG 검색 후 LLM을 통해 요약된 답변을 스트리밍으로 제공합니다.")

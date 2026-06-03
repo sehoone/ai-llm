@@ -49,3 +49,17 @@ class NaturalLanguageSearchResponse(BaseModel):
     summary: str
     results: List[RAGSearchResult]
 
+
+class EnhancedRAGSearchResult(RAGSearchResult):
+    """RAG search result with RRF pipeline metadata."""
+
+    rrf_score: Optional[float] = None
+
+
+class EnhancedRAGSearchResponse(BaseModel):
+    """Response model for enhanced RAG search (HyDE + Multi-Query + Rerank)."""
+
+    query: str
+    queries_used: List[str]
+    results: List[EnhancedRAGSearchResult]
+
