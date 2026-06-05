@@ -1,4 +1,4 @@
-auth:
+﻿auth:
   mode: keycloak  # 스테이징: Keycloak RS256
 
 spring:
@@ -9,4 +9,4 @@ spring:
 logging:
   level:
     root: INFO
-    com.llmonl.platform: INFO
+    com.sehoon.platform: INFO

@@ -1,4 +1,4 @@
-auth:
+﻿auth:
   mode: jwt  # 로컬: 공유 비밀키 HS256
 
 spring:
@@ -11,6 +11,6 @@ spring:
 
 logging:
   level:
-    com.llmonl.platform: DEBUG
+    com.sehoon.platform: DEBUG
     org.hibernate.SQL: DEBUG
     org.springframework.security: DEBUG

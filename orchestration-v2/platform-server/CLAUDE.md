@@ -1,4 +1,4 @@
-# CLAUDE.md — platform-server
+﻿# CLAUDE.md — platform-server
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -27,7 +27,7 @@ JWT를 발급하여 두 서버가 같은 시크릿으로 검증합니다.
 ./gradlew test
 
 # 단일 테스트 클래스 실행
-./gradlew test --tests "com.llmonl.platform.auth.AuthServiceTest"
+./gradlew test --tests "com.sehoon.platform.auth.AuthServiceTest"
 
 # 실행 가능 JAR 생성 (build/libs/*.jar)
 ./gradlew bootJar
@@ -172,7 +172,7 @@ PostgreSQL `llmonl` 스키마. JPA `ddl-auto: validate`로 기동 시 스키마 
 
 ## Code Style
 
-- 패키지: `com.llmonl.platform`
+- 패키지: `com.sehoon.platform`
 - 레이어 패턴: `api/` → `service/` → `domain/` + `repository/` + `dto/`
 - 공통 응답: `ApiResponse<T>` record 사용
 - 예외: `BusinessException(ErrorCode)` → `GlobalExceptionHandler`

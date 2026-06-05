@@ -1,8 +1,0 @@
-package com.llmonl.platform.auth.dto;
-
-import jakarta.validation.constraints.NotBlank;
-
-public record TokenRefreshRequest(
-        @NotBlank(message = "refresh_token은 필수입니다.")
-        String refreshToken
-) {}

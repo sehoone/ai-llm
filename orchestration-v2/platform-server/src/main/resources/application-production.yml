@@ -1,4 +1,4 @@
-auth:
+﻿auth:
   mode: keycloak  # 프로덕션: Keycloak RS256
 
 spring:
@@ -14,4 +14,4 @@ server:
 logging:
   level:
     root: WARN
-    com.llmonl.platform: INFO
+    com.sehoon.platform: INFO
