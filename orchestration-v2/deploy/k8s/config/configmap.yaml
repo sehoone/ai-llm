@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/part-of: llm-platform
+data:
+  APP_ENV: "production"
+
+  # PostgreSQL — CloudNativePG 읽기/쓰기 엔드포인트
+  POSTGRES_HOST: "postgres-ha-rw"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "mydb"
+  POSTGRES_USER: "postgres"
+
+  # Redis — Sentinel headless service
+  REDIS_HOST: "redis-headless"
+  REDIS_PORT: "6379"
+  SENTINEL_HOST: "redis-sentinel"
+  SENTINEL_PORT: "26379"
+
+  # ClickHouse
+  CLICKHOUSE_HOST: "clickhouse"
+  CLICKHOUSE_HTTP_PORT: "8123"
+  CLICKHOUSE_TCP_PORT: "9000"
+
+  # MinIO
+  MINIO_ENDPOINT: "http://minio:9000"
+
+  # Langfuse
+  LANGFUSE_HOST: "http://langfuse:3000"
+
+  # platform-server
+  SERVER_PORT: "8080"
+  AUTH_MODE: "jwt"
+
+  # orchestrator-server
+  ORCHESTRATOR_PORT: "8000"
+
+  # Keycloak (AUTH_MODE=keycloak 시 사용)
+  KEYCLOAK_URL: "http://keycloak:8080"
+  KEYCLOAK_REALM: "llm-platform"
+
+  # CORS — Ingress 외부 주소로 변경 필요
+  ALLOWED_ORIGINS: "http://localhost:8060"

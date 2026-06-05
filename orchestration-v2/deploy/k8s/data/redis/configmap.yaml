@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-init-script
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: llm-platform
+data:
+  init.sh: |
+    #!/bin/sh
+    set -e
+
+    MASTER_HOST="redis-0.redis-headless.llm-platform.svc.cluster.local"
+    INDEX="${HOSTNAME##*-}"
+
+    # redis.conf — 최초 기동 시만 생성 (failover 후 재기동 시 유지)
+    if [ ! -f /data/redis.conf ]; then
+      cat > /data/redis.conf << EOF
+    appendonly yes
+    appendfilename "appendonly.aof"
+    dir /data
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+    save ""
+    EOF
+      if [ "$INDEX" != "0" ]; then
+        echo "replicaof $MASTER_HOST 6379" >> /data/redis.conf
+      fi
+    fi
+
+    # sentinel.conf — 최초 기동 시만 생성
+    # 이후 sentinel 이 failover 시 직접 갱신함
+    if [ ! -f /data/sentinel.conf ]; then
+      cat > /data/sentinel.conf << EOF
+    sentinel monitor mymaster $MASTER_HOST 6379 2
+    sentinel down-after-milliseconds mymaster 5000
+    sentinel failover-timeout mymaster 60000
+    sentinel parallel-syncs mymaster 1
+    sentinel announce-hostnames yes
+    EOF
+    fi

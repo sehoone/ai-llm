@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: platform-pdb
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: platform
+    app.kubernetes.io/part-of: llm-platform
+spec:
+  # 롤링 업데이트·노드 드레인 중에도 최소 1개 유지
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform

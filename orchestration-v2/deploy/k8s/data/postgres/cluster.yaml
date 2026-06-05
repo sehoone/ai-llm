@@ -1,0 +1,71 @@
+# CloudNativePG Cluster — PostgreSQL 16 + pgvector HA
+#
+# 사전 요구사항:
+#   kubectl apply --server-side -f \
+#     https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.22/releases/cnpg-1.22.0.yaml
+#
+# pgvector 이미지: 기본 cloudnative-pg 이미지는 pgvector 미포함.
+# 아래 두 가지 중 하나를 선택:
+#   A) 커스텀 이미지 빌드 (권장):
+#        FROM ghcr.io/cloudnative-pg/postgresql:16.3
+#        USER root
+#        RUN apt-get update && apt-get install -y postgresql-16-pgvector && rm -rf /var/lib/apt/lists/*
+#        USER postgres
+#   B) 커뮤니티 이미지 사용: ghcr.io/tensorchord/cloudnative-pgvecto-rs:pg16-v0.3.0
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-ha
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: llm-platform
+spec:
+  # primary 1개 + replica 1개
+  instances: 2
+
+  # pgvector 포함 커스텀 이미지로 교체 필요 (위 주석 참고)
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.3
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+      effective_cache_size: "768MB"
+      work_mem: "4MB"
+    pg_hba:
+      - host all all 0.0.0.0/0 md5
+
+  bootstrap:
+    initdb:
+      database: mydb
+      owner: postgres
+      # scripts/create-secrets.sh 가 생성하는 Secret
+      secret:
+        name: postgres-superuser
+      postInitSQL:
+        - CREATE SCHEMA IF NOT EXISTS llmonl
+        - CREATE SCHEMA IF NOT EXISTS keycloak
+        # pgvector 이미지 사용 시 주석 해제
+        # - CREATE EXTENSION IF NOT EXISTS vector SCHEMA llmonl
+
+  storage:
+    size: 50Gi
+    storageClass: fast-ssd   # 클러스터 StorageClass 이름으로 변경
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  # primary/replica 를 다른 노드에 배치
+  affinity:
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+
+  # 모니터링 (kube-prometheus-stack 사용 시 true 로 변경)
+  monitoring:
+    enablePodMonitor: false

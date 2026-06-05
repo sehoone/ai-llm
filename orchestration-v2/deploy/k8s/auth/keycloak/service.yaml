@@ -1,0 +1,37 @@
+# headless — JGroups 클러스터 피어 발견용
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-headless
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: llm-platform
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: jgroups
+      port: 7600
+      targetPort: 7600
+---
+# ClusterIP — Nginx Ingress → Keycloak OIDC 엔드포인트
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: llm-platform
+spec:
+  selector:
+    app.kubernetes.io/name: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

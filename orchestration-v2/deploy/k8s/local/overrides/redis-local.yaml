@@ -1,0 +1,35 @@
+# 로컬 전용 — sentinel quorum 1 (단일 파드)
+# 원본 data/redis/configmap.yaml 의 init.sh 를 대체
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-init-script
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: llm-platform
+data:
+  init.sh: |
+    #!/bin/sh
+    set -e
+
+    MASTER_HOST="redis-0.redis-headless.llm-platform.svc.cluster.local"
+
+    if [ ! -f /data/redis.conf ]; then
+      cat > /data/redis.conf << EOF
+    appendonly yes
+    appendfilename "appendonly.aof"
+    dir /data
+    save ""
+    EOF
+    fi
+
+    # quorum 1 — 단일 파드에서도 sentinel 정상 동작
+    if [ ! -f /data/sentinel.conf ]; then
+      cat > /data/sentinel.conf << EOF
+    sentinel monitor mymaster $MASTER_HOST 6379 1
+    sentinel down-after-milliseconds mymaster 5000
+    sentinel failover-timeout mymaster 60000
+    sentinel parallel-syncs mymaster 1
+    EOF
+    fi

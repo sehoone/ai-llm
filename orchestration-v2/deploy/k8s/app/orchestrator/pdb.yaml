@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orchestrator-pdb
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: llm-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orchestrator

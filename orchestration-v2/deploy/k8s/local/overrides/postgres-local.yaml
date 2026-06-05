@@ -1,0 +1,43 @@
+# 로컬 전용 — instances: 1, 리소스 축소
+# 원본 data/postgres/cluster.yaml 을 대체
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-ha
+  namespace: llm-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: llm-platform
+spec:
+  instances: 1   # 로컬은 replica 불필요
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.3
+
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "128MB"
+    pg_hba:
+      - host all all 0.0.0.0/0 md5
+
+  bootstrap:
+    initdb:
+      database: mydb
+      owner: postgres
+      secret:
+        name: postgres-superuser
+      postInitSQL:
+        - CREATE SCHEMA IF NOT EXISTS llmonl
+        - CREATE SCHEMA IF NOT EXISTS keycloak
+
+  storage:
+    size: 5Gi
+    storageClass: fast-ssd   # local-up.sh 에서 실제 StorageClass 로 치환
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
