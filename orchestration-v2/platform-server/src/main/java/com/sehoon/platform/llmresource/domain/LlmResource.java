@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.llmresource.domain;
+package com.sehoon.platform.llmresource.domain;
 
 import com.sehoon.platform.common.domain.BaseEntity;
 import jakarta.persistence.*;

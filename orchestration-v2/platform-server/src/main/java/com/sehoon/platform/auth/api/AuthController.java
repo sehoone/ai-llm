@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.auth.api;
+package com.sehoon.platform.auth.api;
 
 import com.sehoon.platform.auth.dto.LoginRequest;
 import com.sehoon.platform.auth.dto.LoginResponse;

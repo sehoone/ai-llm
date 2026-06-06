@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.common.exception;
+package com.sehoon.platform.common.exception;
 
 public class BusinessException extends RuntimeException {
 

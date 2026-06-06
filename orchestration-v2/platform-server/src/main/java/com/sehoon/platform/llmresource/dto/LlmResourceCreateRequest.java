@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.llmresource.dto;
+package com.sehoon.platform.llmresource.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

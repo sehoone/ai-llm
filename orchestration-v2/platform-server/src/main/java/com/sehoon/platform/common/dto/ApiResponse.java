@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.common.dto;
+package com.sehoon.platform.common.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

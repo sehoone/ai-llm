@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.user.domain;
+package com.sehoon.platform.user.domain;
 
 import com.sehoon.platform.common.domain.BaseEntity;
 import jakarta.persistence.*;
@@ -34,9 +34,6 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private String status = "active";
 
-    @Column(name = "keycloak_id", unique = true)
-    private String keycloakId;
-
     protected User() {}
 
     public User(String username, String email, String hashedPassword) {
@@ -51,8 +48,6 @@ public class User extends BaseEntity {
     public String getHashedPassword() { return hashedPassword; }
     public UserRole getRole() { return role; }
     public String getStatus() { return status; }
-    public String getKeycloakId() { return keycloakId; }
-    public void setKeycloakId(String keycloakId) { this.keycloakId = keycloakId; }
 
     public void updateProfile(String username, String email) {
         if (username != null) this.username = username;

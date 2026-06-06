@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.llmresource.repository;
+package com.sehoon.platform.llmresource.repository;
 
 import com.sehoon.platform.llmresource.domain.LlmResource;
 import org.springframework.data.jpa.repository.JpaRepository;

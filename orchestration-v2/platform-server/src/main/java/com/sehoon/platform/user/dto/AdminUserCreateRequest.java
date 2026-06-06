@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.user.dto;
+package com.sehoon.platform.user.dto;
 
 import com.sehoon.platform.user.domain.UserRole;
 import jakarta.validation.constraints.*;

@@ -26,7 +26,6 @@ class User(BaseModel, table=True):
     hashed_password: str = Field(default="")
     role: UserRole = Field(default=UserRole.USER, sa_type=String)
     status: str = Field(default="active")
-    keycloak_id: Optional[str] = Field(default=None, unique=True, index=True)
 
     def verify_password(self, password: str) -> bool:
         """Verify if the provided password matches the hash."""

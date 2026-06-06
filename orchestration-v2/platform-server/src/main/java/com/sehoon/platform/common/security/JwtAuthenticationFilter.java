@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.common.security;
+package com.sehoon.platform.common.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;

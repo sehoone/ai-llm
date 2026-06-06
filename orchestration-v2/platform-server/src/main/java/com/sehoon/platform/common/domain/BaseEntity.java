@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.common.domain;
+package com.sehoon.platform.common.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;

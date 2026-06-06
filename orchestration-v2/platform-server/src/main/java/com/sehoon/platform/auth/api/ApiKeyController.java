@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.auth.api;
+package com.sehoon.platform.auth.api;
 
 import com.sehoon.platform.auth.dto.ApiKeyCreateRequest;
 import com.sehoon.platform.auth.dto.ApiKeyResponse;

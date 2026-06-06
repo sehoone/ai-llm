@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.auth.service;
+package com.sehoon.platform.auth.service;
 
 import com.sehoon.platform.auth.domain.RefreshToken;
 import com.sehoon.platform.auth.dto.LoginRequest;
@@ -11,7 +11,6 @@ import com.sehoon.platform.common.security.JwtProvider;
 import com.sehoon.platform.user.domain.User;
 import com.sehoon.platform.user.dto.UserResponse;
 import com.sehoon.platform.user.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,21 +25,15 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProvider jwtProvider;
     private final PasswordEncoder passwordEncoder;
-    private final KeycloakAuthService keycloakAuthService;
-
-    @Value("${auth.mode:jwt}")
-    private String authMode;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
                        JwtProvider jwtProvider,
-                       PasswordEncoder passwordEncoder,
-                       KeycloakAuthService keycloakAuthService) {
+                       PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.jwtProvider = jwtProvider;
         this.passwordEncoder = passwordEncoder;
-        this.keycloakAuthService = keycloakAuthService;
     }
 
     public UserResponse register(RegisterRequest request) {
@@ -60,26 +53,16 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        if ("keycloak".equals(authMode)) {
-            return keycloakAuthService.login(request);
-        }
         return localLogin(request);
     }
 
     public LoginResponse refresh(String rawRefreshToken) {
-        if ("keycloak".equals(authMode)) {
-            return keycloakAuthService.refresh(rawRefreshToken);
-        }
         return localRefresh(rawRefreshToken);
     }
 
     public void logout(String rawRefreshToken) {
-        if (!"keycloak".equals(authMode)) {
-            refreshTokenRepository.findByToken(rawRefreshToken)
-                    .ifPresent(RefreshToken::revoke);
-        }
-        // Keycloak 모드에서는 클라이언트가 Keycloak logout endpoint를 직접 호출하거나
-        // 토큰을 버리면 되므로 서버측 처리 불필요
+        refreshTokenRepository.findByToken(rawRefreshToken)
+                .ifPresent(RefreshToken::revoke);
     }
 
     private LoginResponse localLogin(LoginRequest request) {

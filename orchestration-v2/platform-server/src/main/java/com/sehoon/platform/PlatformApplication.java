@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform;
+package com.sehoon.platform;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

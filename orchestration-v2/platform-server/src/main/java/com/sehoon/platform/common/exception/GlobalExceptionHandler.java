@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.common.exception;
+package com.sehoon.platform.common.exception;
 
 import com.sehoon.platform.common.dto.ApiResponse;
 import org.slf4j.Logger;

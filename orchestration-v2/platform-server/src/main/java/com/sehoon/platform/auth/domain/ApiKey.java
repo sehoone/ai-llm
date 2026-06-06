@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.auth.domain;
+package com.sehoon.platform.auth.domain;
 
 import com.sehoon.platform.common.domain.BaseEntity;
 import jakarta.persistence.*;

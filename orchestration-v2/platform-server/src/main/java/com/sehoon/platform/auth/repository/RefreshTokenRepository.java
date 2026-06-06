@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.auth.repository;
+package com.sehoon.platform.auth.repository;
 
 import com.sehoon.platform.auth.domain.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -32,21 +32,9 @@ spring:
     open-in-view: false
 
 jwt:
-  secret-key: ${JWT_SECRET_KEY:placeholder-only-used-in-jwt-mode}
+  secret-key: ${JWT_SECRET_KEY}
   access-token-expire-minutes: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:10}
   refresh-token-expire-minutes: ${JWT_REFRESH_TOKEN_EXPIRE_MINUTES:10080}
-
-# 인증 모드: "jwt" (기본, HS256 공유 비밀키) | "keycloak" (RS256 JWKS)
-auth:
-  mode: ${AUTH_MODE:jwt}
-
-keycloak:
-  server-url: ${KEYCLOAK_URL:http://keycloak:8080}
-  realm: ${KEYCLOAK_REALM:llm-platform}
-  client-id: ${KEYCLOAK_CLIENT_ID:orchestrator-app}
-  client-secret: ${KEYCLOAK_CLIENT_SECRET:}
-  admin-user: ${KEYCLOAK_ADMIN_USER:admin}
-  admin-password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
 
 orchestrator:
   base-url: ${ORCHESTRATOR_URL:http://app:8000}

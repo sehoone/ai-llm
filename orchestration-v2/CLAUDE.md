@@ -39,11 +39,9 @@ Browser / API client
         │
         └── /*                      → admin-front:3000 (Next.js)
 
-JWT 흐름
-  Client → POST /api/v1/auth/login → platform-server 발급 (HS256 또는 Keycloak RS256)
+JWT 흐름 (HS256 전용)
+  Client → POST /api/v1/auth/login → platform-server 발급 (HS256)
                                    → orchestrator-server 동일 JWT_SECRET_KEY로 검증
-  AUTH_MODE=jwt (기본): platform-server가 HS256으로 발급·검증
-  AUTH_MODE=keycloak: Keycloak RS256 JWKS로 검증, platform-server는 사용자 동기화만 수행
 
 PostgreSQL + pgvector  (schema: llmonl)
   ├── 스키마 생성: deploy/postgres/init.sql (Docker 볼륨 최초 1회) 또는 수동 생성
@@ -144,8 +142,9 @@ APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --
 ```
 
 ### DB 스키마 초기화
-`deploy/postgres/init.sql`이 PostgreSQL 볼륨 최초 생성 시 자동 실행되어 `llmonl`, `keycloak` 스키마를 생성합니다.
-로컬 개발 시 DB에 직접 실행: `CREATE SCHEMA IF NOT EXISTS llmonl;`
+`deploy/postgres/init.sql`이 PostgreSQL 볼륨 최초 생성 시 자동 실행됩니다.
+`llmonl` 스키마 및 platform-server 테이블(users, api_key, refresh_token, llm_resource)을 생성하며,
+orchestrator-server 테이블은 SQLModel ORM이 기동 시 자동 생성합니다.
 
 ### MinIO 버킷 초기화 (최초 배포 1회)
 ```bash
@@ -191,4 +190,3 @@ docker exec minio mc mb local/langfuse-exports
 | WebSocket 실패 | `NEXT_PUBLIC_WS_URL` 포트가 Nginx 포트(8060)와 일치해야 함 |
 | Langfuse 시작 안 됨 | `docker compose ps clickhouse redis minio` — 모두 healthy여야 함 |
 | Next.js 빌드 실패 | `admin/llm-admin/.env.production` 빌드 전 존재해야 함 |
-| `AUTH_MODE=keycloak` 인데 Keycloak 미기동 | `docker compose ps keycloak` 확인; start_period 90s 대기 |

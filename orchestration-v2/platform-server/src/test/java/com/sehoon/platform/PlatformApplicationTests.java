@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform;
+package com.sehoon.platform;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

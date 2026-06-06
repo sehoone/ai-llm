@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.common.proxy;
+package com.sehoon.platform.common.proxy;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

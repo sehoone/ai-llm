@@ -1,4 +1,4 @@
-﻿# CLAUDE.md — platform-server
+# CLAUDE.md — platform-server
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -14,7 +14,7 @@ JWT를 발급하여 두 서버가 같은 시크릿으로 검증합니다.
 | 프레임워크 | Spring Boot 3.4 |
 | 빌드 | Gradle (Groovy DSL) |
 | DB 스키마 | JPA `ddl-auto: validate` — 테이블은 수동 생성 또는 `deploy/postgres/init.sql` |
-| 인증 | JWT HS256 (JJWT 0.12) 또는 Keycloak RS256 (`AUTH_MODE` 환경변수로 전환) |
+| 인증 | JWT HS256 (JJWT 0.12) |
 | API 문서 | springdoc-openapi 2.7 |
 
 ## Common Commands
@@ -66,7 +66,7 @@ src/main/java/com/llmonl/platform/
 ├── auth/
 │   ├── domain/   ApiKey, RefreshToken
 │   ├── repository/
-│   ├── service/  AuthService, ApiKeyService, KeycloakAuthService
+│   ├── service/  AuthService, ApiKeyService
 │   ├── dto/      LoginRequest, LoginResponse, RegisterRequest, ...
 │   └── api/      AuthController, ApiKeyController
 ├── user/
@@ -83,14 +83,9 @@ src/main/java/com/llmonl/platform/
     └── api/      LlmResourceController
 ```
 
-## 인증 모드 (AUTH_MODE)
+## 인증
 
-`AUTH_MODE` 환경변수로 런타임 전환:
-
-| 값 | 동작 |
-|----|------|
-| `jwt` (기본) | platform-server가 HS256으로 JWT 발급·검증. `JWT_SECRET_KEY` 필수 |
-| `keycloak` | Keycloak RS256 JWKS로 검증. platform-server는 사용자 동기화만 수행. `KEYCLOAK_*` 설정 필수 |
+JWT HS256 단일 방식. `JWT_SECRET_KEY` 환경변수 필수 (orchestrator-server와 동일한 값).
 
 ## API Endpoints
 
@@ -138,7 +133,7 @@ PostgreSQL `llmonl` 스키마. JPA `ddl-auto: validate`로 기동 시 스키마 
 
 | 테이블 | 설명 |
 |--------|------|
-| `users` | 사용자 계정 (`keycloak_id` 컬럼 포함) |
+| `users` | 사용자 계정 |
 | `api_key` | API 키 |
 | `refresh_token` | Refresh 토큰 (폐기 가능) |
 | `llm_resource` | LLM 모델 리소스 설정 |
@@ -158,7 +153,6 @@ PostgreSQL `llmonl` 스키마. JPA `ddl-auto: validate`로 기동 시 스키마 
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` | DB 인증 |
 | `POSTGRES_SCHEMA` | 스키마명 (`llmonl`) |
 | `APP_ENV` | 실행 환경: `local` \| `development` \| `staging` \| `production` |
-| `AUTH_MODE` | `jwt` (기본) 또는 `keycloak` |
 
 ## Spring Profile → 환경 파일 매핑
 

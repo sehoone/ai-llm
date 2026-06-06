@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.llmresource.api;
+package com.sehoon.platform.llmresource.api;
 
 import com.sehoon.platform.common.dto.ApiResponse;
 import com.sehoon.platform.llmresource.dto.ChatModelResponse;

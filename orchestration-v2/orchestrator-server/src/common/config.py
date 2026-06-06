@@ -179,23 +179,6 @@ class Settings:
         self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10"))
         self.JWT_REFRESH_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_MINUTES", "10080"))
 
-        # Auth mode — "keycloak" (RS256, JWKS) | "jwt" (HS256, shared secret)
-        # 환경변수가 없으면 APP_ENV로 자동 결정: development → jwt, 그 외 → keycloak
-        _default_auth_mode = (
-            "jwt"
-            if _CURRENT_ENV in (Environment.DEVELOPMENT, Environment.TEST)
-            else "keycloak"
-        )
-        self.AUTH_MODE: str = os.getenv("AUTH_MODE", _default_auth_mode)
-
-        # Keycloak (AUTH_MODE=keycloak일 때 사용)
-        self.KEYCLOAK_URL: str = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
-        self.KEYCLOAK_REALM: str = os.getenv("KEYCLOAK_REALM", "llm-platform")
-        self.KEYCLOAK_CLIENT_ID: str = os.getenv("KEYCLOAK_CLIENT_ID", "orchestrator-app")
-        self.KEYCLOAK_CLIENT_SECRET: str = os.getenv("KEYCLOAK_CLIENT_SECRET", "")
-        self.KEYCLOAK_TOKEN_AUDIENCE: str = os.getenv("KEYCLOAK_TOKEN_AUDIENCE", "")
-        self.KEYCLOAK_JWKS_CACHE_TTL: int = int(os.getenv("KEYCLOAK_JWKS_CACHE_TTL", "3600"))
-
         # File uploads
         self.UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
 
@@ -261,14 +244,6 @@ class Settings:
     def langfuse_is_enabled(self) -> bool:
         """Return True when Langfuse credentials are present and the feature is enabled."""
         return self.LANGFUSE_ENABLED and bool(self.LANGFUSE_PUBLIC_KEY) and bool(self.LANGFUSE_SECRET_KEY)
-
-    @property
-    def keycloak_jwks_url(self) -> str:
-        return f"{self.KEYCLOAK_URL}/realms/{self.KEYCLOAK_REALM}/protocol/openid-connect/certs"
-
-    @property
-    def keycloak_issuer(self) -> str:
-        return f"{self.KEYCLOAK_URL}/realms/{self.KEYCLOAK_REALM}"
 
 
 # Backward-compatible exports

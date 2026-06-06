@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.user.domain;
+package com.sehoon.platform.user.domain;
 
 public enum UserRole {
     SUPERADMIN,

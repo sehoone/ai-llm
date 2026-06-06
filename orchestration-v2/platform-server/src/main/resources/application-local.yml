@@ -1,6 +1,3 @@
-﻿auth:
-  mode: jwt  # 로컬: 공유 비밀키 HS256
-
 spring:
   jpa:
     hibernate:

@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.auth.dto;
+package com.sehoon.platform.auth.dto;
 
 import com.sehoon.platform.auth.domain.ApiKey;
 

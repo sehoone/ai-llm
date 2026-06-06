@@ -1,4 +1,4 @@
-﻿package com.sehoon.platform.user.dto;
+package com.sehoon.platform.user.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
