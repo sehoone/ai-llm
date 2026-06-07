@@ -139,8 +139,14 @@ Entry points: `get_response()` / `get_stream_response()`. Stream yields per-toke
 
 Each chatbot has an isolated knowledge base identified by `rag_key`. Upload → chunk (500 chars, 100 overlap) → embed (`text-embedding-3-small`, 1536-dim) → store in `rag_embedding` (pgvector cosine similarity).
 
-- `rag_type`: `"user_isolated"` (per-user) or `"chatbot_shared"` (shared)
+- `rag_type`: `"user_isolated"` (per-user), `"chatbot_shared"` (shared), or `"natural_search"` (open knowledge base)
 - `rag_group`: groups multiple `rag_key`s for batch retrieval across knowledge bases
+
+**Enhanced search** (`/rag/enhanced-search`, `/rag/enhanced-search-group`): pipeline is HyDE → Multi-Query expansion → parallel embedding search → RRF merge → rerank. Returns `rrf_score` alongside `similarity`. Falls back to basic search on any LLM failure.
+
+**Natural language search** (`/rag/natural-language-search`): retrieves chunks then streams an LLM-generated summary answer via NDJSON. Accepts `model`, `system_prompt`, `rag_key`/`rag_group` params.
+
+**QueryTransformer** (`src/rag/services/query_transformer.py`): `hyde_transform()` generates a hypothetical answer document to close the query-document embedding gap; `multi_query_expand()` rephrases the query N ways (default 2) to cover vocabulary variation. Both run concurrently via `generate_all()`. Uses `gpt-5-nano` and falls back to the original query on failure.
 
 ### Agent System (`src/agent/`)
 

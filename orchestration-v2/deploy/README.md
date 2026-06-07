@@ -71,15 +71,15 @@ Langfuse v3 내부 연결
 
 ### 1. 환경변수 파일 준비
 
-#### API 서버 (orchestration)
+#### API 서버 (orchestrator-server)
 
 staging 환경:
 
 ```bash
-cp orchestration/.env.example orchestration/.env.staging
+cp orchestrator-server/.env.example orchestrator-server/.env.staging
 ```
 
-`orchestration/.env.staging` 주요 항목 편집:
+`orchestrator-server/.env.staging` 주요 항목 편집:
 
 ```env
 APP_ENV=staging
@@ -155,7 +155,23 @@ NEXT_PUBLIC_WS_URL=ws://<서버IP>:8060/api/v1/voice-evaluation/ws/conversation
 ./deploy/deploy.sh production
 ```
 
-### 3. Langfuse MinIO 버킷 초기화 (최초 1회)
+### 3. 시드 데이터 적용 (최초 1회)
+
+DB 볼륨이 처음 생성된 경우, 기본 계정과 LLM 리소스를 삽입합니다.
+
+```bash
+docker exec -i db psql -U postgres -d mydb < deploy/postgres/seed.sql
+```
+
+> **기본 계정** (비밀번호 반드시 변경):
+> - `superadmin@example.com` / `admin1234!`
+> - `admin@example.com` / `admin1234!`
+> - `user1@example.com` / `user1234!`
+>
+> **LLM 리소스** (`llm_resource` 테이블): GPT-4o, GPT-4o-mini, text-embedding-3-small 가 `REPLACE_WITH_OPENAI_API_KEY` 플레이스홀더로 삽입됩니다.
+> 실제 API 키는 seed.sql 실행 전에 파일을 편집하거나, 실행 후 관리 UI에서 직접 수정하세요.
+
+### 4. Langfuse MinIO 버킷 초기화 (최초 1회)
 
 **최초 배포 시에만** 아래 명령으로 MinIO 버킷을 생성합니다.
 
@@ -168,7 +184,7 @@ docker exec minio mc mb local/langfuse-exports
 
 > 재배포(코드 변경) 시에는 볼륨이 유지되므로 이 단계를 건너뜁니다.
 
-### 4. 접근 주소 확인
+### 5. 접근 주소 확인
 
 빌드 및 컨테이너 기동 완료 후:
 
@@ -186,7 +202,7 @@ docker exec minio mc mb local/langfuse-exports
 
 ```bash
 cd deploy
-APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --build app
+APP_ENV=staging docker compose --env-file ../orchestrator-server/.env.staging up -d --build app
 ```
 
 #### Grafana 초기 로그인
@@ -254,8 +270,8 @@ docker compose ps
 
 # 특정 서비스만 재빌드
 cd deploy
-APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --build app
-APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --build llm-admin
+APP_ENV=staging docker compose --env-file ../orchestrator-server/.env.staging up -d --build app
+APP_ENV=staging docker compose --env-file ../orchestrator-server/.env.staging up -d --build llm-admin
 ```
 
 ---
@@ -269,6 +285,46 @@ APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --
 
 ```bash
 docker compose logs app --tail=20
+```
+
+### LangGraph 채팅 상태가 저장되지 않음 (`relation "checkpoints" does not exist`)
+
+`deploy/postgres/init.sql`에 LangGraph 체크포인터 테이블이 포함되어 있습니다.
+DB 볼륨이 `init.sql` 추가 이전에 생성된 경우 테이블이 없을 수 있습니다.
+
+```bash
+docker exec -i db psql -U postgres -d mydb << 'EOF'
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_migrations (v INTEGER PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS llmonl.checkpoints (
+    thread_id TEXT NOT NULL, checkpoint_ns TEXT NOT NULL DEFAULT '',
+    checkpoint_id TEXT NOT NULL, parent_checkpoint_id TEXT,
+    type TEXT, checkpoint JSONB NOT NULL, metadata JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+);
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_blobs (
+    thread_id TEXT NOT NULL, checkpoint_ns TEXT NOT NULL DEFAULT '',
+    channel TEXT NOT NULL, version TEXT NOT NULL, type TEXT NOT NULL, blob BYTEA,
+    PRIMARY KEY (thread_id, checkpoint_ns, channel, version)
+);
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_writes (
+    thread_id TEXT NOT NULL, checkpoint_ns TEXT NOT NULL DEFAULT '',
+    checkpoint_id TEXT NOT NULL, task_id TEXT NOT NULL, idx INTEGER NOT NULL,
+    channel TEXT NOT NULL, type TEXT, blob BYTEA NOT NULL,
+    task_path TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
+);
+CREATE INDEX IF NOT EXISTS checkpoints_thread_id_idx ON llmonl.checkpoints(thread_id);
+CREATE INDEX IF NOT EXISTS checkpoint_blobs_thread_id_idx ON llmonl.checkpoint_blobs(thread_id);
+CREATE INDEX IF NOT EXISTS checkpoint_writes_thread_id_idx ON llmonl.checkpoint_writes(thread_id);
+INSERT INTO llmonl.checkpoint_migrations(v)
+SELECT s.v FROM generate_series(0,9) AS s(v) ON CONFLICT(v) DO NOTHING;
+EOF
+```
+
+테이블 생성 후 `app` 컨테이너를 재시작합니다:
+
+```bash
+docker compose restart app
 ```
 
 ### DB 연결 실패

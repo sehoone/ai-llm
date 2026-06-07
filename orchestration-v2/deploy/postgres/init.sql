@@ -306,3 +306,53 @@ CREATE TABLE IF NOT EXISTS llmonl.workflow_endpoint (
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_workflow_id ON llmonl.workflow_endpoint (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_user_id     ON llmonl.workflow_endpoint (user_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_path        ON llmonl.workflow_endpoint (path);
+
+-- ─────────────────────────────────────────────────────────────
+-- LangGraph PostgreSQL 체크포인터 테이블
+-- (AsyncPostgresSaver가 search_path=llmonl,public으로 연결하므로
+--  setup() 없이 사용하려면 여기서 미리 생성해야 함)
+-- ─────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_migrations (
+    v INTEGER PRIMARY KEY
+);
+
+-- 노드별 전체 상태 스냅샷
+CREATE TABLE IF NOT EXISTS llmonl.checkpoints (
+    thread_id            TEXT NOT NULL,
+    checkpoint_ns        TEXT NOT NULL DEFAULT '',
+    checkpoint_id        TEXT NOT NULL,
+    parent_checkpoint_id TEXT,
+    type                 TEXT,
+    checkpoint           JSONB NOT NULL,
+    metadata             JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+);
+CREATE INDEX IF NOT EXISTS checkpoints_thread_id_idx ON llmonl.checkpoints (thread_id);
+
+-- 상태 직렬화 데이터 (채널 값 blob)
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_blobs (
+    thread_id     TEXT  NOT NULL,
+    checkpoint_ns TEXT  NOT NULL DEFAULT '',
+    channel       TEXT  NOT NULL,
+    version       TEXT  NOT NULL,
+    type          TEXT  NOT NULL,
+    blob          BYTEA,
+    PRIMARY KEY (thread_id, checkpoint_ns, channel, version)
+);
+CREATE INDEX IF NOT EXISTS checkpoint_blobs_thread_id_idx ON llmonl.checkpoint_blobs (thread_id);
+
+-- 노드 중간 쓰기 (내결함성용)
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_writes (
+    thread_id     TEXT    NOT NULL,
+    checkpoint_ns TEXT    NOT NULL DEFAULT '',
+    checkpoint_id TEXT    NOT NULL,
+    task_id       TEXT    NOT NULL,
+    idx           INTEGER NOT NULL,
+    channel       TEXT    NOT NULL,
+    type          TEXT,
+    blob          BYTEA   NOT NULL,
+    task_path     TEXT    NOT NULL DEFAULT '',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
+);
+CREATE INDEX IF NOT EXISTS checkpoint_writes_thread_id_idx ON llmonl.checkpoint_writes (thread_id);

@@ -103,6 +103,8 @@ async def chat(
 
         logger.info("chat_request_processed", session_id=session.id)
         return ChatResponse(messages=result)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("chat_request_failed", session_id=chat_request.session_id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -308,6 +310,8 @@ async def chat_stream(
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("stream_chat_request_failed", session_id=chat_request.session_id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -357,6 +361,8 @@ async def get_session_messages(
             messages.append(Message(role="assistant", content=msg.answer))
 
         return ChatResponse(messages=messages)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("get_messages_failed", session_id=session_id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -383,6 +389,8 @@ async def clear_chat_history(
         await agent.clear_chat_history(session.id)
         await database_service.delete_chat_messages(session.id)
         return {"message": "Chat history cleared successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("clear_chat_history_failed", session_id=session_id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
