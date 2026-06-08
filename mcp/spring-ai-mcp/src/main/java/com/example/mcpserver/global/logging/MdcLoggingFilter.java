@@ -10,7 +10,6 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -38,10 +37,9 @@ public class MdcLoggingFilter extends OncePerRequestFilter {
             log.info("[REQUEST]  {} {} from={}", request.getMethod(), request.getRequestURI(), MDC.get("clientIp"));
             chain.doFilter(request, response);
         } finally {
-            // Spring Security가 JWT를 인증한 뒤 SecurityContext에서 sub(client ID)를 꺼내 MDC에 추가
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth instanceof JwtAuthenticationToken jwtAuth) {
-                MDC.put("clientId", jwtAuth.getToken().getSubject());
+            if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof String clientName) {
+                MDC.put("clientId", clientName);
             }
             log.info("[RESPONSE] status={} elapsed={}ms", response.getStatus(), System.currentTimeMillis() - start);
             MDC.clear();

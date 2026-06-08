@@ -1,9 +1,0 @@
-# 테스트 프로파일: Keycloak 없이 컨텍스트 로드 가능하도록 OIDC discovery를 비활성화
-# jwk-set-uri만 설정하면 startup 시 HTTP 호출 없이 NimbusJwtDecoder를 생성한다.
-# JWK 엔드포인트는 실제 JWT가 제출될 때만 호출되므로 contextLoads 테스트에서는 호출되지 않는다.
-spring:
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: http://localhost:0/certs

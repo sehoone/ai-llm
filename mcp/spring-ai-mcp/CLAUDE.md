@@ -11,6 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # 실행 (Streamable HTTP, 포트 8080) — local 프로파일은 localhost PostgreSQL 사용
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
+# JWT 시크릿키를 함께 설정할 경우
+JWT_SECRET=<base64-secret> SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
+
 # JAR 빌드
 ./gradlew bootJar
 
@@ -21,11 +24,16 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ./gradlew test --tests "com.example.mcpserver.McpServerApplicationTests"
 ```
 
-**로컬 실행 전제 조건:** `local` 프로파일은 `localhost:5432/sample_db`에 PostgreSQL이 필요하다. `deploy/dev`로 docker-compose를 쓰거나 직접 띄운 뒤 `deploy/initdb/init.sql`로 테이블을 초기화한다.
+**Windows PowerShell:** 환경변수 인라인 설정 문법이 다르다.
+```powershell
+$env:JWT_SECRET="<base64-secret>"; $env:SPRING_PROFILES_ACTIVE="local"; ./gradlew bootRun
+```
 
-**Windows Testcontainers:** Docker Desktop 29.x는 `docker_cli` named pipe를 사용한다. build.gradle이 자동으로 `npipe:////./pipe/docker_cli`를 주입하지만 Docker Desktop이 실행 중이지 않으면 테스트가 자동 skip된다.
+**로컬 실행 전제 조건:** `local` 프로파일은 `localhost:5432/sample_db`에 PostgreSQL이 필요하다. `deploy/dev`로 docker-compose를 쓰거나 직접 띄운 뒤 `deploy/initdb/init.sql`로 테이블을 초기화한다. `application-local.yml`에 로컬 개발용 JWT 시크릿키가 하드코딩되어 있으므로 로컬에서는 `JWT_SECRET` 환경변수가 없어도 기동된다.
 
-**테스트 프로파일:** `src/main/resources/application-test.yml`이 `spring.security.oauth2.resourceserver.jwt.jwk-set-uri`를 가짜 URL로 덮어써서 Keycloak 없이 컨텍스트 로드 테스트가 가능하다.
+**Windows Testcontainers:** Docker Desktop 29.x는 `docker_cli` named pipe를 사용한다. build.gradle이 자동으로 `npipe:////./pipe/docker_cli`를 주입하지만 Docker Desktop이 실행 중이지 않으면 테스트가 자동 skip된다 (`failOnNoDiscoveredTests = false`).
+
+**테스트 프로파일:** `src/test/resources/application-test.yml`이 `ddl-auto: none`으로 덮어써서 Testcontainers로 뜬 빈 PostgreSQL에 DDL 검증 없이 컨텍스트 로드 테스트가 가능하다.
 
 ## Architecture
 
@@ -69,61 +77,59 @@ public List<McpServerFeatures.SyncResourceSpecification> myResources() { ... }
 
 Tool에서 예외를 던지면 MCP 오류로 전달된다. 입력 검증 오류는 예외 대신 오류 문자열을 반환하는 패턴(`sampleValidateAge`)도 있다.
 
+`SampleTool`은 `app.todo.base-url` 설정값이 필요하다 (`application-local.yml`에 기본값 `https://jsonplaceholder.typicode.com` 정의).
+
 ### DB 레이어
 
-대상 테이블: `sample_item (id, name, description, price)`. DDL: `src/main/resources/sql/sample_schema.sql` (docker-compose는 `deploy/initdb/init.sql`로 PostgreSQL 최초 기동 시 자동 실행).
+대상 테이블: `sample_item (id, name, description, price)`. DDL: `deploy/initdb/init.sql` (docker-compose는 PostgreSQL 최초 기동 시 자동 실행).
 
 - **MyBatis**: `SampleItemMapper.java` + `src/main/resources/mapper/SampleItemMapper.xml`. 복잡한 쿼리·동적 SQL에 사용.
 - **JPA**: `SampleItemRepository.java` (Spring Data). 단순 CRUD에 사용.
 
 프로파일별 `ddl-auto`: `local`/`dev`/`stg` → `validate`, `prod` → `none`.
 
-### 보안 — 인증 모드 (`AUTH_MODE`)
+### 보안 — JWT 인증
 
-환경변수 `AUTH_MODE`로 인증 방식을 선택한다 (기본값: `keycloak`). `@ConditionalOnProperty`로 두 모드의 `SecurityFilterChain`이 상호 배타적으로 활성화된다.
+외부에서 발급한 HMAC-SHA256 서명 JWT를 검증한다. `SecurityConfig`가 단일 `SecurityFilterChain`을 구성한다.
 
-| `AUTH_MODE` | 활성 클래스 | 토큰 발급 | 토큰 검증 |
-|---|---|---|---|
-| `keycloak` (기본) | `KeycloakSecurityConfig` | Keycloak Client Credentials | Keycloak JWKS |
-| `local` | `local.LocalSecurityConfig` | `POST /auth/token` | HMAC-SHA256 (HS256) |
-
-공통 필터 순서:
 ```
 ForwardedHeaderFilter (HIGHEST_PRECEDENCE)
-  → MdcLoggingFilter (+1): requestId·clientIp·JWT sub(clientId) → MDC
+  → MdcLoggingFilter (+1): requestId·clientIp·clientName → MDC
   → RateLimitFilter (+2): IP당 60 req/min → 429
-  → BearerTokenAuthenticationFilter: JWT 서명 검증 → JwtAuthConverter
+  → JwtAuthFilter: Authorization: Bearer <JWT> 서명 검증 → SecurityContext
 ```
 
-#### Keycloak 모드
+#### JWT 형식
 
-```bash
-# dev docker-compose 환경 — Keycloak 포트 9191
-TOKEN=$(curl -s -X POST http://localhost:9191/realms/mcp/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=mcp-client&client_secret=dev-secret-change-me&grant_type=client_credentials" \
-  | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+```json
+{
+  "sub": "agent-name",
+  "roles": ["mcp-user"],
+  "iat": 1749123456,
+  "exp": 1749127056
+}
 ```
 
-- `KEYCLOAK_ISSUER_URI`: JWT `iss` 클레임 검증값 (기본: `http://localhost:9090/realms/mcp`)
-- Docker 내부 URL 불일치 시 `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`로 JWKS URI를 별도 지정 (이때 `issuer-uri`는 OIDC discovery 없이 문자열 비교만 수행)
-- JWT 클레임: `realm_access.roles` + `resource_access.<client-id>.roles` → `ROLE_MCP_USER`
+- `sub`: SecurityContext의 principal (clientName)
+- `roles`: `ROLE_MCP_USER` 등 권한으로 변환 (`-` → `_`, 대문자)
+- 서명 알고리즘: HS256 (HMAC-SHA256)
+- 토큰 발급은 MCP 서버 외부에서 수행. 서버는 검증만 한다.
 
-#### Local 모드
+#### 환경변수
 
-```bash
-# 토큰 발급
-curl -X POST http://localhost:8080/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"username":"mcp-client","password":"my-password"}'
-# → { "access_token": "...", "token_type": "Bearer", "expires_in": 3600 }
-```
+| 변수 | 필수 | 설명 |
+|---|---|---|
+| `JWT_SECRET` | 필수 | HMAC-SHA256 서명 검증용 시크릿키 (Base64, 256비트 이상). `openssl rand -base64 32`로 생성. |
 
-필수 환경변수:
-- `LOCAL_JWT_SECRET`: 최소 32자 (미달 시 `@PostConstruct`에서 즉시 실패)
-- `LOCAL_AUTH_PASSWORD`: `{noop}평문` (개발) 또는 `{bcrypt}$2a$10$...` (운영)
+`local` 프로파일은 `application-local.yml`의 하드코딩된 개발용 키를 사용하므로 환경변수 불필요.
 
-JWT 클레임: `{ "iss": "spring-ai-mcp-local", "sub": username, "roles": [...] }`
+#### 구현 파일
+
+| 파일 | 역할 |
+|------|------|
+| `global/security/jwt/JwtProperties.java` | `app.auth.jwt.secret` 바인딩 |
+| `global/security/jwt/JwtAuthFilter.java` | Bearer 토큰 추출 → jjwt 검증 → SecurityContext 설정 |
+| `global/security/SecurityConfig.java` | FilterChain 구성, public path 설정 |
 
 ### 로깅
 
@@ -135,7 +141,6 @@ JWT 클레임: `{ "iss": "spring-ai-mcp-local", "sub": username, "roles": [...] 
 |------|------|
 | 8080 | MCP 엔드포인트 (`POST /mcp`), 앱 트래픽 |
 | 8081 | Actuator (`/actuator/health`, `/actuator/prometheus`) — `dev`/`stg`/`prod` 프로파일 |
-| 9191 | Keycloak (dev docker-compose) |
 
 ### Streamable HTTP 엔드포인트
 
@@ -150,7 +155,7 @@ JWT 클레임: `{ "iss": "spring-ai-mcp-local", "sub": username, "roles": [...] 
 # MCP Inspector 사용
 npx @modelcontextprotocol/inspector
 # Transport: Streamable HTTP | URL: http://localhost:8080/mcp
-# Header: Authorization: Bearer <token>
+# Header: Authorization: Bearer <JWT>
 ```
 
 ### Claude Desktop 연동 (stdio 모드)
@@ -169,4 +174,31 @@ npx @modelcontextprotocol/inspector
 
 ### 배포
 
-`deploy/Dockerfile`이 빌드 이미지 정의. 환경별 docker-compose는 `deploy/{dev,stg,prod}/docker-compose.yml`에 위치하며 `context: ../..`(프로젝트 루트)로 빌드한다. dev 환경은 Keycloak 컨테이너를 포함한다. 상세 환경변수 목록은 `deploy/README.md` 참고.
+`deploy/Dockerfile`이 빌드 이미지 정의. 환경별 docker-compose는 `deploy/{dev,stg,prod}/docker-compose.yml`에 위치하며 `context: ../..`(프로젝트 루트)로 빌드한다.
+
+#### PostgreSQL 배포 모드
+
+각 환경의 docker-compose는 `profiles: [db]`로 PostgreSQL을 선택적으로 포함한다.
+
+```bash
+# 내장 PostgreSQL 포함 기동 (개발/테스트용)
+docker compose --profile db up -d --build
+
+# 외부 PostgreSQL 사용 (운영 권장) — .env의 DB_URL을 외부 주소로 설정
+docker compose up -d --build
+```
+
+상세 환경변수 목록 및 외부 DB 설정 방법은 `deploy/README.md` 참고.
+
+#### 모니터링 스택
+
+`deploy/monitor/`에 Prometheus + Grafana + Loki + Promtail compose가 별도로 있다. dev 또는 prod가 먼저 기동된 상태(Docker 네트워크 생성 필요)에서 실행한다.
+
+```bash
+cd deploy/monitor
+cp .env.example .env   # APP_NETWORK=spring-ai-mcp-net (stg: spring-ai-mcp-stg-net)
+docker compose up -d
+```
+
+접속: Grafana `http://localhost:3000`, Prometheus `http://localhost:9090`  
+Spring Boot 대시보드: Dashboards → Import → ID `19004` → Datasource: Prometheus

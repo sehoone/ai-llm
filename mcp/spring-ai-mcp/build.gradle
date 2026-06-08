@@ -33,9 +33,13 @@ dependencies {
     // Spring AI MCP Server (SSE/WebMVC transport)
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 
-    // Spring Security + OAuth2 Resource Server (Keycloak JWT 인증)
+    // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
+    // JWT 검증
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
     // Actuator (헬스체크 + Prometheus 메트릭)
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -61,4 +65,12 @@ dependencies {
 
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // Docker Desktop 29.x on Windows uses docker_cli named pipe
+    systemProperty 'DOCKER_HOST', 'npipe:////./pipe/docker_cli'
+    // @Testcontainers(disabledWithoutDocker=true) skips all tests when Docker is absent
+    failOnNoDiscoveredTests = false
 }

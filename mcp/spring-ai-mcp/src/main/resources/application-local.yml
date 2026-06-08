@@ -21,14 +21,8 @@ management:
 app:
   todo:
     base-url: https://jsonplaceholder.typicode.com
-
-# local 모드 샘플 (AUTH_MODE=local 로 실행할 때 참고)
-# AUTH_MODE=local 환경변수 설정 시 아래 값들이 적용됨
-# app:
-#   auth:
-#     local:
-#       jwt-secret: local-dev-secret-at-least-32-chars!
-#       users:
-#         - username: mcp-client
-#           password: "{noop}local-dev-password"
-#           roles: [mcp-user]
+  auth:
+    jwt:
+      # 로컬 개발용 시크릿키 — 운영 환경에서는 JWT_SECRET 환경변수로 교체
+      # 256비트(32바이트) Base64: openssl rand -base64 32
+      secret: bG9jYWwtZGV2LXNlY3JldC1rZXktMzItYnl0ZXMhISE=
