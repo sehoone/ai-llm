@@ -13,7 +13,8 @@ deploy/
 │   └── .env              ← cp .env.example .env 후 수정
 ├── stg/
 │   ├── docker-compose.yml
-│   └── .env.example
+│   ├── .env.example
+│   └── .env
 ├── prod/
 │   ├── docker-compose.yml
 │   └── .env.example

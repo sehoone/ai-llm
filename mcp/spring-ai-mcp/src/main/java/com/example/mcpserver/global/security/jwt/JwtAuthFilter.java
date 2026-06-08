@@ -1,5 +1,16 @@
 package com.example.mcpserver.global.security.jwt;
 
+import java.io.IOException;
+import java.util.Base64;
+import java.util.List;
+
+import javax.crypto.SecretKey;
+
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -9,15 +20,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.filter.OncePerRequestFilter;
-
-import javax.crypto.SecretKey;
-import java.io.IOException;
-import java.util.Base64;
-import java.util.List;
 
 @Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -49,7 +51,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             String clientName = claims.getSubject();
             Object rawRoles = claims.get("roles");
-            @SuppressWarnings("unchecked")
             List<String> roles = (rawRoles instanceof List<?> list)
                     ? list.stream().map(Object::toString).toList()
                     : List.of();

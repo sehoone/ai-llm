@@ -14,4 +14,10 @@ public interface SampleItemMapper {
     SampleItem findById(@Param("id") Long id);
 
     List<SampleItem> findByName(@Param("name") String name, @Param("limit") int limit);
+
+    int insert(SampleItem item);
+
+    int update(SampleItem item);
+
+    int deleteById(@Param("id") Long id);
 }
