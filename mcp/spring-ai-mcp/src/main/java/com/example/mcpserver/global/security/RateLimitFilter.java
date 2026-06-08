@@ -1,5 +1,6 @@
 package com.example.mcpserver.global.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -19,9 +21,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final int MAX_REQUESTS = 60;
     private static final long WINDOW_MS = 60_000L;
+    // 고유 IP 수를 제한해 OOM 방지: 한계 초과 시 해당 IP는 레이트 리밋 없이 통과
+    private static final int MAX_BUCKET_ENTRIES = 100_000;
 
     // [requestCount, windowStartMs]
     private final ConcurrentHashMap<String, long[]> buckets = new ConcurrentHashMap<>();
+    private final ObjectMapper objectMapper;
+
+    public RateLimitFilter(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Scheduled(fixedDelay = 300_000)
     void cleanup() {
@@ -35,7 +44,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         String ip = request.getRemoteAddr();
         long now = System.currentTimeMillis();
-        long[] bucket = buckets.computeIfAbsent(ip, k -> new long[]{0L, now});
+        long[] bucket = buckets.computeIfAbsent(ip, k ->
+                buckets.size() < MAX_BUCKET_ENTRIES ? new long[]{0L, now} : null
+        );
+
+        if (bucket == null) {
+            // 추적 대상 IP 한계 초과 — 버킷 없이 통과
+            chain.doFilter(request, response);
+            return;
+        }
 
         boolean allowed;
         synchronized (bucket) {
@@ -56,7 +73,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         } else {
             response.setStatus(429);
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"error\":\"Too Many Requests\"}");
+            objectMapper.writeValue(response.getWriter(), Map.of("error", "Too Many Requests"));
         }
     }
 }

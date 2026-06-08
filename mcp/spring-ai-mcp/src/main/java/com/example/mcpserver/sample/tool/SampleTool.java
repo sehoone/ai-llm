@@ -115,7 +115,7 @@ public class SampleTool {
                     .body(SampleTodo.class);
         } catch (Exception e) {
             log.error("sampleGetTodo failed: errorType={}", e.getClass().getSimpleName());
-            throw new RuntimeException("Failed to fetch todo with id=" + id);
+            throw new RuntimeException("Failed to fetch todo with id=" + id, e);
         }
     }
 

@@ -2,6 +2,7 @@ package com.example.mcpserver.global.security;
 
 import com.example.mcpserver.global.security.jwt.JwtAuthFilter;
 import com.example.mcpserver.global.security.jwt.JwtProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,23 +13,27 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.util.Map;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    // /actuator/prometheus는 인증 필요 — Prometheus 서버의 JWT로 접근
     private static final String[] PUBLIC_PATHS = {
-            "/actuator/health", "/actuator/info", "/actuator/prometheus"
+            "/actuator/health", "/actuator/info"
     };
 
     @Bean
-    public JwtAuthFilter jwtAuthFilter(JwtProperties props) {
-        return new JwtAuthFilter(props);
+    public JwtAuthFilter jwtAuthFilter(JwtProperties props, ObjectMapper objectMapper) {
+        return new JwtAuthFilter(props, objectMapper);
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                    JwtAuthFilter jwtAuthFilter) throws Exception {
+                                                    JwtAuthFilter jwtAuthFilter,
+                                                    ObjectMapper objectMapper) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -41,12 +46,12 @@ public class SecurityConfig {
                         .authenticationEntryPoint((req, res, e) -> {
                             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             res.setContentType("application/json;charset=UTF-8");
-                            res.getWriter().write("{\"error\":\"Unauthorized\"}");
+                            objectMapper.writeValue(res.getWriter(), Map.of("error", "Unauthorized"));
                         })
                         .accessDeniedHandler((req, res, e) -> {
                             res.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             res.setContentType("application/json;charset=UTF-8");
-                            res.getWriter().write("{\"error\":\"Forbidden\"}");
+                            objectMapper.writeValue(res.getWriter(), Map.of("error", "Forbidden"));
                         })
                 );
         return http.build();

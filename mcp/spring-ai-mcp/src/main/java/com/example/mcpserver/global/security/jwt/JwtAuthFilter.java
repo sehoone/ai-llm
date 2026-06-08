@@ -1,8 +1,11 @@
 package com.example.mcpserver.global.security.jwt;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import javax.crypto.SecretKey;
 
@@ -27,9 +30,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final SecretKey signingKey;
+    private final ObjectMapper objectMapper;
 
-    public JwtAuthFilter(JwtProperties props) {
+    public JwtAuthFilter(JwtProperties props, ObjectMapper objectMapper) {
         this.signingKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(props.getSecret()));
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -68,7 +73,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             log.warn("[JWT] invalid token: {}", e.getMessage());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"error\":\"Unauthorized\"}");
+            objectMapper.writeValue(response.getWriter(), Map.of("error", "Unauthorized"));
             return;
         }
 
