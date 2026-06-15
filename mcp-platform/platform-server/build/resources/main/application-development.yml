@@ -1,0 +1,12 @@
+auth:
+  mode: jwt  # 개발: 공유 비밀키 HS256
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    com.sehoon.platform: DEBUG
+    org.springframework.security: INFO

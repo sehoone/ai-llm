@@ -1,0 +1,17 @@
+services:
+  llm-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 빌드 시 사용할 환경 변수 파일 지정 (기본값: .env.production)
+        ENV_FILE: .env.production
+    container_name: llm-admin
+    restart: always
+    ports:
+      - "8062:3000"
+    environment:
+      - NODE_ENV=production
+    # 환경 변수 파일이 있다면 아래 주석을 해제하고 사용하세요
+    # env_file:
+    #   - .env

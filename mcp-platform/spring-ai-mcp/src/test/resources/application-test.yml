@@ -1,0 +1,12 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+
+app:
+  todo:
+    base-url: https://jsonplaceholder.typicode.com
+  auth:
+    jwt:
+      secret: dGVzdC1zZWNyZXQta2V5LWZvci11bml0LXRlc3RzLTMyYg==

@@ -1,0 +1,165 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import axios from 'axios';
+import { useAuthStore } from '@/stores/auth-store';
+import { toast } from 'sonner';
+
+const api = axios.create({
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL || ''}/api/`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+interface FailedRequest {
+  resolve: (value: unknown) => void;
+  reject: (reason?: any) => void;
+}
+
+const REFRESH_TIMEOUT_MS = 10_000;
+
+let isRefreshing = false;
+let failedQueue: FailedRequest[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+
+  failedQueue = [];
+};
+
+function isTokenExpired() {
+  const expiresAt = useAuthStore.getState().auth.expiresAt;
+  if (!expiresAt) return false; // If no expiration time is set, assume it's valid or rely on 401
+  
+  // Convert ISO string to timestamp
+  const expirationTime = new Date(expiresAt).getTime();
+  // 2s buffer
+  return Date.now() >= expirationTime - 2000;
+}
+
+const refreshAccessToken = async () => {
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('Token refresh timed out')),
+        REFRESH_TIMEOUT_MS
+      );
+      const timeoutReject = (reason: unknown) => { clearTimeout(timer); reject(reason); };
+      const timeoutResolve = (value: unknown) => { clearTimeout(timer); resolve(value); };
+      failedQueue.push({ resolve: timeoutResolve, reject: timeoutReject });
+    });
+  }
+
+  isRefreshing = true;
+
+  try {
+    const { refreshToken, setAccessToken, setRefreshToken, setExpiresAt } =
+      useAuthStore.getState().auth;
+
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    // Call refresh endpoint with timeout to prevent indefinite hang
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+    const response = await axios
+      .post('/api/v1/auth/refresh', { refreshToken }, { signal: controller.signal })
+      .finally(() => clearTimeout(timeoutId));
+
+    // platform-server는 ApiResponse<T> 래퍼로 감싸므로 수동 unwrap
+    const payload = response.data?.success !== undefined ? response.data.data : response.data;
+    const { accessToken, refreshToken: newRefreshToken, expiresIn } = payload;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    setAccessToken(accessToken);
+    if (newRefreshToken) {
+      setRefreshToken(newRefreshToken);
+    }
+    setExpiresAt(expiresAt);
+
+    // Process queued requests with the new token
+    processQueue(null, accessToken);
+
+    return accessToken;
+  } catch (refreshError) {
+    // Process queued requests with error
+    processQueue(refreshError, null);
+
+    // Refresh failed, logout
+    useAuthStore.getState().auth.reset();
+
+    // Show notification and redirect
+    if (typeof window !== 'undefined') {
+      toast.error('인증 정보가 만료되었습니다. 다시 로그인해주세요.');
+      window.location.href = '/sign-in';
+    }
+
+    throw refreshError;
+  } finally {
+    isRefreshing = false;
+  }
+};
+
+// Add a request interceptor to include the auth token if available
+api.interceptors.request.use(
+  async (config) => {
+    let token = useAuthStore.getState().auth.accessToken;
+
+    if (token && isTokenExpired()) {
+      try {
+        token = (await refreshAccessToken()) as string;
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// platform-server의 ApiResponse<T> 래퍼 { success, data } 를 자동으로 unwrap
+// orchestrator 응답(래퍼 없음)에는 영향 없음
+api.interceptors.response.use(
+  (response) => {
+    if (
+      response.data &&
+      typeof response.data.success === 'boolean' &&
+      'data' in response.data
+    ) {
+      response.data = response.data.data;
+    }
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If error is 401 and we haven't tried to refresh yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const token = await refreshAccessToken();
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default api;

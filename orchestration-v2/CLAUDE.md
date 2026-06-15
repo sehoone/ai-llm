@@ -79,9 +79,9 @@ Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 ### orchestrator-server (`orchestrator-server/`)
 ```powershell
 cd orchestrator-server
-uv sync
+uv sync --group dev                # Install deps including poethepoet
 cp .env.example .env.development   # fill in secrets
-$env:APP_ENV='development'; uv run uvicorn src.main:app --reload --port 8000
+$env:APP_ENV='development'; uv run poe dev   # hot-reload on port 8000
 ```
 Swagger UI: `http://localhost:8000/docs`
 
@@ -145,6 +145,21 @@ APP_ENV=staging docker compose --env-file ../orchestration/.env.staging up -d --
 `deploy/postgres/init.sql`이 PostgreSQL 볼륨 최초 생성 시 자동 실행됩니다.
 `llmonl` 스키마 및 platform-server 테이블(users, api_key, refresh_token, llm_resource)을 생성하며,
 orchestrator-server 테이블은 SQLModel ORM이 기동 시 자동 생성합니다.
+초기 시드 데이터(관리자 계정 등)는 `deploy/postgres/seed.sql`을 수동 실행.
+
+### Kubernetes 배포 (이중화)
+
+`deploy/k8s/`에 HA 구성 매니페스트가 있습니다. 자세한 내용은 `deploy/k8s/README.md` 참고.
+
+```bash
+# 이미지 빌드 후 레지스트리 푸시, 그 뒤:
+cd deploy/k8s/scripts
+REGISTRY=your-registry.io/llm-platform TAG=v1.0 ./deploy.sh staging
+./logs.sh orchestrator staging
+./stop.sh staging
+```
+
+주요 이중화 구성: platform·orchestrator replicas:2 + HPA·PDB, CloudNativePG (primary+replica), Redis Sentinel, MinIO 4-pod distributed, Keycloak HA.
 
 ### MinIO 버킷 초기화 (최초 배포 1회)
 ```bash

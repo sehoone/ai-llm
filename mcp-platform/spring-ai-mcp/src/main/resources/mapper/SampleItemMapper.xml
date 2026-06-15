@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.mcpserver.sample.db.mapper.SampleItemMapper">
+
+    <select id="findAll" resultType="SampleItem">
+        SELECT id, name, description, price
+        FROM sample_item
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findById" parameterType="long" resultType="SampleItem">
+        SELECT id, name, description, price
+        FROM sample_item
+        WHERE id = #{id}
+    </select>
+
+    <!-- ILIKE: PostgreSQL 대소문자 무관 부분일치 -->
+    <select id="findByName" resultType="SampleItem">
+        SELECT id, name, description, price
+        FROM sample_item
+        WHERE name ILIKE '%' || #{name} || '%'
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insert" parameterType="SampleItem" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sample_item (name, description, price)
+        VALUES (#{name}, #{description}, #{price})
+    </insert>
+
+    <update id="update" parameterType="SampleItem">
+        UPDATE sample_item
+        SET name        = #{name},
+            description = #{description},
+            price       = #{price}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM sample_item
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sample_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  todo:
+    base-url: https://jsonplaceholder.typicode.com
+  auth:
+    # 로컬에서 platform-server가 기동 중인 주소 (기본 포트 8080)
+    platform-url: http://localhost:8080

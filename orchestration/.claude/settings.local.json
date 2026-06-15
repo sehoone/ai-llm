@@ -5,7 +5,27 @@
       "Bash(head:*)",
       "Bash(python:*)",
       "Bash(uv run python -c ':*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(mv \"01_basic_chat_agent\" \"_01_basic_chat_agent\")",
+      "Bash(mv \"02_deep_thinking\" \"_02_deep_thinking\")",
+      "Bash(mv \"03_llm_service\" \"_03_llm_service\")",
+      "Bash(mv \"04_rag_pipeline\" \"_04_rag_pipeline\")",
+      "Bash(mv \"05_fastapi_patterns\" \"_05_fastapi_patterns\")",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(ruff check *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\orchestration\\\\src\" -Recurse -Force)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "Bash(Get-ChildItem -Path \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\orchestration\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Select-String -Path \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\orchestration\\\\.venv\\\\Lib\\\\site-packages\\\\mem0\\\\memory\\\\storage.py\" -Pattern \"CREATE TABLE|history\")",
+      "Bash(Select-Object -First 30)",
+      "PowerShell(ruff check *)",
+      "PowerShell(uv run *)",
+      "Bash(cd /d D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\orchestration)",
+      "Bash(powershell -Command \"Get-ChildItem -Path src -Recurse -Filter '*.py' | Select-Object -ExpandProperty FullName | Measure-Object | Select-Object -ExpandProperty Count\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\dev\\\\vscodeWorkspace\\\\ai-llm-1\\\\orchestration\\\\src\" -Recurse -Filter \"*.py\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

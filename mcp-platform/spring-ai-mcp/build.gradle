@@ -1,0 +1,71 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:1.1.7"
+    }
+}
+
+dependencies {
+    // Spring AI MCP Server (SSE/WebMVC transport)
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+
+    // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Actuator (헬스체크 + Prometheus 메트릭)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // Database — PostgreSQL + MyBatis + JPA
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // AOP (공통 로깅)
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // JSON 구조화 로깅 (운영 환경)
+    implementation 'net.logstash.logback:logstash-logback-encoder:8.0'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // Docker Desktop 29.x on Windows uses docker_cli named pipe
+    systemProperty 'DOCKER_HOST', 'npipe:////./pipe/docker_cli'
+    // @Testcontainers(disabledWithoutDocker=true) skips all tests when Docker is absent
+    failOnNoDiscoveredTests = false
+}

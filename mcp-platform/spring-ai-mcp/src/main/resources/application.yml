@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: spring-ai-mcp-server
+
+  ai:
+    mcp:
+      server:
+        name: Spring AI MCP Server
+        version: 1.0.0
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.mcpserver.sample.db.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+app:
+  auth:
+    # platform-server URL — API 키 검증 요청을 보낼 대상
+    platform-url: ${PLATFORM_URL:http://localhost:8080}
+
+server:
+  forward-headers-strategy: FRAMEWORK
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

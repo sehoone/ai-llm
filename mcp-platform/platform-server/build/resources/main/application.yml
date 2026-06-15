@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: platform-server
+  profiles:
+    active: ${APP_ENV:local}
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:llm_db}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: platform-pool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-init-sql: "SET search_path TO ${POSTGRES_SCHEMA:llmonl},public"
+
+  jackson:
+    mapper:
+      accept-case-insensitive-enums: true   # admin-front가 소문자로 role 전송 ('admin' → UserRole.ADMIN)
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${POSTGRES_SCHEMA:llmonl}
+        format_sql: false
+    open-in-view: false
+
+jwt:
+  secret-key: ${JWT_SECRET_KEY}
+  access-token-expire-minutes: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:10}
+  refresh-token-expire-minutes: ${JWT_REFRESH_TOKEN_EXPIRE_MINUTES:10080}
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui/index.html
+    operations-sorter: method

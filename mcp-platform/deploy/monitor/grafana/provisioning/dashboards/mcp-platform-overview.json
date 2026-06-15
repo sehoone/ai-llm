@@ -1,0 +1,136 @@
+{
+  "uid": "mcp-platform-overview",
+  "title": "MCP Platform Overview",
+  "tags": ["mcp-platform"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": { "uid": "prometheus" },
+        "query": "label_values(up, service)",
+        "multi": true,
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "서비스 상태",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "targets": [
+        { "expr": "up{service=~\"platform|mcp\"}", "legendFormat": "{{service}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "HTTP 요청 수 (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        { "expr": "sum by (service) (rate(http_server_requests_seconds_count[1m]))", "legendFormat": "{{service}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP 5xx 에러율",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(http_server_requests_seconds_count{outcome=\"SERVER_ERROR\"}[5m])) / sum by (service) (rate(http_server_requests_seconds_count[5m]))",
+          "legendFormat": "{{service}} 에러율"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "HTTP 응답 시간 (p50 / p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (service,le) (rate(http_server_requests_seconds_bucket[5m])))", "legendFormat": "{{service}} p50" },
+        { "expr": "histogram_quantile(0.99, sum by (service,le) (rate(http_server_requests_seconds_bucket[5m])))", "legendFormat": "{{service}} p99" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "JVM 힙 메모리 사용률",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 } },
+      "targets": [
+        {
+          "expr": "sum by (service) (jvm_memory_used_bytes{area=\"heap\"}) / sum by (service) (jvm_memory_max_bytes{area=\"heap\"})",
+          "legendFormat": "{{service}} heap"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "MCP API 키 검증 (성공 vs 실패)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        { "expr": "rate(http_server_requests_seconds_count{service=\"mcp\", uri=\"/mcp\", status=\"200\"}[1m])", "legendFormat": "MCP 성공" },
+        { "expr": "rate(http_server_requests_seconds_count{service=\"mcp\", uri=\"/mcp\", status=\"401\"}[1m])", "legendFormat": "MCP 인증실패 (401)" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "JVM GC 횟수",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "expr": "sum by (service, gc) (rate(jvm_gc_pause_seconds_count[5m]))", "legendFormat": "{{service}} {{gc}}" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "에러 로그 (최근 100건)",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "datasource": { "uid": "loki" },
+      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{project=\"mcp-platform\", level=~\"ERROR|WARN\"}", "legendFormat": "" }
+      ]
+    }
+  ]
+}

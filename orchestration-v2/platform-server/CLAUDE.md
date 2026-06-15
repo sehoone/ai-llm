@@ -48,7 +48,7 @@ Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 ## Architecture
 
 ```
-src/main/java/com/llmonl/platform/
+src/main/java/com/sehoon/platform/
 ├── PlatformApplication.java
 ├── common/
 │   ├── config/

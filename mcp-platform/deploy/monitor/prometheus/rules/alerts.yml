@@ -1,0 +1,101 @@
+groups:
+
+  - name: service_health
+    interval: 30s
+    rules:
+
+      # 서비스 다운 — 1분 이상 scrape 실패
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "서비스 다운: {{ $labels.service }}"
+          description: "{{ $labels.service }} ({{ $labels.instance }}) 가 1분 이상 응답하지 않습니다."
+
+      # platform-server 헬스 상태 DOWN
+      - alert: PlatformHealthDown
+        expr: health_status{application="platform-server"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "platform-server 헬스체크 실패"
+          description: "platform-server의 /actuator/health 가 DOWN 상태입니다."
+
+  - name: jvm_memory
+    rules:
+
+      # JVM 힙 메모리 80% 초과
+      - alert: JvmHeapMemoryHigh
+        expr: |
+          jvm_memory_used_bytes{area="heap"}
+          / jvm_memory_max_bytes{area="heap"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM 힙 메모리 높음: {{ $labels.service }}"
+          description: "{{ $labels.service }} 힙 사용률이 {{ $value | humanizePercentage }} 입니다."
+
+      # JVM 힙 메모리 95% 초과 — 즉시 조치 필요
+      - alert: JvmHeapMemoryCritical
+        expr: |
+          jvm_memory_used_bytes{area="heap"}
+          / jvm_memory_max_bytes{area="heap"} > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "JVM 힙 메모리 위험: {{ $labels.service }}"
+          description: "{{ $labels.service }} 힙 사용률이 {{ $value | humanizePercentage }} — OOM 위험"
+
+  - name: http_errors
+    rules:
+
+      # HTTP 5xx 에러율 5% 초과 (5분 윈도우)
+      - alert: HttpHighErrorRate
+        expr: |
+          sum by (service) (
+            rate(http_server_requests_seconds_count{outcome="SERVER_ERROR"}[5m])
+          )
+          /
+          sum by (service) (
+            rate(http_server_requests_seconds_count[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx 에러율 높음: {{ $labels.service }}"
+          description: "{{ $labels.service }} 의 5분 에러율이 {{ $value | humanizePercentage }} 입니다."
+
+      # HTTP p99 응답시간 3초 초과
+      - alert: HttpSlowResponse
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, le) (
+              rate(http_server_requests_seconds_bucket[5m])
+            )
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "응답 지연: {{ $labels.service }}"
+          description: "{{ $labels.service }} p99 응답시간이 {{ $value | humanizeDuration }} 입니다."
+
+  - name: api_key_auth
+    rules:
+
+      # MCP API 키 검증 실패율 높음
+      - alert: McpAuthFailureHigh
+        expr: |
+          sum(rate(http_server_requests_seconds_count{service="mcp", status="401"}[5m])) > 10
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MCP 인증 실패 급증"
+          description: "분당 401 응답이 {{ $value | humanize }}건 — 무효 API 키 또는 공격 시도 가능성"
