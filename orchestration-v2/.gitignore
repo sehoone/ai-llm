@@ -34,10 +34,9 @@ orchestrator-server/evals/reports/
 # ──────────────────────────────────────────
 .gradle/
 build/
-!gradle/wrapper/gradle-wrapper.jar
 *.class
 *.jar
-!gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 out/
 .classpath
 .project
