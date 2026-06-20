@@ -15,8 +15,6 @@ k8s/
 │   ├── redis/                  # Redis 3-pod StatefulSet + Sentinel 사이드카
 │   ├── clickhouse/             # ClickHouse StatefulSet
 │   └── minio/                  # MinIO 4-pod distributed StatefulSet
-├── auth/
-│   └── keycloak/               # Keycloak 2-replica HA (JDBC clustering)
 ├── app/
 │   ├── platform/               # Spring Boot  replicas:2  HPA·PDB 포함
 │   ├── orchestrator/           # FastAPI       replicas:2  HPA·PDB 포함
@@ -112,7 +110,6 @@ docker build -t your-registry.io/llm-platform/postgresql-pgvector:16 deploy/k8s/
 | admin-front | replicas:2 + PodAntiAffinity | |
 | PostgreSQL | CloudNativePG primary+replica | 자동 failover ~30초 |
 | Redis | 3-pod StatefulSet + Sentinel 사이드카 | quorum:2 |
-| Keycloak | replicas:2 + JDBC clustering (Infinispan) | JGroups DNS 피어 발견 |
 | MinIO | 4-pod distributed mode | erasure coding 활성화 |
 
 ## 트러블슈팅
@@ -122,6 +119,5 @@ docker build -t your-registry.io/llm-platform/postgresql-pgvector:16 deploy/k8s/
 | platform pod CrashLoopBackOff | `kubectl logs deploy/platform -n llm-platform` — DB 연결·JWT_SECRET_KEY 확인 |
 | CloudNativePG cluster not ready | `kubectl describe cluster postgres-ha -n llm-platform` — StorageClass 존재 여부 |
 | Redis sentinel 연결 실패 | `kubectl exec redis-0 -n llm-platform -- redis-cli -p 26379 sentinel masters` |
-| Keycloak 시작 안 됨 | postgres-ha-rw 서비스 준비 여부 확인, start_period 90s 대기 |
 | Ingress 404 | `kubectl get ingress -n llm-platform` — host 필드 도메인 확인 |
 | envsubst: command not found | `brew install gettext` (macOS) / `apt install gettext-base` (Ubuntu) |

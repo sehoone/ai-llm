@@ -3,14 +3,14 @@
 # Usage: ./logs.sh [service] [environment]
 #
 # service     : all | platform | orchestrator | admin-front | postgres | redis
-#               clickhouse | minio | keycloak | langfuse | prometheus | grafana | cadvisor
+#               clickhouse | minio | langfuse | prometheus | grafana | cadvisor
 # environment : staging | production (default: staging)
 set -euo pipefail
 
 SERVICE=${1:-all}
 ENV=${2:-staging}
 
-VALID_SERVICES="all platform orchestrator admin-front postgres redis clickhouse minio keycloak langfuse prometheus grafana cadvisor"
+VALID_SERVICES="all platform orchestrator admin-front postgres redis clickhouse minio langfuse prometheus grafana cadvisor"
 if ! echo "$VALID_SERVICES" | grep -qw "$SERVICE"; then
   echo "Invalid service. Must be one of: $VALID_SERVICES"
   echo "Usage: $0 [service] [environment]"
@@ -35,7 +35,6 @@ label_selector() {
     redis)         echo "app.kubernetes.io/name=redis" ;;
     clickhouse)    echo "app.kubernetes.io/name=clickhouse" ;;
     minio)         echo "app.kubernetes.io/name=minio" ;;
-    keycloak)      echo "app.kubernetes.io/name=keycloak" ;;
     langfuse)      echo "app.kubernetes.io/name=langfuse" ;;
     prometheus)    echo "app.kubernetes.io/name=prometheus" ;;
     grafana)       echo "app.kubernetes.io/name=grafana" ;;

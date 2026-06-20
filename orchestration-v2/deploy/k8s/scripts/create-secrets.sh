@@ -48,8 +48,6 @@ kubectl create secret generic app-secrets \
   --from-literal=CLICKHOUSE_PASSWORD="$(get_val CLICKHOUSE_PASSWORD)" \
   --from-literal=MINIO_ROOT_USER="$(get_val MINIO_ROOT_USER)" \
   --from-literal=MINIO_ROOT_PASSWORD="$(get_val MINIO_ROOT_PASSWORD)" \
-  --from-literal=KEYCLOAK_ADMIN_USER="$(get_val KEYCLOAK_ADMIN_USER)" \
-  --from-literal=KEYCLOAK_ADMIN_PASSWORD="$(get_val KEYCLOAK_ADMIN_PASSWORD)" \
   --from-literal=GRAFANA_ADMIN_PASSWORD="$(get_val GRAFANA_ADMIN_PASSWORD)" \
   --dry-run=client -o yaml | kubectl apply -f -
 

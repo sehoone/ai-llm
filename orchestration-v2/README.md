@@ -21,8 +21,6 @@ Browser / API Client
         ▼
   :8060  Nginx (단일 진입점)
         │
-        ├── /auth/*                     → Keycloak:8080  (OIDC 엔드포인트)
-        │
         ├── /api/v1/voice-evaluation/ws/* → orchestrator-server:8000 (WebSocket)
         │
         ├── /api/*                      → platform-server:8080 (Spring Boot)
@@ -56,8 +54,6 @@ Langfuse v3  :8067  (LLM 트레이싱)
   ├── ClickHouse  ← 트레이스 데이터
   ├── Redis       ← 작업 큐
   └── MinIO       ← 이벤트·미디어 blob
-
-Keycloak  :8068  (OAuth2/OIDC — AUTH_MODE=keycloak 시 활성화)
 ```
 
 ---
@@ -72,21 +68,7 @@ Keycloak  :8068  (OAuth2/OIDC — AUTH_MODE=keycloak 시 활성화)
 | **8065** | cAdvisor | 컨테이너 모니터링 |
 | **8066** | PostgreSQL | 호스트 직접 접속용 (개발) |
 | **8067** | Langfuse | LLM 트레이싱 UI |
-| **8068** | Keycloak | OAuth2 관리 콘솔 |
 | 내부전용 | platform-server:8080, orchestrator-server:8000, admin-front:3000 | Nginx 경유 접근 |
-
----
-
-## 인증 모드
-
-`AUTH_MODE` 환경변수로 두 가지 인증 방식을 선택합니다.
-
-| 모드 | 설명 | 기본 적용 환경 |
-|------|------|---------------|
-| `jwt` | platform-server가 HS256 JWT 발급, orchestrator-server가 동일 시크릿으로 검증 | `development`, `test` |
-| `keycloak` | Keycloak이 RS256 JWT 발급, orchestrator-server가 JWKS로 검증 | `staging`, `production` |
-
-> `.env` 파일에 `AUTH_MODE=jwt` 또는 `AUTH_MODE=keycloak`을 명시하면 환경 기본값을 덮어씁니다.
 
 ---
 
@@ -158,9 +140,6 @@ OPENAI_API_KEY=sk-proj-...
 # JWT (32자 이상, openssl rand -hex 32 로 생성)
 JWT_SECRET_KEY=<랜덤 시크릿>
 
-# 인증 모드
-AUTH_MODE=keycloak   # staging/production은 keycloak 권장
-
 # DB (Docker 내부 서비스명 사용)
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
@@ -190,9 +169,6 @@ NEXT_PUBLIC_API_URL=
 
 # WebSocket — Nginx 포트(8060) 사용
 NEXT_PUBLIC_WS_URL=ws://<서버IP>:8060/api/v1/voice-evaluation/ws/conversation
-
-# Auth 모드 표시 배너용
-NEXT_PUBLIC_AUTH_MODE=keycloak
 ```
 
 ### 2단계 — 배포 실행
@@ -231,7 +207,6 @@ APP_ENV=staging docker compose --env-file ../orchestrator-server/.env.staging up
 | `http://<서버IP>:8063` | Prometheus |
 | `http://<서버IP>:8064` | Grafana (admin / `GRAFANA_ADMIN_PASSWORD`) |
 | `http://<서버IP>:8065` | cAdvisor |
-| `http://<서버IP>:8068` | Keycloak 관리 콘솔 |
 
 ---
 
@@ -276,7 +251,6 @@ cd deploy && docker compose ps
 | WebSocket 연결 실패 | `NEXT_PUBLIC_WS_URL` 포트가 Nginx 포트(8060)와 일치해야 함 |
 | Langfuse 시작 안 됨 | ClickHouse·Redis·MinIO가 모두 healthy인지 확인 → MinIO 버킷 초기화 필요할 수 있음 |
 | Next.js 빌드 실패 | `admin-front/.env.production` 파일이 빌드 전 존재해야 함 |
-| `AUTH_MODE=keycloak` 인데 Keycloak 미기동 | `docker compose ps keycloak` 확인; start_period 90s 대기 |
 
 ---
 
@@ -295,9 +269,7 @@ orchestration-v2/
     ├── nginx/
     │   └── nginx.conf
     ├── postgres/
-    │   └── init.sql       # llmonl·keycloak 스키마 생성
-    ├── keycloak/
-    │   └── realm-import.json
+    │   └── init.sql       # llmonl 스키마 생성
     ├── clickhouse/
     │   └── config.xml
     ├── prometheus/
@@ -307,4 +279,3 @@ orchestration-v2/
         └── dashboards/    # LLM Inference Latency 대시보드 자동 프로비저닝
 ```
 
-각 서비스의 상세 가이드는 해당 디렉토리의 `CLAUDE.md`를 참고하세요.

@@ -6,12 +6,11 @@
 #
 # Options:
 #   --skip-build           이미지 빌드 건너뜀 (이미 빌드된 경우)
-#   --with-keycloak        Keycloak 함께 기동
 #   --with-observability   Prometheus + Grafana + cAdvisor 함께 기동
 #   --storageclass <name>  StorageClass 수동 지정 (기본: 자동 감지)
 #
 # 코어 서비스 (항상 기동): postgres, redis, clickhouse, minio, platform, orchestrator, admin-front, langfuse
-# 선택 서비스:             keycloak (--with-keycloak), observability (--with-observability)
+# 선택 서비스:             observability (--with-observability)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,14 +20,12 @@ NAMESPACE="llm-platform"
 PF_PID_FILE="/tmp/llm-k8s-pf.pids"
 
 SKIP_BUILD=false
-WITH_KEYCLOAK=false
 WITH_OBSERVABILITY=false
 STORAGECLASS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build)          SKIP_BUILD=true ;;
-    --with-keycloak)       WITH_KEYCLOAK=true ;;
     --with-observability)  WITH_OBSERVABILITY=true ;;
     --storageclass)        STORAGECLASS="$2"; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
@@ -83,7 +80,6 @@ echo "  LLM Platform — 로컬 K8s 기동"
 echo "  도구         : $K8S_TOOL"
 echo "  StorageClass : $STORAGECLASS"
 echo "  Namespace    : $NAMESPACE"
-echo "  Keycloak     : $WITH_KEYCLOAK"
 echo "  Observability: $WITH_OBSERVABILITY"
 echo "========================================"
 echo ""
@@ -106,8 +102,6 @@ LANGFUSE_ENCRYPTION_KEY=00000000000000000000000000000000000000000000000000000000
 CLICKHOUSE_PASSWORD=localdev
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
-KEYCLOAK_ADMIN_USER=admin
-KEYCLOAK_ADMIN_PASSWORD=admin
 GRAFANA_ADMIN_PASSWORD=admin
 ENVEOF
 fi
@@ -225,27 +219,9 @@ kubectl rollout status statefulset/minio       -n "$NAMESPACE" --timeout=120s ||
 
 "$K8S_DIR/scripts/init-minio.sh" "$NAMESPACE"
 
-# ── [6] Keycloak (선택) ────────────────────────────────────────────────────
-if [[ "$WITH_KEYCLOAK" == "true" ]]; then
-  echo ""
-  echo "==> [6] Keycloak..."
-  REALM_FILE="$ROOT_DIR/deploy/keycloak/realm-import.json"
-  if [ -f "$REALM_FILE" ]; then
-    kubectl create configmap keycloak-realm \
-      --from-file=realm-export.json="$REALM_FILE" \
-      -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-  fi
-  apply_patched "$K8S_DIR/auth/keycloak/statefulset.yaml"
-  apply_patched "$K8S_DIR/auth/keycloak/service.yaml"
-  echo "     Keycloak 기동 대기 (최대 3분)..."
-  kubectl rollout status statefulset/keycloak -n "$NAMESPACE" --timeout=180s || true
-else
-  echo "==> [6] Keycloak 건너뜀  (--with-keycloak 으로 활성화)"
-fi
-
-# ── [7] App Layer ──────────────────────────────────────────────────────────
+# ── [6] App Layer ──────────────────────────────────────────────────────────
 echo ""
-echo "==> [7] App Layer..."
+echo "==> [6] App Layer..."
 for svc in platform orchestrator admin-front; do
   apply_patched "$K8S_DIR/app/$svc/deployment.yaml"
   apply_patched "$K8S_DIR/app/$svc/service.yaml"
@@ -256,16 +232,16 @@ kubectl rollout status deployment/platform     -n "$NAMESPACE" --timeout=300s
 kubectl rollout status deployment/orchestrator -n "$NAMESPACE" --timeout=300s
 kubectl rollout status deployment/admin-front  -n "$NAMESPACE" --timeout=300s
 
-# ── [8] Langfuse ───────────────────────────────────────────────────────────
+# ── [7] Langfuse ───────────────────────────────────────────────────────────
 echo ""
 echo "==> [8] Langfuse..."
 apply_patched "$K8S_DIR/langfuse/deployment.yaml"
 apply_patched "$K8S_DIR/langfuse/service.yaml"
 
-# ── [9] Observability (선택) ──────────────────────────────────────────────
+# ── [8] Observability (선택) ──────────────────────────────────────────────
 if [[ "$WITH_OBSERVABILITY" == "true" ]]; then
   echo ""
-  echo "==> [9] Observability..."
+  echo "==> [8] Observability..."
   # Grafana dashboard ConfigMap
   GRAFANA_DIR="$ROOT_DIR/deploy/grafana"
   if [ -d "$GRAFANA_DIR/dashboards" ]; then
@@ -282,12 +258,12 @@ if [[ "$WITH_OBSERVABILITY" == "true" ]]; then
     done
   done
 else
-  echo "==> [9] Observability 건너뜀  (--with-observability 으로 활성화)"
+  echo "==> [8] Observability 건너뜀  (--with-observability 으로 활성화)"
 fi
 
-# ── [10] Port-forwarding ───────────────────────────────────────────────────
+# ── [9] Port-forwarding ───────────────────────────────────────────────────
 echo ""
-echo "==> [10] Port-forwarding 시작..."
+echo "==> [9] Port-forwarding 시작..."
 rm -f "$PF_PID_FILE"
 
 start_pf() {
@@ -301,7 +277,6 @@ start_pf admin-front  3000 3000
 start_pf platform     8080 8080
 start_pf orchestrator 8000 8000
 start_pf langfuse     8067 3000
-[[ "$WITH_KEYCLOAK" == "true" ]]       && start_pf keycloak   8068 8080
 [[ "$WITH_OBSERVABILITY" == "true" ]]  && start_pf grafana    8064 3000
 [[ "$WITH_OBSERVABILITY" == "true" ]]  && start_pf prometheus 8063 9090
 
@@ -314,7 +289,6 @@ echo "  Frontend      http://localhost:3000"
 echo "  Platform API  http://localhost:8080/swagger-ui/index.html"
 echo "  Orchestrator  http://localhost:8000/docs"
 echo "  Langfuse      http://localhost:8067"
-[[ "$WITH_KEYCLOAK" == "true" ]]       && echo "  Keycloak      http://localhost:8068"
 [[ "$WITH_OBSERVABILITY" == "true" ]]  && echo "  Grafana       http://localhost:8064"
 [[ "$WITH_OBSERVABILITY" == "true" ]]  && echo "  Prometheus    http://localhost:8063"
 echo ""

@@ -28,7 +28,6 @@ spec:
         name: postgres-superuser
       postInitSQL:
         - CREATE SCHEMA IF NOT EXISTS llmonl
-        - CREATE SCHEMA IF NOT EXISTS keycloak
 
   storage:
     size: 5Gi

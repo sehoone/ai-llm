@@ -132,26 +132,9 @@ wait_sts minio
 # MinIO 버킷 초기화
 "$SCRIPT_DIR/init-minio.sh" "$NAMESPACE"
 
-# ── 5. Auth (Keycloak) ────────────────────────────────────────────────────
+# ── 5. App Layer ──────────────────────────────────────────────────────────
 echo ""
-echo "==> [5/9] Auth (Keycloak)..."
-
-# realm-import.json → ConfigMap (idempotent)
-REALM_FILE="$ROOT_DIR/deploy/keycloak/realm-import.json"
-if [ -f "$REALM_FILE" ]; then
-  kubectl create configmap keycloak-realm \
-    --from-file=realm-export.json="$REALM_FILE" \
-    -n "$NAMESPACE" \
-    --dry-run=client -o yaml | kubectl apply -f -
-fi
-
-apply_dir "auth/keycloak"
-echo "     Waiting for Keycloak (up to 5 min)..."
-wait_sts keycloak
-
-# ── 6. App Layer ──────────────────────────────────────────────────────────
-echo ""
-echo "==> [6/9] App Layer (platform, orchestrator, admin-front)..."
+echo "==> [5/8] App Layer (platform, orchestrator, admin-front)..."
 apply_dir "app/platform"
 apply_dir "app/orchestrator"
 apply_dir "app/admin-front"
@@ -163,12 +146,12 @@ wait_deploy admin-front
 
 # ── 7. Langfuse ───────────────────────────────────────────────────────────
 echo ""
-echo "==> [7/9] Langfuse..."
+echo "==> [6/8] Langfuse..."
 apply_dir "langfuse"
 
 # ── 8. Observability ──────────────────────────────────────────────────────
 echo ""
-echo "==> [8/9] Observability (Prometheus, Grafana, cAdvisor)..."
+echo "==> [7/8] Observability (Prometheus, Grafana, cAdvisor)..."
 
 # Grafana dashboard ConfigMap — deploy/grafana 디렉터리에서 생성
 GRAFANA_DASH_DIR="$ROOT_DIR/deploy/grafana"
@@ -188,7 +171,7 @@ apply_dir "observability/cadvisor"
 
 # ── 9. Ingress ────────────────────────────────────────────────────────────
 echo ""
-echo "==> [9/9] Ingress..."
+echo "==> [8/8] Ingress..."
 apply_dir "ingress"
 
 # ── 완료 ─────────────────────────────────────────────────────────────────

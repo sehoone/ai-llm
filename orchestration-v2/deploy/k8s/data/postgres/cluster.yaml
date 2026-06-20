@@ -45,7 +45,6 @@ spec:
         name: postgres-superuser
       postInitSQL:
         - CREATE SCHEMA IF NOT EXISTS llmonl
-        - CREATE SCHEMA IF NOT EXISTS keycloak
         # pgvector 이미지 사용 시 주석 해제
         # - CREATE EXTENSION IF NOT EXISTS vector SCHEMA llmonl
 

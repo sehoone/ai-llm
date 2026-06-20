@@ -38,9 +38,5 @@ data:
   # orchestrator-server
   ORCHESTRATOR_PORT: "8000"
 
-  # Keycloak (AUTH_MODE=keycloak 시 사용)
-  KEYCLOAK_URL: "http://keycloak:8080"
-  KEYCLOAK_REALM: "llm-platform"
-
   # CORS — Ingress 외부 주소로 변경 필요
   ALLOWED_ORIGINS: "http://localhost:8060"

@@ -159,7 +159,7 @@ REGISTRY=your-registry.io/llm-platform TAG=v1.0 ./deploy.sh staging
 ./stop.sh staging
 ```
 
-주요 이중화 구성: platform·orchestrator replicas:2 + HPA·PDB, CloudNativePG (primary+replica), Redis Sentinel, MinIO 4-pod distributed, Keycloak HA.
+주요 이중화 구성: platform·orchestrator replicas:2 + HPA·PDB, CloudNativePG (primary+replica), Redis Sentinel, MinIO 4-pod distributed.
 
 ### MinIO 버킷 초기화 (최초 배포 1회)
 ```bash
