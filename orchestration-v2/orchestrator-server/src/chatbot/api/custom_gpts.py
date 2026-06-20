@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
 from src.chatbot.deps import get_owned_gpt_session
+from src.common.audit import audit_log
 from src.chatbot.schemas.chat_schema import ChatResponse, Message, StreamResponse
 from src.chatbot.schemas.custom_gpt_schema import (
     CustomGPTCreate,
@@ -36,6 +37,7 @@ agent = LangGraphAgent()
 # ── CustomGPT CRUD ────────────────────────────────────────────────────────────
 
 @router.post("/", response_model=CustomGPTResponse, summary="Create a new Custom GPT")
+@audit_log(action="CUSTOM_GPT_CREATE", resource_type="CUSTOM_GPT")
 async def create_custom_gpt(
     gpt_create: CustomGPTCreate,
     user: User = Depends(get_current_user),
@@ -95,6 +97,7 @@ async def get_custom_gpt(
 
 
 @router.put("/{gpt_id}", response_model=CustomGPTResponse, summary="Update a Custom GPT")
+@audit_log(action="CUSTOM_GPT_UPDATE", resource_type="CUSTOM_GPT")
 async def update_custom_gpt(
     gpt_id: str,
     gpt_update: CustomGPTUpdate,
@@ -120,6 +123,7 @@ async def update_custom_gpt(
 
 
 @router.delete("/{gpt_id}", summary="Delete a Custom GPT")
+@audit_log(action="CUSTOM_GPT_DELETE", resource_type="CUSTOM_GPT")
 async def delete_custom_gpt(
     gpt_id: str,
     user: User = Depends(get_current_user),

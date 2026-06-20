@@ -1,5 +1,7 @@
 package com.sehoon.platform.llmresource.service;
 
+import com.sehoon.platform.common.audit.AuditAction;
+import com.sehoon.platform.common.audit.Auditable;
 import com.sehoon.platform.common.exception.BusinessException;
 import com.sehoon.platform.common.exception.ErrorCode;
 import com.sehoon.platform.llmresource.domain.LlmResource;
@@ -46,6 +48,7 @@ public class LlmResourceService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.LLM_RESOURCE_CREATE, resourceType = "LLM_RESOURCE")
     public LlmResourceResponse create(LlmResourceCreateRequest req) {
         LlmResource resource = new LlmResource(
                 req.name(), req.resourceType(), req.modelName(),
@@ -57,6 +60,8 @@ public class LlmResourceService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.LLM_RESOURCE_UPDATE, resourceType = "LLM_RESOURCE",
+               captureFirstArgAsResourceId = true)
     public LlmResourceResponse update(Long id, LlmResourceUpdateRequest req) {
         LlmResource resource = find(id);
         resource.update(req.name(), req.modelName(), req.apiBase(), req.apiKey(),
@@ -65,6 +70,8 @@ public class LlmResourceService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.LLM_RESOURCE_TOGGLE, resourceType = "LLM_RESOURCE",
+               captureFirstArgAsResourceId = true)
     public LlmResourceResponse toggleActive(Long id) {
         LlmResource resource = find(id);
         resource.toggleActive();
@@ -72,6 +79,8 @@ public class LlmResourceService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.LLM_RESOURCE_DELETE, resourceType = "LLM_RESOURCE",
+               captureFirstArgAsResourceId = true)
     public void delete(Long id) {
         repository.delete(find(id));
     }

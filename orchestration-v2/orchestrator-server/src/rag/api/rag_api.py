@@ -15,6 +15,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 
 from src.auth.api.auth_api import get_current_user
+from src.common.audit import audit_log
 from src.common.logging import logger
 from src.user.models.user_model import User
 from src.rag.schemas.rag_schema import (
@@ -43,6 +44,7 @@ def _validate_rag_type(rag_type: str) -> None:
 
 
 @router.post("/upload", response_model=DocumentResponse, summary="문서 업로드", description="RAG를 위한 문서를 업로드합니다.")
+@audit_log(action="DOCUMENT_UPLOAD", resource_type="DOCUMENT")
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
@@ -245,6 +247,7 @@ async def get_document_detail(
 
 
 @router.delete("/documents/{doc_id}", summary="문서 삭제", description="인증된 사용자의 문서를 삭제합니다.")
+@audit_log(action="DOCUMENT_DELETE", resource_type="DOCUMENT")
 async def delete_document(
     request: Request,
     doc_id: int,

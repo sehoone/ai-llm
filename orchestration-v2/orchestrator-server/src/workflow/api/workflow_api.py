@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from src.auth.api.auth_api import get_current_user
+from src.common.audit import audit_log
 from src.common.logging import logger
 from src.common.services.database import database_service
 from src.user.models.user_model import User
@@ -56,6 +57,7 @@ async def list_workflows(
 
 
 @router.post("", response_model=WorkflowResponse, status_code=201, summary="워크플로우 생성")
+@audit_log(action="WORKFLOW_CREATE", resource_type="WORKFLOW")
 async def create_workflow(
     body: WorkflowCreate,
     user: User = Depends(get_current_user),
@@ -82,6 +84,7 @@ async def get_workflow(
 
 
 @router.put("/{workflow_id}", response_model=WorkflowResponse, summary="워크플로우 수정")
+@audit_log(action="WORKFLOW_UPDATE", resource_type="WORKFLOW")
 async def update_workflow(
     workflow_id: str,
     body: WorkflowUpdate,
@@ -102,6 +105,7 @@ async def update_workflow(
 
 
 @router.delete("/{workflow_id}", status_code=204, summary="워크플로우 삭제")
+@audit_log(action="WORKFLOW_DELETE", resource_type="WORKFLOW")
 async def delete_workflow(
     workflow_id: str,
     user: User = Depends(get_current_user),
@@ -113,6 +117,7 @@ async def delete_workflow(
 
 
 @router.patch("/{workflow_id}/publish", response_model=WorkflowResponse, summary="워크플로우 발행/해제")
+@audit_log(action="WORKFLOW_PUBLISH_TOGGLE", resource_type="WORKFLOW")
 async def toggle_publish(
     workflow_id: str,
     user: User = Depends(get_current_user),

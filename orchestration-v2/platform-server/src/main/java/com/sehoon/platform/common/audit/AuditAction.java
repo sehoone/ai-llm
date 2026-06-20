@@ -1,0 +1,28 @@
+package com.sehoon.platform.common.audit;
+
+public enum AuditAction {
+    // 인증
+    AUTH_REGISTER,
+    AUTH_LOGIN_SUCCESS,
+    AUTH_LOGIN_FAILURE,
+    AUTH_LOGOUT,
+    AUTH_TOKEN_REFRESH,
+
+    // 사용자 관리
+    USER_UPDATE_PROFILE,
+    USER_CHANGE_PASSWORD,
+    USER_CHANGE_ROLE,
+    USER_DEACTIVATE,
+    USER_CREATE_BY_ADMIN,
+    USER_UPDATE_BY_ADMIN,
+
+    // API 키
+    API_KEY_CREATE,
+    API_KEY_REVOKE,
+
+    // LLM 리소스
+    LLM_RESOURCE_CREATE,
+    LLM_RESOURCE_UPDATE,
+    LLM_RESOURCE_TOGGLE,
+    LLM_RESOURCE_DELETE,
+}

@@ -19,6 +19,7 @@ from src.agent.schemas.agent_schema import (
 from src.agent.services.agent_service import agent_service
 from src.auth.api.auth_api import get_current_user
 from src.chatbot.schemas.chat_schema import Message, StreamResponse
+from src.common.audit import audit_log
 from src.chatbot.schemas.session_schema import RenameRequest
 from src.chatbot.services.summary_service import chat_summary_service
 from src.common.langgraph.graph import LangGraphAgent
@@ -111,6 +112,7 @@ async def list_agents(user: User = Depends(get_current_user)):
 
 
 @router.post("/", response_model=AgentResponse, summary="에이전트 생성")
+@audit_log(action="AGENT_CREATE", resource_type="AGENT")
 async def create_agent(data: AgentCreate, user: User = Depends(get_current_user)):
     return await agent_service.create_agent(data, user.id)
 
@@ -121,6 +123,7 @@ async def get_agent(agent_id: str, user: User = Depends(get_current_user)):
 
 
 @router.put("/{agent_id}", response_model=AgentResponse, summary="에이전트 수정")
+@audit_log(action="AGENT_UPDATE", resource_type="AGENT")
 async def update_agent(agent_id: str, data: AgentUpdate, user: User = Depends(get_current_user)):
     await _get_owned_agent(agent_id, user)
     agent = await agent_service.update_agent(agent_id, data, user.id)
@@ -130,6 +133,7 @@ async def update_agent(agent_id: str, data: AgentUpdate, user: User = Depends(ge
 
 
 @router.delete("/{agent_id}", summary="에이전트 삭제")
+@audit_log(action="AGENT_DELETE", resource_type="AGENT")
 async def delete_agent(agent_id: str, user: User = Depends(get_current_user)):
     await _get_owned_agent(agent_id, user)
     await agent_service.delete_agent(agent_id, user.id)
@@ -137,6 +141,7 @@ async def delete_agent(agent_id: str, user: User = Depends(get_current_user)):
 
 
 @router.post("/{agent_id}/publish", response_model=AgentResponse, summary="게시 토글")
+@audit_log(action="AGENT_PUBLISH_TOGGLE", resource_type="AGENT")
 async def toggle_publish(agent_id: str, user: User = Depends(get_current_user)):
     await _get_owned_agent(agent_id, user)
     agent = await agent_service.toggle_publish(agent_id, user.id)

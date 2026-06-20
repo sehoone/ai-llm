@@ -308,6 +308,44 @@ CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_user_id     ON llmonl.workflow_
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_path        ON llmonl.workflow_endpoint (path);
 
 -- ─────────────────────────────────────────────────────────────
+-- 감사 로그 (platform-server + orchestrator-server 공동 사용)
+-- ─────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS llmonl.audit_log (
+    id            BIGSERIAL     PRIMARY KEY,
+    occurred_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+
+    -- 요청자
+    user_id       BIGINT,
+    user_ip       VARCHAR(45),
+    request_id    VARCHAR(36),
+    user_agent    VARCHAR(512),
+
+    -- 출처 서비스
+    service       VARCHAR(20)   NOT NULL,           -- 'platform' | 'orchestrator'
+
+    -- 액션
+    action        VARCHAR(30)   NOT NULL,
+    resource_type VARCHAR(50)   NOT NULL,
+    resource_id   VARCHAR(255),
+
+    -- 변경 내용 (민감 필드 마스킹 후 저장)
+    old_value     JSONB,
+    new_value     JSONB,
+    description   VARCHAR(500),
+
+    -- 결과
+    status        VARCHAR(10)   NOT NULL DEFAULT 'SUCCESS',  -- 'SUCCESS' | 'FAILURE'
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_occurred_at  ON llmonl.audit_log (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id      ON llmonl.audit_log (user_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_resource     ON llmonl.audit_log (resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action       ON llmonl.audit_log (action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_request_id   ON llmonl.audit_log (request_id);
+
+-- ─────────────────────────────────────────────────────────────
 -- LangGraph PostgreSQL 체크포인터 테이블
 -- (AsyncPostgresSaver가 search_path=llmonl,public으로 연결하므로
 --  setup() 없이 사용하려면 여기서 미리 생성해야 함)

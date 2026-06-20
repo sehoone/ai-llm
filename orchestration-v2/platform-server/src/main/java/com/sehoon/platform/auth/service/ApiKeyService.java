@@ -4,6 +4,8 @@ import com.sehoon.platform.auth.domain.ApiKey;
 import com.sehoon.platform.auth.dto.ApiKeyCreateRequest;
 import com.sehoon.platform.auth.dto.ApiKeyResponse;
 import com.sehoon.platform.auth.repository.ApiKeyRepository;
+import com.sehoon.platform.common.audit.AuditAction;
+import com.sehoon.platform.common.audit.Auditable;
 import com.sehoon.platform.common.exception.BusinessException;
 import com.sehoon.platform.common.exception.ErrorCode;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class ApiKeyService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.API_KEY_CREATE, resourceType = "API_KEY")
     public ApiKeyResponse createApiKey(Long userId, ApiKeyCreateRequest request) {
         String rawKey = generateKey();
         ApiKey apiKey = new ApiKey(userId, rawKey, request.name(), request.expiresAt());
@@ -39,6 +42,8 @@ public class ApiKeyService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.API_KEY_REVOKE, resourceType = "API_KEY",
+               captureFirstArgAsResourceId = true)
     public void revokeApiKey(Long userId, Long keyId) {
         ApiKey apiKey = apiKeyRepository.findById(keyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.API_KEY_NOT_FOUND));

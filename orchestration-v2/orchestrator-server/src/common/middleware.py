@@ -74,6 +74,12 @@ class LoggingContextMiddleware(BaseHTTPMiddleware):
             clear_context()
 
             # Extract token from Authorization header
+            # 클라이언트 IP를 컨텍스트에 바인딩 (감사 로그용)
+            xff = request.headers.get("X-Forwarded-For")
+            client_ip = xff.split(",")[0].strip() if xff else request.client.host if request.client else None
+            if client_ip:
+                bind_context(client_ip=client_ip)
+
             auth_header = request.headers.get("authorization")
             if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header.split(" ")[1]

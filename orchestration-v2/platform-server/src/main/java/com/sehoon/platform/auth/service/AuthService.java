@@ -5,6 +5,8 @@ import com.sehoon.platform.auth.dto.LoginRequest;
 import com.sehoon.platform.auth.dto.LoginResponse;
 import com.sehoon.platform.auth.dto.RegisterRequest;
 import com.sehoon.platform.auth.repository.RefreshTokenRepository;
+import com.sehoon.platform.common.audit.AuditAction;
+import com.sehoon.platform.common.audit.Auditable;
 import com.sehoon.platform.common.exception.BusinessException;
 import com.sehoon.platform.common.exception.ErrorCode;
 import com.sehoon.platform.common.security.JwtProvider;
@@ -36,6 +38,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Auditable(action = AuditAction.AUTH_REGISTER, resourceType = "USER")
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
@@ -52,14 +55,18 @@ public class AuthService {
         return UserResponse.from(userRepository.save(user));
     }
 
+    // 로그인 성공·실패 모두 AOP가 캡처 (REQUIRES_NEW 트랜잭션으로 저장되므로 롤백 무관)
+    @Auditable(action = AuditAction.AUTH_LOGIN_SUCCESS, resourceType = "AUTH")
     public LoginResponse login(LoginRequest request) {
         return localLogin(request);
     }
 
+    @Auditable(action = AuditAction.AUTH_TOKEN_REFRESH, resourceType = "AUTH")
     public LoginResponse refresh(String rawRefreshToken) {
         return localRefresh(rawRefreshToken);
     }
 
+    @Auditable(action = AuditAction.AUTH_LOGOUT, resourceType = "AUTH")
     public void logout(String rawRefreshToken) {
         refreshTokenRepository.findByToken(rawRefreshToken)
                 .ifPresent(RefreshToken::revoke);

@@ -1,5 +1,7 @@
 package com.sehoon.platform.user.service;
 
+import com.sehoon.platform.common.audit.AuditAction;
+import com.sehoon.platform.common.audit.Auditable;
 import com.sehoon.platform.common.exception.BusinessException;
 import com.sehoon.platform.common.exception.ErrorCode;
 import com.sehoon.platform.user.domain.User;
@@ -35,6 +37,8 @@ public class UserService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.USER_UPDATE_PROFILE, resourceType = "USER",
+               captureFirstArgAsResourceId = true)
     public UserResponse updateUser(Long id, UserUpdateRequest request) {
         User user = findUser(id);
 
@@ -54,12 +58,15 @@ public class UserService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.USER_DEACTIVATE, resourceType = "USER",
+               captureFirstArgAsResourceId = true)
     public void deactivateUser(Long id) {
         User user = findUser(id);
         user.deactivate();
     }
 
     @Transactional
+    @Auditable(action = AuditAction.USER_CREATE_BY_ADMIN, resourceType = "USER")
     public UserResponse createUserByAdmin(AdminUserCreateRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
@@ -74,6 +81,8 @@ public class UserService {
     }
 
     @Transactional
+    @Auditable(action = AuditAction.USER_UPDATE_BY_ADMIN, resourceType = "USER",
+               captureFirstArgAsResourceId = true)
     public UserResponse updateUserByAdmin(Long id, AdminUserUpdateRequest request) {
         User user = findUser(id);
 
