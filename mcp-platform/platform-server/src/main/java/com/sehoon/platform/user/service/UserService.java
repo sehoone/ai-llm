@@ -3,6 +3,7 @@ package com.sehoon.platform.user.service;
 import com.sehoon.platform.common.exception.BusinessException;
 import com.sehoon.platform.common.exception.ErrorCode;
 import com.sehoon.platform.user.domain.User;
+import com.sehoon.platform.user.domain.UserStatus;
 import com.sehoon.platform.user.dto.AdminUserCreateRequest;
 import com.sehoon.platform.user.dto.AdminUserUpdateRequest;
 import com.sehoon.platform.user.dto.UserResponse;
@@ -60,6 +61,12 @@ public class UserService {
     }
 
     @Transactional
+    public void activateUser(Long id) {
+        User user = findUser(id);
+        user.activate();
+    }
+
+    @Transactional
     public UserResponse createUserByAdmin(AdminUserCreateRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
@@ -90,7 +97,8 @@ public class UserService {
 
         user.updateProfile(request.username(), request.email());
         if (request.role() != null) user.changeRole(request.role());
-        if (request.status() != null && request.status().equals("inactive")) user.deactivate();
+        if (request.status() == UserStatus.INACTIVE) user.deactivate();
+        else if (request.status() == UserStatus.ACTIVE) user.activate();
         if (request.password() != null && !request.password().isBlank()) {
             user.changePassword(passwordEncoder.encode(request.password()));
         }

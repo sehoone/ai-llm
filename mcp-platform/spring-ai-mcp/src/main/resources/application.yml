@@ -27,6 +27,8 @@ app:
   auth:
     # platform-server URL — API 키 검증 요청을 보낼 대상
     platform-url: ${PLATFORM_URL:http://localhost:8080}
+    # platform-server /api/v1/api-keys/validate 내부 시크릿 (설정 시 X-Internal-Secret 헤더 전송)
+    internal-secret: ${INTERNAL_SECRET:}
 
 server:
   forward-headers-strategy: FRAMEWORK

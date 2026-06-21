@@ -31,8 +31,9 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private UserRole role = UserRole.USER;
 
+    @Convert(converter = UserStatusConverter.class)
     @Column(nullable = false)
-    private String status = "active";
+    private UserStatus status = UserStatus.ACTIVE;
 
     protected User() {}
 
@@ -47,7 +48,7 @@ public class User extends BaseEntity {
     public String getEmail() { return email; }
     public String getHashedPassword() { return hashedPassword; }
     public UserRole getRole() { return role; }
-    public String getStatus() { return status; }
+    public UserStatus getStatus() { return status; }
 
     public void updateProfile(String username, String email) {
         if (username != null) this.username = username;
@@ -62,11 +63,9 @@ public class User extends BaseEntity {
         this.role = role;
     }
 
-    public void deactivate() {
-        this.status = "inactive";
-    }
+    public void activate() { this.status = UserStatus.ACTIVE; }
 
-    public boolean isActive() {
-        return "active".equals(this.status);
-    }
+    public void deactivate() { this.status = UserStatus.INACTIVE; }
+
+    public boolean isActive() { return UserStatus.ACTIVE.equals(this.status); }
 }

@@ -19,63 +19,173 @@ Each sub-module has its own `CLAUDE.md` with detailed commands and architecture.
 ```
 Browser / MCP Client
   └──HTTP :80──► nginx (reverse proxy)
-                  ├── /            → admin-front (:3000)
-                  ├── /api/*       → platform-server (:8080)
-                  ├── /swagger-ui/ → platform-server (:8080)
-                  └── /mcp         → spring-ai-mcp (:8080)
+                  ├── GET /api/health  → admin-front (:3000)   ← exact match
+                  ├── /api/*           → platform-server (:8080)
+                  ├── /swagger-ui/*    → platform-server (:8080)
+                  └── /mcp             → spring-ai-mcp (:8080)  ← SSE buffering off, timeout 1h
 
             platform-server (:8080)
-            (auth · users · API key CRUD)
+            (auth · users · API key CRUD · JWT issuance)
                   │
-                  │  POST /api/v1/api-keys/validate
+                  │  POST /api/v1/api-keys/validate  (public endpoint, no JWT)
                   ▼
             spring-ai-mcp (:8080 internal / :8081 external)
-            (MCP server — validates each request against platform-server)
+            (validates Bearer sk-... against platform-server; 5-min cache)
 ```
 
-- **nginx** is the single entry point on port 80. Routes by path prefix; MCP endpoint has SSE buffering disabled.
-- **platform-server** is the single source of JWT issuance for the admin UI and the API key store for MCP clients.
-- **spring-ai-mcp** authenticates requests via `Authorization: Bearer sk-...` — it calls platform-server's `/api/v1/api-keys/validate` and caches results for 5 minutes. No JWT secret is shared.
-- **admin-front** embeds `NEXT_PUBLIC_API_URL` at build time (client-side axios) and reads `API_URL` at runtime (server-side Next.js rewrite proxy). With nginx, `NEXT_PUBLIC_API_URL` is just `http://SERVER_IP` — no port needed.
+- **nginx** is the single entry point on port 80.
+- **platform-server** is the sole JWT issuer for admin-front and the API key store.
+- **spring-ai-mcp** validates `Authorization: Bearer sk-...` by calling platform-server's `/api/v1/api-keys/validate`. Results are cached 5 min in a `ConcurrentHashMap`. No JWT secret is shared.
+- **admin-front** embeds `NEXT_PUBLIC_API_URL` at build time (client-side axios). `API_URL` is read at runtime (server-side Next.js rewrite). Through nginx both resolve to `http://SERVER_IP` — no port suffix.
 
-## Docker Compose Deployment
+## Commands
 
-전체 스택을 단일 서버에 배포하려면 `deploy/` 디렉토리를 사용합니다. 자세한 내용은 [`deploy/README.md`](deploy/README.md) 참고.
+### Full stack (Docker Compose)
 
 ```bash
 cd deploy
-cp .env.example .env   # DB_PASSWORD, JWT_SECRET_KEY, NEXT_PUBLIC_API_URL 필수 설정
+cp .env.example .env          # set DB_PASSWORD, JWT_SECRET_KEY, NEXT_PUBLIC_API_URL
+
+# Linux/macOS — deploy.sh writes NEXT_PUBLIC_API_URL to admin-front/.env.production first
 ./deploy.sh up -d --build
+
+# Windows PowerShell
+Set-Content ../admin-front/.env.production "NEXT_PUBLIC_API_URL=http://192.168.1.100"
+docker compose up -d --build
 ```
 
-- `NEXT_PUBLIC_API_URL`은 Nginx 경유이므로 포트 없이 서버 IP/도메인만 입력합니다 (예: `http://192.168.1.100`).
-- 최초 기동 시 `initdb/init.sh`가 자동으로 실행되어 `llm_db`(`llmonl` 스키마)와 `sample_db`를 생성합니다.
+> **NEXT_PUBLIC_API_URL gotcha**: this var is baked into the JS bundle at build time. Never set it to `localhost` for a server deployment — the browser runs on the client machine, not the server. Also exclude `.env.local` from `.dockerignore` so it cannot override `.env.production` inside the image.
 
-**Docker 서비스명 (`name: mcp-platform`):**
+Verify all five containers are healthy:
+```bash
+docker compose ps
+curl -o /dev/null -w "%{http_code}" http://localhost/api/health   # 200
+```
 
-| 서비스 | 컨테이너 | 외부 포트 | 비고 |
-|--------|---------|----------|------|
-| `db` | mcp-platform-db | — | |
-| `nginx` | mcp-platform-nginx | **80** | 단일 진입점 |
-| `platform` | mcp-platform-platform | 8080 | 직접 접근용 |
-| `mcp` | mcp-platform-mcp | 8081 | 직접 접근용 |
-| `admin` | mcp-platform-admin | 3000 | 직접 접근용 |
+### Local development (service-by-service)
 
-## Running Locally
+Start in order (each depends on the previous):
 
-Start services in this order:
+```bash
+# 1. PostgreSQL only
+cd deploy && docker compose up -d db
 
-1. **PostgreSQL** — `cd deploy && docker compose up -d db` (또는 기존 PostgreSQL 사용)
-2. **platform-server** — `APP_ENV=local ./gradlew bootRun` from `platform-server/`
-3. **spring-ai-mcp** — `SPRING_PROFILES_ACTIVE=local ./gradlew bootRun` from `spring-ai-mcp/`. Requires platform-server to be running for API key validation.
-4. **admin-front** — `pnpm dev` from `admin-front/`
+# 2. platform-server (PowerShell)
+cd platform-server
+$env:APP_ENV='local'; $env:JWT_SECRET_KEY='your-32-char-secret-here!!'
+$env:POSTGRES_HOST='localhost'; $env:POSTGRES_PORT='5432'
+$env:POSTGRES_DB='llm_db'; $env:POSTGRES_USER='postgres'; $env:POSTGRES_PASSWORD='postgres'
+./gradlew bootRun
+# Swagger: http://localhost:8080/swagger-ui/index.html
 
-**포트 충돌 주의:** platform-server와 spring-ai-mcp는 각각 기본 포트 8080을 사용합니다. 동시에 로컬 실행할 경우 spring-ai-mcp의 `server.port`를 `8081`로 변경하고 `application-local.yml`의 `platform-url`을 `http://localhost:8080`으로 유지하세요.
+# 3. spring-ai-mcp (PowerShell) — port conflict: change server.port to 8081 if platform-server already uses 8080
+$env:SPRING_PROFILES_ACTIVE='local'; ./gradlew bootRun
+
+# 4. admin-front
+cd admin-front && pnpm dev    # http://localhost:3000
+```
+
+### platform-server
+
+```powershell
+./gradlew compileJava
+./gradlew test                                                 # H2 in-memory (application-test.yml)
+./gradlew test --tests "com.sehoon.platform.auth.AuthServiceTest"
+./gradlew bootJar
+```
+
+### spring-ai-mcp
+
+```powershell
+./gradlew build -x test
+./gradlew test     # Testcontainers (Docker must be running; auto-skipped if Docker is absent)
+./gradlew test --tests "com.example.mcpserver.McpServerApplicationTests"
+./gradlew bootJar
+```
+
+> **Windows Testcontainers**: Docker Desktop 29.x uses `npipe:////./pipe/docker_cli`. `build.gradle` injects this automatically; tests skip if Docker Desktop is not running (`failOnNoDiscoveredTests = false`).
+
+### admin-front
+
+```bash
+pnpm dev
+pnpm build && pnpm start
+pnpm lint
+pnpm format
+pnpm knip          # dead code analysis
+```
+
+## Initial Setup Workflow
+
+After the first `docker compose up`:
+
+```bash
+# 1. Register first account (created as USER role)
+curl -X POST http://localhost/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","email":"admin@example.com","password":"Admin1234!"}'
+
+# 2. Promote to ADMIN via DB
+docker compose exec db psql -U postgres -d llm_db \
+  -c "UPDATE llmonl.users SET role='ADMIN' WHERE email='admin@example.com';"
+
+# 3. Issue a MCP API key
+TOKEN=$(curl -s -X POST http://localhost/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"Admin1234!"}' \
+  | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+
+curl -X POST http://localhost/api/v1/api-keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-mcp-client"}'
+# response.key contains the full sk-... value — shown only once
+```
 
 ## Key Cross-Cutting Decisions
 
-- **Nginx routing**: `deploy/nginx/nginx.conf`가 포트 80 단일 진입점을 처리. `/api/health`는 exact match로 admin-front로, `/api/*`는 platform-server로, `/mcp`는 spring-ai-mcp로 라우팅. MCP 경로는 SSE를 위해 `proxy_buffering off` + timeout 1h 적용.
-- **API key authentication**: MCP 클라이언트는 `Authorization: Bearer sk-...` 헤더로 spring-ai-mcp에 요청 → spring-ai-mcp가 platform-server의 `/api/v1/api-keys/validate` (공개 엔드포인트)를 호출해 검증. 결과는 5분 인메모리 캐시(`ConcurrentHashMap`).
-- **Database split**: platform-server는 `llm_db` PostgreSQL의 `llmonl` 스키마(`users`, `api_key`, `refresh_token`)를 소유. spring-ai-mcp는 `sample_db`의 `sample_item` 테이블만 사용. 두 DB는 같은 PostgreSQL 인스턴스에 공존.
-- **UserRole**: `SUPERADMIN` | `ADMIN` | `USER` 세 가지만 존재 (MANAGER, CASHIER 제거됨).
+- **Database split**: platform-server owns `llm_db` PostgreSQL → `llmonl` schema (`users`, `api_key`, `refresh_token`). spring-ai-mcp uses `sample_db` → `sample_item` table. Both DBs share one PostgreSQL instance. Schema created by `deploy/initdb/init.sh` on first container startup.
+- **ddl-auto**: `validate` in all non-test profiles. Tables must exist before startup. `test` profile uses H2 with `create-drop`.
+- **UserRole**: `SUPERADMIN` | `ADMIN` | `USER` only. (MANAGER, CASHIER were removed.)
+- **API key format**: `sk-` prefix, 32 bytes random. Full key returned only once at creation time; subsequent GETs return a masked value.
+- **JWT HS256**: `JWT_SECRET_KEY` env var required in platform-server. No JWT is shared with spring-ai-mcp — MCP auth uses API keys only.
 - **MCP transport**: Streamable HTTP at `POST /mcp`. To switch to stdio, swap `spring-ai-starter-mcp-server-webmvc` → `spring-ai-starter-mcp-server-stdio` and add `spring.main.web-application-type: none`.
+- **Adding a new MCP Tool**: annotate the class with `@Component` and `@Tool`, then add it to **both** the `mcpToolCallbackProvider()` parameter list **and** the `toolObjects()` call in `McpConfig.java`. Prompts and Resources only need `@Bean`.
+- **spring-ai-mcp filter chain order**: `ForwardedHeaderFilter` → `MdcLoggingFilter` (+1) → `RateLimitFilter` (+2, 60 req/min/IP → 429) → `ApiKeyAuthFilter` (validates key, sets SecurityContext).
+- **Platform-server common response**: all endpoints return `ApiResponse<T>` — `{success, message, data}` via static factories `ok(data)` / `fail(message)`. Domain exceptions use `BusinessException(ErrorCode)` → `GlobalExceptionHandler`.
+- **admin-front import order** (enforced by Prettier plugin): `react` → third-party → `@/api` → `@/stores` → `@/lib` → `@/utils` → `@/constants` → `@/context` → `@/hooks` → `@/components` → `@/features` → relative.
+- **Logging**: use `import { logger } from '@/lib/logger'` in admin-front (pino, debug in dev / warn+ in prod). In spring-ai-mcp, `LoggingAspect` AOP auto-logs `@Tool` START/END/ERROR (argument count only, no values).
+
+## Monitoring Stack
+
+Run after the app stack is up (shares `mcp-platform-net`):
+
+```bash
+cd deploy/monitor
+cp .env.example .env   # set GRAFANA_PASSWORD
+docker compose up -d
+# Grafana: http://localhost:3001  |  Prometheus: http://localhost:9090
+```
+
+Prometheus scrapes platform (`platform:8081/actuator/prometheus`) and mcp (`mcp:8081/actuator/prometheus`) every 15 s. Grafana dashboards and alert rules are auto-provisioned. Import Spring Boot JVM dashboard via ID `19004`.
+
+## MCP Client Connection
+
+```bash
+# MCP Inspector (test)
+npx @modelcontextprotocol/inspector
+# Transport: Streamable HTTP | URL: http://YOUR_SERVER_IP/mcp
+# Header: Authorization: Bearer sk-your-api-key
+```
+
+`claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "mcp-platform": {
+      "url": "http://YOUR_SERVER_IP/mcp",
+      "headers": { "Authorization": "Bearer sk-your-api-key" }
+    }
+  }
+}
+```

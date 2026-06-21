@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Plus, Copy, Trash2, Loader2 } from 'lucide-react'
+'use client'
+
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, Trash2, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -20,91 +23,64 @@ import {
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { getApiKeys, createApiKey, revokeApiKey } from '@/api/api-keys'
+import type { CreateApiKeyRequest } from '@/api/api-keys'
 import { logger } from '@/lib/logger'
 import { ApiKeyCreateDialog } from './components/api-key-create-dialog'
+import { ApiKeyCreatedDialog } from './components/api-key-created-dialog'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import type { ApiKey } from '@/features/api-keys/data/schema'
 
 export default function ApiKeys() {
-  const [keys, setKeys] = useState<ApiKey[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createdKey, setCreatedKey] = useState<ApiKey | null>(null)
   const [revokeId, setRevokeId] = useState<number | null>(null)
-  const [isRevoking, setIsRevoking] = useState(false)
 
-  const fetchKeys = async () => {
-    try {
-      setIsLoading(true)
-      const data = await getApiKeys()
-       // Type assertion or data transformation if needed, usually schema matches api
-      setKeys(data as unknown as ApiKey[])
-    } catch (error) {
-      logger.error(error)
-      toast.error('Failed to fetch API keys')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const { data: keys = [], isLoading } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: getApiKeys,
+  })
 
-  useEffect(() => {
-    fetchKeys()
-  }, [])
-
-  const handleCreate = async (values: { name: string; expiresAt?: Date }) => {
-    try {
-      await createApiKey({
-        name: values.name,
-        expiresAt: values.expiresAt ? values.expiresAt.toISOString() : undefined
-      })
-      toast.success('API Key created successfully')
+  const createMutation = useMutation({
+    mutationFn: (values: CreateApiKeyRequest) => createApiKey(values),
+    onSuccess: (newKey) => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
       setIsCreateOpen(false)
-      fetchKeys()
-    } catch (error) {
+      setCreatedKey(newKey)
+    },
+    onError: (error) => {
       logger.error(error)
       toast.error('Failed to create API key')
-    }
-  }
+    },
+  })
 
-  const handleConfirmRevoke = async () => {
-    if (revokeId === null) return
-    
-    try {
-      setIsRevoking(true)
-      await revokeApiKey(revokeId)
+  const revokeMutation = useMutation({
+    mutationFn: (id: number) => revokeApiKey(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
       toast.success('API Key revoked successfully')
-      fetchKeys()
-    } catch (error) {
+      setRevokeId(null)
+    },
+    onError: (error) => {
       logger.error(error)
       toast.error('Failed to revoke API key')
-    } finally {
-      setIsRevoking(false)
-      setRevokeId(null)
-    }
-  }
+    },
+  })
 
-  const copyToClipboard = (text: string) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text)
-    } else {
-      const el = document.createElement('textarea')
-      el.value = text
-      el.style.position = 'fixed'
-      el.style.opacity = '0'
-      document.body.appendChild(el)
-      el.select()
-      document.execCommand('copy')
-      document.body.removeChild(el)
-    }
-    toast.success('API Key copied to clipboard')
+  const handleCreate = async (values: { name: string; expiresAt?: Date }) => {
+    await createMutation.mutateAsync({
+      name: values.name,
+      expiresAt: values.expiresAt ? values.expiresAt.toISOString() : undefined,
+    })
   }
 
   return (
     <div className='flex flex-col gap-4 p-4 md:p-8'>
       <div className='flex items-center justify-between'>
         <div>
-          <h2 className='text-2xl font-bold tracking-tight'>Auth Keys</h2>
+          <h2 className='text-2xl font-bold tracking-tight'>API Keys</h2>
           <p className='text-muted-foreground'>
-            Manage your API authentication keys.
+            Manage your MCP authentication keys.
           </p>
         </div>
         <Button onClick={() => setIsCreateOpen(true)}>
@@ -116,7 +92,7 @@ export default function ApiKeys() {
         <CardHeader>
           <CardTitle>API Keys</CardTitle>
           <CardDescription>
-            A list of your API keys.
+            A list of your API keys. Keys are masked after creation.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -125,6 +101,8 @@ export default function ApiKeys() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Key</TableHead>
+                <TableHead>Usage</TableHead>
+                <TableHead>Last Used</TableHead>
                 <TableHead>Created At</TableHead>
                 <TableHead>Expires At</TableHead>
                 <TableHead>Status</TableHead>
@@ -134,13 +112,13 @@ export default function ApiKeys() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
+                  <TableCell colSpan={8} className='h-24 text-center'>
                     <Loader2 className='mx-auto h-6 w-6 animate-spin' />
                   </TableCell>
                 </TableRow>
               ) : keys.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
+                  <TableCell colSpan={8} className='h-24 text-center'>
                     No API keys found. Create one to get started.
                   </TableCell>
                 </TableRow>
@@ -149,16 +127,15 @@ export default function ApiKeys() {
                   <TableRow key={key.id}>
                     <TableCell className='font-medium'>{key.name}</TableCell>
                     <TableCell className='font-mono text-xs'>
-                      {key.key.substring(0, 8)}...
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        className='ml-2 h-6 w-6'
-                        onClick={() => copyToClipboard(key.key)}
-                      >
-                        <Copy className='h-3 w-3' />
-                        <span className='sr-only'>Copy API Key</span>
-                      </Button>
+                      {key.key}
+                    </TableCell>
+                    <TableCell className='text-sm tabular-nums'>
+                      {key.usageCount ?? 0}
+                    </TableCell>
+                    <TableCell className='text-sm'>
+                      {key.lastUsedAt
+                        ? format(new Date(key.lastUsedAt), 'MMM d, yyyy HH:mm')
+                        : '—'}
                     </TableCell>
                     <TableCell>
                       {format(new Date(key.createdAt), 'MMM d, yyyy')}
@@ -171,7 +148,7 @@ export default function ApiKeys() {
                     <TableCell>
                       <div
                         className={cn(
-                          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
                           key.isActive
                             ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
                             : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
@@ -206,15 +183,23 @@ export default function ApiKeys() {
         onSubmit={handleCreate}
       />
 
+      {createdKey && (
+        <ApiKeyCreatedDialog
+          open={!!createdKey}
+          onOpenChange={(open) => !open && setCreatedKey(null)}
+          apiKey={createdKey.key}
+          keyName={createdKey.name}
+        />
+      )}
+
       <ConfirmDialog
         open={!!revokeId}
         onOpenChange={(open) => !open && setRevokeId(null)}
-        title="Are you absolutely sure?"
-        desc="This action cannot be undone. This will permanently revoke the API key and any applications using it will no longer be able to authenticate."
-        confirmText="Revoke Key"
-        // destructive={true}
-        handleConfirm={handleConfirmRevoke}
-        isLoading={isRevoking}
+        title='Are you absolutely sure?'
+        desc='This action cannot be undone. This will permanently revoke the API key and any applications using it will no longer be able to authenticate.'
+        confirmText='Revoke Key'
+        handleConfirm={() => revokeId !== null && revokeMutation.mutate(revokeId)}
+        isLoading={revokeMutation.isPending}
       />
     </div>
   )

@@ -81,4 +81,12 @@ public class UserController {
         userService.deactivateUser(id);
         return ResponseEntity.ok(ApiResponse.ok("사용자가 비활성화되었습니다.", null));
     }
+
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERADMIN')")
+    @Operation(summary = "사용자 재활성화 (관리자)")
+    public ResponseEntity<ApiResponse<Void>> activateUser(@PathVariable Long id) {
+        userService.activateUser(id);
+        return ResponseEntity.ok(ApiResponse.ok("사용자가 재활성화되었습니다.", null));
+    }
 }

@@ -8,6 +8,8 @@ import com.sehoon.platform.auth.repository.ApiKeyRepository;
 import com.sehoon.platform.common.exception.BusinessException;
 import com.sehoon.platform.common.exception.ErrorCode;
 import com.sehoon.platform.user.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,13 +57,21 @@ public class ApiKeyService {
         apiKey.deactivate();
     }
 
+    @Transactional
     public Optional<ApiKeyValidateResponse> validateKey(String key) {
         return apiKeyRepository.findByKey(key)
                 .filter(ApiKey::isActive)
                 .filter(k -> !k.isExpired())
                 .flatMap(k -> userRepository.findById(k.getUserId())
                         .filter(u -> u.isActive())
-                        .map(u -> new ApiKeyValidateResponse(k.getId(), u.getId(), u.getUsername(), u.getRole().name())));
+                        .map(u -> {
+                            k.recordUsage();
+                            return new ApiKeyValidateResponse(k.getId(), u.getId(), u.getUsername(), u.getRole().name());
+                        }));
+    }
+
+    public Page<ApiKeyResponse> getAllApiKeys(Pageable pageable) {
+        return apiKeyRepository.findAll(pageable).map(ApiKeyResponse::masked);
     }
 
     private String generateKey() {

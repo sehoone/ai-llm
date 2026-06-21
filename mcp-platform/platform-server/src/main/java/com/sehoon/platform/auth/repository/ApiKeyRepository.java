@@ -10,4 +10,5 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, Long> {
     Optional<ApiKey> findByKey(String key);
     List<ApiKey> findByUserId(Long userId);
     List<ApiKey> findByUserIdAndIsActive(Long userId, boolean isActive);
+    long countByIsActive(boolean isActive);
 }

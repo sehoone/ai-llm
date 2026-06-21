@@ -10,7 +10,9 @@ public record ApiKeyResponse(
         String key,
         boolean isActive,
         LocalDateTime expiresAt,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime lastUsedAt,
+        long usageCount
 ) {
     public static ApiKeyResponse from(ApiKey apiKey) {
         return new ApiKeyResponse(
@@ -19,7 +21,9 @@ public record ApiKeyResponse(
                 apiKey.getKey(),
                 apiKey.isActive(),
                 apiKey.getExpiresAt(),
-                apiKey.getCreatedAt()
+                apiKey.getCreatedAt(),
+                apiKey.getLastUsedAt(),
+                apiKey.getUsageCount()
         );
     }
 
@@ -32,7 +36,9 @@ public record ApiKeyResponse(
                 masked,
                 apiKey.isActive(),
                 apiKey.getExpiresAt(),
-                apiKey.getCreatedAt()
+                apiKey.getCreatedAt(),
+                apiKey.getLastUsedAt(),
+                apiKey.getUsageCount()
         );
     }
 }

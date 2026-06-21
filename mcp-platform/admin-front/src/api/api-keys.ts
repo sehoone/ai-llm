@@ -1,13 +1,5 @@
 import api from '@/api/axios'
-
-export interface ApiKey {
-  id: number
-  name: string
-  key: string
-  isActive: boolean
-  expiresAt?: string | null
-  createdAt: string
-}
+import type { ApiKey } from '@/features/api-keys/data/schema'
 
 export interface CreateApiKeyRequest {
   name: string

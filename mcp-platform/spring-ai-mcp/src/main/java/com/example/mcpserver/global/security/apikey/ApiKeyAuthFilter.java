@@ -2,6 +2,8 @@ package com.example.mcpserver.global.security.apikey;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,29 +20,36 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final long CACHE_TTL_MS = 5 * 60 * 1000L; // 5분
+    private static final String INTERNAL_SECRET_HEADER = "X-Internal-Secret";
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
-    private final ConcurrentHashMap<String, CachedResult> cache = new ConcurrentHashMap<>();
+    private final String internalSecret;
+
+    /** 최대 10,000개 항목 / 5분 만료 bounded cache */
+    private final Cache<String, ApiKeyInfo> cache = Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .expireAfterWrite(Duration.ofMinutes(5))
+            .build();
 
     public ApiKeyAuthFilter(ApiKeyProperties props, ObjectMapper objectMapper) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(java.time.Duration.ofSeconds(3));
-        factory.setReadTimeout(java.time.Duration.ofSeconds(5));
+        factory.setConnectTimeout(Duration.ofSeconds(3));
+        factory.setReadTimeout(Duration.ofSeconds(5));
         this.restClient = RestClient.builder()
                 .baseUrl(props.getPlatformUrl())
                 .requestFactory(factory)
                 .build();
         this.objectMapper = objectMapper;
+        this.internalSecret = props.getInternalSecret();
     }
 
     @Override
@@ -74,15 +83,18 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     }
 
     private ApiKeyInfo resolveApiKey(String apiKey) {
-        CachedResult cached = cache.get(apiKey);
-        if (cached != null && !cached.isExpired()) {
-            return cached.info();
-        }
+        ApiKeyInfo cached = cache.getIfPresent(apiKey);
+        if (cached != null) return cached;
 
         try {
             String body = restClient.post()
                     .uri("/api/v1/api-keys/validate")
                     .contentType(MediaType.APPLICATION_JSON)
+                    .headers(headers -> {
+                        if (internalSecret != null && !internalSecret.isBlank()) {
+                            headers.set(INTERNAL_SECRET_HEADER, internalSecret);
+                        }
+                    })
                     .body(Map.of("key", apiKey))
                     .retrieve()
                     .body(String.class);
@@ -96,12 +108,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
                     data.get("username").asText(),
                     data.get("role").asText()
             );
-            cache.put(apiKey, new CachedResult(info));
+            cache.put(apiKey, info);
             return info;
 
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
-                cache.remove(apiKey);
+                cache.invalidate(apiKey);
                 return null;
             }
             log.warn("[ApiKey] platform-server error: {}", e.getMessage());
@@ -113,14 +125,4 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     }
 
     record ApiKeyInfo(Long userId, String username, String role) {}
-
-    record CachedResult(ApiKeyInfo info, long createdAt) {
-        CachedResult(ApiKeyInfo info) {
-            this(info, System.currentTimeMillis());
-        }
-
-        boolean isExpired() {
-            return System.currentTimeMillis() - createdAt > CACHE_TTL_MS;
-        }
-    }
 }

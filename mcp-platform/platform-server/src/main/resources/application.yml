@@ -36,6 +36,14 @@ jwt:
   access-token-expire-minutes: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:10}
   refresh-token-expire-minutes: ${JWT_REFRESH_TOKEN_EXPIRE_MINUTES:10080}
 
+app:
+  internal-secret: ${INTERNAL_SECRET:}
+  init:
+    superadmin:
+      email: ${SUPERADMIN_EMAIL:}
+      username: ${SUPERADMIN_USERNAME:superadmin}
+      password: ${SUPERADMIN_PASSWORD:}
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful

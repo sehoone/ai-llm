@@ -6,7 +6,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class ApiKeyProperties {
 
     private String platformUrl;
+    private String internalSecret;
 
     public String getPlatformUrl() { return platformUrl; }
     public void setPlatformUrl(String platformUrl) { this.platformUrl = platformUrl; }
+
+    public String getInternalSecret() { return internalSecret; }
+    public void setInternalSecret(String internalSecret) { this.internalSecret = internalSecret; }
 }

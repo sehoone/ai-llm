@@ -33,14 +33,16 @@ CREATE TABLE IF NOT EXISTS llmonl.users (
 );
 
 CREATE TABLE IF NOT EXISTS llmonl.api_key (
-    id          BIGSERIAL    PRIMARY KEY,
-    user_id     BIGINT       NOT NULL REFERENCES llmonl.users(id),
-    key         VARCHAR(255) NOT NULL,
-    name        VARCHAR(255) NOT NULL DEFAULT 'API Key',
-    expires_at  TIMESTAMP,
-    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    id           BIGSERIAL    PRIMARY KEY,
+    user_id      BIGINT       NOT NULL REFERENCES llmonl.users(id),
+    key          VARCHAR(255) NOT NULL,
+    name         VARCHAR(255) NOT NULL DEFAULT 'API Key',
+    expires_at   TIMESTAMP,
+    is_active    BOOLEAN      NOT NULL DEFAULT TRUE,
+    last_used_at TIMESTAMP,
+    usage_count  BIGINT       NOT NULL DEFAULT 0,
+    created_at   TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMP    NOT NULL DEFAULT now(),
     CONSTRAINT uq_api_key UNIQUE (key)
 );
 

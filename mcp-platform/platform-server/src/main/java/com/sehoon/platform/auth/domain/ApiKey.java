@@ -28,6 +28,12 @@ public class ApiKey extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
+    @Column(name = "last_used_at")
+    private LocalDateTime lastUsedAt;
+
+    @Column(name = "usage_count", nullable = false)
+    private long usageCount = 0;
+
     protected ApiKey() {}
 
     public ApiKey(Long userId, String key, String name, LocalDateTime expiresAt) {
@@ -43,10 +49,17 @@ public class ApiKey extends BaseEntity {
     public String getName() { return name; }
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public boolean isActive() { return isActive; }
+    public LocalDateTime getLastUsedAt() { return lastUsedAt; }
+    public long getUsageCount() { return usageCount; }
 
     public boolean isExpired() {
         return expiresAt != null && expiresAt.isBefore(LocalDateTime.now());
     }
 
     public void deactivate() { this.isActive = false; }
+
+    public void recordUsage() {
+        this.lastUsedAt = LocalDateTime.now();
+        this.usageCount++;
+    }
 }

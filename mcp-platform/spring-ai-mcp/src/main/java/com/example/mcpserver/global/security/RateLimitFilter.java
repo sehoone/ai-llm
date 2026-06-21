@@ -42,7 +42,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        String ip = request.getRemoteAddr();
+        String ip = resolveClientIp(request);
         long now = System.currentTimeMillis();
         long[] bucket = buckets.computeIfAbsent(ip, k -> {
             if (buckets.size() < MAX_BUCKET_ENTRIES) {
@@ -77,5 +77,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
             response.setContentType("application/json;charset=UTF-8");
             objectMapper.writeValue(response.getWriter(), Map.of("error", "Too Many Requests"));
         }
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 }

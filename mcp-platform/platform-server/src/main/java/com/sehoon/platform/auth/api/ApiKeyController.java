@@ -9,8 +9,11 @@ import com.sehoon.platform.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -59,5 +62,12 @@ public class ApiKeyController {
                 .map(r -> ResponseEntity.ok(ApiResponse.ok(r)))
                 .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(ApiResponse.fail("유효하지 않거나 만료된 API 키입니다.")));
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERADMIN')")
+    @Operation(summary = "전체 API 키 목록 (관리자)")
+    public ResponseEntity<ApiResponse<Page<ApiKeyResponse>>> getAllApiKeys(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.ok(apiKeyService.getAllApiKeys(pageable)));
     }
 }

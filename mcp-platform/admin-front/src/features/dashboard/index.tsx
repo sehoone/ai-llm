@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button'
+import { useQuery } from '@tanstack/react-query'
 import {
   Card,
   CardContent,
@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
@@ -13,181 +14,165 @@ import { Main } from '@/components/layout/main'
 import { TopNav } from '@/components/layout/top-nav'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { getStats } from '@/api/stats'
+import { getApiKeys } from '@/api/api-keys'
 import { Analytics } from './components/analytics'
-import { Overview } from './components/overview'
-import { RecentSales } from './components/recent-sales'
+import { format } from 'date-fns'
+import { Users, Key, UserCheck, KeyRound } from 'lucide-react'
 
 export function Dashboard() {
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['stats'],
+    queryFn: getStats,
+  })
+
+  const { data: recentKeys = [], isLoading: keysLoading } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: getApiKeys,
+  })
+
+  const topRecentKeys = recentKeys.slice(0, 5)
+
   return (
     <>
-      {/* ===== Top Heading ===== */}
       <Header>
         <TopNav links={topNav} />
         <div className='ms-auto flex items-center space-x-4'>
-          {/* <Search /> */}
           <ThemeSwitch />
           <ConfigDrawer />
           <ProfileDropdown />
         </div>
       </Header>
 
-      {/* ===== Main ===== */}
       <Main>
         <div className='mb-2 flex items-center justify-between space-y-2'>
           <h1 className='text-2xl font-bold tracking-tight'>Dashboard</h1>
-          <div className='flex items-center space-x-2'>
-            <Button>Download</Button>
-          </div>
         </div>
-        <Tabs
-          orientation='vertical'
-          defaultValue='overview'
-          className='space-y-4'
-        >
+        <Tabs orientation='vertical' defaultValue='overview' className='space-y-4'>
           <div className='w-full overflow-x-auto pb-2'>
             <TabsList>
               <TabsTrigger value='overview'>Overview</TabsTrigger>
               <TabsTrigger value='analytics'>Analytics</TabsTrigger>
-              <TabsTrigger value='reports' disabled>
-                Reports
-              </TabsTrigger>
-              <TabsTrigger value='notifications' disabled>
-                Notifications
-              </TabsTrigger>
             </TabsList>
           </div>
+
           <TabsContent value='overview' className='space-y-4'>
+            {/* Stats cards */}
             <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-              <Card>
-                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                  <CardTitle className='text-sm font-medium'>
-                    Total Revenue
-                  </CardTitle>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth='2'
-                    className='h-4 w-4 text-muted-foreground'
-                  >
-                    <path d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' />
-                  </svg>
-                </CardHeader>
-                <CardContent>
-                  <div className='text-2xl font-bold'>$45,231.89</div>
-                  <p className='text-xs text-muted-foreground'>
-                    +20.1% from last month
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                  <CardTitle className='text-sm font-medium'>
-                    Subscriptions
-                  </CardTitle>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth='2'
-                    className='h-4 w-4 text-muted-foreground'
-                  >
-                    <path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' />
-                    <circle cx='9' cy='7' r='4' />
-                    <path d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' />
-                  </svg>
-                </CardHeader>
-                <CardContent>
-                  <div className='text-2xl font-bold'>+2350</div>
-                  <p className='text-xs text-muted-foreground'>
-                    +180.1% from last month
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                  <CardTitle className='text-sm font-medium'>Sales</CardTitle>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth='2'
-                    className='h-4 w-4 text-muted-foreground'
-                  >
-                    <rect width='20' height='14' x='2' y='5' rx='2' />
-                    <path d='M2 10h20' />
-                  </svg>
-                </CardHeader>
-                <CardContent>
-                  <div className='text-2xl font-bold'>+12,234</div>
-                  <p className='text-xs text-muted-foreground'>
-                    +19% from last month
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-                  <CardTitle className='text-sm font-medium'>
-                    Active Now
-                  </CardTitle>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth='2'
-                    className='h-4 w-4 text-muted-foreground'
-                  >
-                    <path d='M22 12h-4l-3 9L9 3l-3 9H2' />
-                  </svg>
-                </CardHeader>
-                <CardContent>
-                  <div className='text-2xl font-bold'>+573</div>
-                  <p className='text-xs text-muted-foreground'>
-                    +201 since last hour
-                  </p>
-                </CardContent>
-              </Card>
+              <StatCard
+                title='Total Users'
+                value={stats?.totalUsers}
+                icon={<Users className='h-4 w-4 text-muted-foreground' />}
+                isLoading={statsLoading}
+              />
+              <StatCard
+                title='Active Users'
+                value={stats?.activeUsers}
+                icon={<UserCheck className='h-4 w-4 text-muted-foreground' />}
+                isLoading={statsLoading}
+              />
+              <StatCard
+                title='Total API Keys'
+                value={stats?.totalApiKeys}
+                icon={<Key className='h-4 w-4 text-muted-foreground' />}
+                isLoading={statsLoading}
+              />
+              <StatCard
+                title='Active API Keys'
+                value={stats?.activeApiKeys}
+                icon={<KeyRound className='h-4 w-4 text-muted-foreground' />}
+                isLoading={statsLoading}
+              />
             </div>
-            <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
-              <Card className='col-span-1 lg:col-span-4'>
-                <CardHeader>
-                  <CardTitle>Overview</CardTitle>
-                </CardHeader>
-                <CardContent className='ps-2'>
-                  <Overview />
-                </CardContent>
-              </Card>
-              <Card className='col-span-1 lg:col-span-3'>
-                <CardHeader>
-                  <CardTitle>Recent Sales</CardTitle>
-                  <CardDescription>
-                    You made 265 sales this month.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <RecentSales />
-                </CardContent>
-              </Card>
-            </div>
+
+            {/* Recent API Keys */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent API Keys</CardTitle>
+                <CardDescription>
+                  Your most recently issued API keys
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {keysLoading ? (
+                  <div className='space-y-2'>
+                    {[...Array(3)].map((_, i) => (
+                      <Skeleton key={i} className='h-10 w-full' />
+                    ))}
+                  </div>
+                ) : topRecentKeys.length === 0 ? (
+                  <p className='text-sm text-muted-foreground'>
+                    No API keys yet.
+                  </p>
+                ) : (
+                  <div className='space-y-3'>
+                    {topRecentKeys.map((key) => (
+                      <div
+                        key={key.id}
+                        className='flex items-center justify-between border-b pb-2 last:border-0 last:pb-0'
+                      >
+                        <div>
+                          <p className='text-sm font-medium'>{key.name}</p>
+                          <p className='font-mono text-xs text-muted-foreground'>
+                            {key.key}
+                          </p>
+                        </div>
+                        <div className='text-right'>
+                          <p className='text-xs text-muted-foreground'>
+                            {format(new Date(key.createdAt), 'MMM d, yyyy')}
+                          </p>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              key.isActive
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                            }`}
+                          >
+                            {key.isActive ? 'Active' : 'Revoked'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
+
           <TabsContent value='analytics' className='space-y-4'>
             <Analytics />
           </TabsContent>
         </Tabs>
       </Main>
     </>
+  )
+}
+
+function StatCard({
+  title,
+  value,
+  icon,
+  isLoading,
+}: {
+  title: string
+  value?: number
+  icon: React.ReactNode
+  isLoading: boolean
+}) {
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+        <CardTitle className='text-sm font-medium'>{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className='h-8 w-16' />
+        ) : (
+          <div className='text-2xl font-bold'>{value ?? 0}</div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -199,20 +184,8 @@ const topNav = [
     disabled: false,
   },
   {
-    title: 'Customers',
-    href: 'dashboard/customers',
-    isActive: false,
-    disabled: true,
-  },
-  {
-    title: 'Products',
-    href: 'dashboard/products',
-    isActive: false,
-    disabled: true,
-  },
-  {
-    title: 'Settings',
-    href: 'dashboard/settings',
+    title: 'Analytics',
+    href: 'dashboard/analytics',
     isActive: false,
     disabled: true,
   },

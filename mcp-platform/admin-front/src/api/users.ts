@@ -1,9 +1,19 @@
 import api from './axios'
 import type { User } from '@/features/users/data/schema'
 
+interface PageResponse<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  size: number
+  number: number
+}
+
 export const getUsers = async (): Promise<User[]> => {
-  const response = await api.get('v1/users')
-  return response.data
+  const response = await api.get<PageResponse<User>>('v1/users', {
+    params: { size: 1000, sort: 'createdAt,desc' },
+  })
+  return response.data.content ?? response.data
 }
 
 export const createUser = async (data: Partial<User> & { password?: string }): Promise<User> => {

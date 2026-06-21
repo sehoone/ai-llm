@@ -1,6 +1,7 @@
 package com.sehoon.platform.user.dto;
 
 import com.sehoon.platform.user.domain.User;
+import com.sehoon.platform.user.domain.UserStatus;
 
 import java.time.LocalDateTime;
 
@@ -9,7 +10,7 @@ public record UserResponse(
         String username,
         String email,
         String role,
-        String status,
+        UserStatus status,
         LocalDateTime createdAt
 ) {
     public static UserResponse from(User user) {
