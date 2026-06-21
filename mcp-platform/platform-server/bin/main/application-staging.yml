@@ -1,9 +1,0 @@
-spring:
-  jpa:
-    hibernate:
-      ddl-auto: validate
-
-logging:
-  level:
-    root: INFO
-    com.sehoon.platform: INFO
