@@ -3,6 +3,8 @@
 from fastapi import APIRouter
 
 from src.agent.api.agent_api import router as agent_router
+from src.ai_overview.api.document_api import router as ai_overview_doc_router
+from src.ai_overview.api.search_api import router as ai_overview_search_router
 from src.chatbot.api.chatbot_api import router as chatbot_router
 from src.chatbot.api.session_api import router as session_router
 from src.chatbot.api.custom_gpts import router as custom_gpts_router
@@ -21,6 +23,8 @@ api_router = APIRouter()
 
 # ── LLM/RAG/Workflow — orchestrator 담당 ─────────────────────────────────────
 api_router.include_router(agent_router, prefix="/agents", tags=["agents"])
+api_router.include_router(ai_overview_doc_router, prefix="/ai-overview/documents", tags=["ai-overview"])
+api_router.include_router(ai_overview_search_router, prefix="/ai-overview", tags=["ai-overview"])
 api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(custom_gpts_router, prefix="/gpts", tags=["custom-gpts"])
 api_router.include_router(session_router, prefix="/chatbot", tags=["chatbot-session"])

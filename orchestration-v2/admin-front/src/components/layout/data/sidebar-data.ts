@@ -12,6 +12,8 @@ import {
   Users,
   Key,
   BrainCog,
+  Sparkles,
+  Database,
   // GalleryVerticalEnd,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -87,6 +89,16 @@ export const sidebarData: SidebarData = {
               url: '/natural-search',
               icon: Search,
             },
+            {
+              title: 'AI Overview',
+              url: '/ai-overview',
+              icon: Sparkles,
+            },
+            {
+              title: 'AI Overview Data',
+              url: '/ai-overview-data',
+              icon: Database,
+            },
           ]
         },
         {
@@ -94,11 +106,11 @@ export const sidebarData: SidebarData = {
           url: '/workflows',
           icon: Zap,
         },
-        {
-          title: 'AI Voice Evaluation',
-          url: '/evaluation',
-          icon: LayoutDashboard,
-        },
+        // {
+        //   title: 'AI Voice Evaluation',
+        //   url: '/evaluation',
+        //   icon: LayoutDashboard,
+        // },
         // {
         //   title: 'Tasks',
         //   url: '/tasks',

@@ -346,6 +346,42 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action       ON llmonl.audit_log (actio
 CREATE INDEX IF NOT EXISTS idx_audit_log_request_id   ON llmonl.audit_log (request_id);
 
 -- ─────────────────────────────────────────────────────────────
+-- AI Overview (pg_trgm 기반 사내 데이터 검색)
+-- ─────────────────────────────────────────────────────────────
+
+-- pg_trgm: 한국어/영문 trigram 유사도 검색
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- AI Overview 문서
+CREATE TABLE IF NOT EXISTS llmonl.ai_overview_document (
+    id         BIGSERIAL     PRIMARY KEY,
+    title      VARCHAR(500)  NOT NULL,
+    content    TEXT          NOT NULL,
+    source_url VARCHAR(1000),
+    status     VARCHAR(20)   NOT NULL DEFAULT 'pending',  -- pending|processing|ready|error
+    created_at TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP     NOT NULL DEFAULT NOW()
+);
+
+-- AI Overview 키워드/동의어
+-- keyword_type: 'keyword' | 'synonym' — 구분 없이 동일 컬럼으로 pg_trgm 검색됨
+CREATE TABLE IF NOT EXISTS llmonl.ai_overview_keyword (
+    id           BIGSERIAL   PRIMARY KEY,
+    document_id  BIGINT      NOT NULL
+                             REFERENCES llmonl.ai_overview_document(id) ON DELETE CASCADE,
+    keyword      VARCHAR(200) NOT NULL,
+    keyword_type VARCHAR(20)  NOT NULL,
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_overview_keyword_doc
+    ON llmonl.ai_overview_keyword (document_id);
+
+-- GIN 인덱스: pg_trgm similarity() 고속 검색용
+CREATE INDEX IF NOT EXISTS idx_ai_overview_keyword_trgm
+    ON llmonl.ai_overview_keyword
+    USING GIN (keyword gin_trgm_ops);
+
+-- ─────────────────────────────────────────────────────────────
 -- LangGraph PostgreSQL 체크포인터 테이블
 -- (AsyncPostgresSaver가 search_path=llmonl,public으로 연결하므로
 --  setup() 없이 사용하려면 여기서 미리 생성해야 함)
