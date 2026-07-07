@@ -33,8 +33,9 @@ orchestration/
 | 서비스 | 이미지 | 포트 | 설명 |
 |--------|--------|------|------|
 | nginx | nginx:alpine | `8060` | 프론트엔드 / API 단일 진입점 |
-| llm-admin | (빌드) | - | Next.js 프론트엔드 |
-| app | (빌드) | - | FastAPI 백엔드 |
+| llm-admin | (빌드) | - | Next.js 프론트엔드 (`admin-front/`) |
+| platform | (빌드) | - | Spring Boot 백엔드 — 인증·사용자·API 키·LLM 리소스 (`platform-server/`) |
+| app | (빌드) | - | FastAPI 백엔드 — 채팅·RAG·워크플로우 (`orchestrator-server/`) |
 | db | pgvector/pgvector:pg16 | `8066` | PostgreSQL + pgvector |
 | langfuse | langfuse/langfuse:3 | `8067` | LLM 추적/관찰 UI |
 | clickhouse | clickhouse-server:24.1 | - | Langfuse v3 분석 DB |
@@ -51,8 +52,12 @@ orchestration/
     │
     ▼
 :8060 (nginx)
-    ├── /api/*  →  orchestration:8000  (FastAPI)
-    └── /*      →  llm-admin:3000      (Next.js)
+    ├── /api/v1/auth/*          →  platform:8080   (Spring Boot — 로그인/토큰 갱신)
+    ├── /api/v1/users/*         →  platform:8080   (사용자 관리)
+    ├── /api/v1/api-keys/*      →  platform:8080   (API 키 관리)
+    ├── /api/v1/llm-resources/* →  platform:8080   (LLM 리소스 설정)
+    ├── /api/*                  →  app:8000         (FastAPI — 채팅/RAG/워크플로우)
+    └── /*                      →  llm-admin:3000   (Next.js)
 
 모니터링
     ├── Prometheus :8063  ←  FastAPI /metrics + cAdvisor
@@ -129,10 +134,10 @@ openssl rand -hex 32
 #### 프론트엔드 (llm-admin)
 
 ```bash
-cp admin/llm-admin/.env.example admin/llm-admin/.env.production
+cp admin-front/.env.example admin-front/.env.production
 ```
 
-`admin/llm-admin/.env.production` 편집:
+`admin-front/.env.production` 편집:
 
 ```env
 # 클라이언트에서 API 호출 — 비워두면 Nginx(/api/*) 경유 (권장)
@@ -146,6 +151,8 @@ NEXT_PUBLIC_WS_URL=ws://<서버IP>:8060/api/v1/voice-evaluation/ws/conversation
 
 ### 2. 배포 실행
 
+#### Linux / macOS
+
 ```bash
 # staging 배포
 ./deploy/deploy.sh staging
@@ -154,6 +161,18 @@ NEXT_PUBLIC_WS_URL=ws://<서버IP>:8060/api/v1/voice-evaluation/ws/conversation
 ./deploy/deploy.sh
 ./deploy/deploy.sh production
 ```
+
+#### Windows (Git Bash)
+
+Git Bash 터미널에서 실행합니다. PowerShell에서는 셸 스크립트를 직접 실행할 수 없습니다.
+
+```bash
+# Git Bash 터미널에서
+cd /d/dev/vscodeWorkspace/ai-llm-1/orchestration-v2/deploy
+bash deploy.sh staging
+```
+
+> **팁:** VS Code 터미널을 Git Bash로 설정하려면 `Ctrl+Shift+P` → `Select Default Profile` → `Git Bash` 를 선택합니다.
 
 ### 3. 시드 데이터 적용 (최초 1회)
 
@@ -364,10 +383,10 @@ MinIO 버킷이 없을 경우 [버킷 초기화](#3-langfuse-minio-버킷-초기
 
 ### Next.js 빌드 실패
 
-`admin/llm-admin/.env.production` 파일이 존재하는지 확인합니다.
+`admin-front/.env.production` 파일이 존재하는지 확인합니다.
 
 ```bash
-ls admin/llm-admin/.env.production
+ls admin-front/.env.production
 ```
 
 ### Windows 환경에서 빌드 시 `no such file or directory` 오류
