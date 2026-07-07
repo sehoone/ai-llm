@@ -3,7 +3,7 @@ import type { User } from '@/features/users/data/schema'
 
 export const getUsers = async (): Promise<User[]> => {
   const response = await api.get('v1/users')
-  return response.data
+  return response.data?.content ?? response.data
 }
 
 export const createUser = async (data: Partial<User> & { password?: string }): Promise<User> => {
