@@ -9,11 +9,11 @@ from sqlmodel import Field
 from src.common.models.base import BaseModel
 
 class UserRole(str, Enum):
-    SUPERADMIN = "superadmin"
-    ADMIN = "admin"
-    MANAGER = "manager"
-    CASHIER = "cashier"
-    USER = "user"
+    SUPERADMIN = "SUPERADMIN"
+    ADMIN = "ADMIN"
+    MANAGER = "MANAGER"
+    CASHIER = "CASHIER"
+    USER = "USER"
 
 class User(BaseModel, table=True):
     """User model for storing user accounts."""

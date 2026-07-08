@@ -16,14 +16,14 @@ class UserRepositoryMixin:
     All sync DB calls are offloaded to a thread pool via asyncio.to_thread.
     """
 
-    async def create_user(self, email: str, password: str, username: str, role: str = "user", status: str = "active") -> User:
+    async def create_user(self, email: str, password: str, username: str, role: str = "USER", status: str = "active") -> User:
         """Create a new user record.
 
         Args:
             email: The user's email address.
             password: Pre-hashed password string.
             username: Display name for the user.
-            role: Role string (``"user"``, ``"admin"``, ``"superadmin"``).
+            role: Role string (``"USER"``, ``"ADMIN"``, ``"SUPERADMIN"``).
             status: Account status (``"active"`` or ``"inactive"``).
 
         Returns:
