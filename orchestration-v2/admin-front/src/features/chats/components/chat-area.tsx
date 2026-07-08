@@ -1,12 +1,53 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { type FileAttachment, type Message } from '@/types/chat-api'
-import { cn } from '@/lib/utils'
+
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, ChevronDown, ChevronRight, User, BrainCircuit, CheckCircle2, Loader2, FileText, Image as ImageIcon, Download } from 'lucide-react'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { markdownComponents } from '@/components/markdown-components'
+
 import { chatService } from '@/api/chat'
+import { type FileAttachment, type Message } from '@/types/chat-api'
+import { cn } from '@/lib/utils'
+import { markdownComponents } from '@/components/markdown-components'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+
+import {
+  Bot,
+  BrainCircuit,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  User,
+} from 'lucide-react'
+
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false)
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={copy}
+      title='메시지 복사'
+      className='flex items-center gap-1 rounded p-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+    >
+      {copied ? (
+        <Check className='h-3.5 w-3.5 text-green-500' />
+      ) : (
+        <Copy className='h-3.5 w-3.5' />
+      )}
+    </button>
+  )
+}
 
 const downloadInline = (file: FileAttachment) => {
   const byteCharacters = atob(file.data)
@@ -163,7 +204,7 @@ const AssistantMessage = ({ content }: { content: string }) => {
                 />
             )}
             {(answer || hasAnswerTag) && (
-                <div className="prose dark:prose-invert max-w-none animate-in fade-in duration-700 delay-150">
+                <div className='animate-in fade-in duration-700 delay-150'>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{answer}</ReactMarkdown>
                 </div>
             )}
@@ -187,7 +228,7 @@ export const ChatArea = memo(function ChatArea({ messages, isLoading }: ChatArea
           <div
             key={index}
             className={cn(
-              'flex w-full gap-4 p-4 rounded-lg',
+              'group flex w-full gap-4 rounded-lg p-4',
               message.role === 'user' ? 'bg-muted/50' : 'bg-background'
             )}
           >
@@ -198,49 +239,71 @@ export const ChatArea = memo(function ChatArea({ messages, isLoading }: ChatArea
                 <Bot className='h-4 w-4' />
               )}
             </div>
-            <div className='flex-1 space-y-2 overflow-hidden'>
-              <div className='prose break-words dark:prose-invert max-w-none'>
+            <div className='flex-1 overflow-hidden'>
+              <p className='mb-1.5 text-xs font-medium text-muted-foreground'>
+                {message.role === 'user' ? '나' : 'AI'}
+              </p>
+              <div className='break-words text-sm'>
                 {message.role === 'user' ? (
-                  <div className="space-y-2">
-                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                  <div className='space-y-2'>
+                    <p className='leading-7 whitespace-pre-wrap'>{message.content}</p>
 
-                    {/* Realtime: files sent with base64 (before history reload) */}
                     {message.files && message.files.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className='mt-2 flex flex-wrap gap-2'>
                         {message.files.map((file, i) => (
-                          <div key={i} className="flex items-center gap-2 p-2 bg-background border rounded-md text-sm text-muted-foreground w-fit max-w-full">
-                            {file.content_type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
-                            <span className="truncate max-w-[180px]" title={file.filename}>{file.filename}</span>
+                          <div
+                            key={i}
+                            className='flex w-fit max-w-full items-center gap-2 rounded-md border bg-background p-2 text-sm text-muted-foreground'
+                          >
+                            {file.content_type.startsWith('image/') ? (
+                              <ImageIcon className='h-4 w-4 shrink-0' />
+                            ) : (
+                              <FileText className='h-4 w-4 shrink-0' />
+                            )}
+                            <span className='max-w-[180px] truncate' title={file.filename}>
+                              {file.filename}
+                            </span>
                             <button
-                              type="button"
+                              type='button'
                               onClick={() => downloadInline(file)}
-                              className="ml-1 hover:text-foreground transition-colors"
-                              title="다운로드"
+                              className='ml-1 transition-colors hover:text-foreground'
+                              title='다운로드'
                             >
-                              <Download className="h-3.5 w-3.5" />
+                              <Download className='h-3.5 w-3.5' />
                             </button>
                           </div>
                         ))}
                       </div>
                     )}
 
-                    {/* History: attachment metadata (after page reload) */}
                     {message.attachments && message.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className='mt-2 flex flex-wrap gap-2'>
                         {message.attachments.map((att) => (
-                          <div key={att.id} className="flex items-center gap-2 p-2 bg-background border rounded-md text-sm text-muted-foreground w-fit max-w-full">
-                            {att.content_type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
-                            <div className="flex flex-col min-w-0">
-                              <span className="truncate max-w-[180px] leading-tight" title={att.filename}>{att.filename}</span>
-                              <span className="text-xs opacity-60">{formatBytes(att.file_size)}</span>
+                          <div
+                            key={att.id}
+                            className='flex w-fit max-w-full items-center gap-2 rounded-md border bg-background p-2 text-sm text-muted-foreground'
+                          >
+                            {att.content_type.startsWith('image/') ? (
+                              <ImageIcon className='h-4 w-4 shrink-0' />
+                            ) : (
+                              <FileText className='h-4 w-4 shrink-0' />
+                            )}
+                            <div className='flex min-w-0 flex-col'>
+                              <span
+                                className='max-w-[180px] truncate leading-tight'
+                                title={att.filename}
+                              >
+                                {att.filename}
+                              </span>
+                              <span className='text-xs opacity-60'>{formatBytes(att.file_size)}</span>
                             </div>
                             <button
-                              type="button"
+                              type='button'
                               onClick={() => chatService.downloadAttachment(att)}
-                              className="ml-1 hover:text-foreground transition-colors"
-                              title="다운로드"
+                              className='ml-1 transition-colors hover:text-foreground'
+                              title='다운로드'
                             >
-                              <Download className="h-3.5 w-3.5" />
+                              <Download className='h-3.5 w-3.5' />
                             </button>
                           </div>
                         ))}
@@ -251,6 +314,11 @@ export const ChatArea = memo(function ChatArea({ messages, isLoading }: ChatArea
                   <AssistantMessage content={message.content} />
                 )}
               </div>
+              {message.role === 'assistant' && (
+                <div className='mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                  <CopyButton text={message.content} />
+                </div>
+              )}
             </div>
           </div>
         ))}

@@ -1,8 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
 import '@/styles/index.css'
 import { cookies } from 'next/headers'
+import { Noto_Sans_KR } from 'next/font/google'
 import { Providers } from './providers'
 import type { Metadata } from 'next'
+
+const notoSansKR = Noto_Sans_KR({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '700'],
+  variable: '--font-noto-sans-kr',
+  display: 'swap',
+  preload: false,
+})
 
 export const metadata: Metadata = {
   title: 'AI Admin',
@@ -20,7 +29,7 @@ export default async function RootLayout({
   const dir = cookieStore.get('dir')?.value
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ko" className={notoSansKR.variable} suppressHydrationWarning>
       <body>
         <Providers initialTheme={theme} initialFont={font} initialDir={dir}>
           {children}
