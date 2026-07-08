@@ -86,9 +86,13 @@ export const aiOverviewApi = {
     await api.delete(`v1/ai-overview/documents/${id}`)
   },
 
-  generateKeywords: async (id: number): Promise<{ doc_id: number; keyword_count: number }> => {
+  generateKeywords: async (id: number, systemPrompt?: string, model?: string): Promise<{ doc_id: number; keyword_count: number }> => {
+    const body: Record<string, string> = {}
+    if (systemPrompt) body.system_prompt = systemPrompt
+    if (model) body.model = model
     const res = await api.post<{ doc_id: number; keyword_count: number }>(
-      `v1/ai-overview/documents/${id}/generate-keywords`
+      `v1/ai-overview/documents/${id}/generate-keywords`,
+      body
     )
     return res.data
   },
@@ -102,6 +106,11 @@ export const aiOverviewApi = {
     await api.delete(`v1/ai-overview/documents/${docId}/keywords/${keywordId}`)
   },
 
+  deleteAllDocuments: async (): Promise<{ deleted: number }> => {
+    const res = await api.delete<{ deleted: number }>('v1/ai-overview/documents/all')
+    return res.data
+  },
+
   batchDeleteDocuments: async (ids: number[]): Promise<{ deleted: number }> => {
     const res = await api.delete<{ deleted: number }>('v1/ai-overview/documents/batch', {
       data: { ids },
@@ -109,9 +118,11 @@ export const aiOverviewApi = {
     return res.data
   },
 
-  uploadDocumentsJson: async (file: File): Promise<UploadResult> => {
+  uploadDocumentsJson: async (file: File, systemPrompt?: string, model?: string): Promise<UploadResult> => {
     const formData = new FormData()
     formData.append('file', file)
+    if (systemPrompt) formData.append('system_prompt', systemPrompt)
+    if (model) formData.append('model', model)
     const res = await api.post<UploadResult>('v1/ai-overview/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

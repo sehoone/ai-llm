@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from src.ai_overview.schemas.document_schema import (
@@ -25,10 +25,10 @@ MAX_UPLOAD_ITEMS = 10_000
 
 # ── Background task ────────────────────────────────────────────────────────────
 
-async def _generate_keywords_background(job_id: str, doc_ids: list[int]) -> None:
+async def _generate_keywords_background(job_id: str, doc_ids: list[int], system_prompt: str | None = None, model_name: str | None = None) -> None:
     for doc_id in doc_ids:
         try:
-            keywords = await ai_overview_document_service.generate_keywords(doc_id)
+            keywords = await ai_overview_document_service.generate_keywords(doc_id, system_prompt=system_prompt, model_name=model_name)
             doc = await ai_overview_document_service.get_document(doc_id)
             record_done(
                 job_id,
@@ -51,6 +51,8 @@ async def upload_documents_json(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    system_prompt: str | None = Form(default=None),
+    model: str | None = Form(default=None),
     _user: User = Depends(get_current_user),
 ):
     if not (file.filename or "").lower().endswith(".json"):
@@ -89,7 +91,7 @@ async def upload_documents_json(
 
     docs = await ai_overview_document_service.bulk_create_documents(valid_items)
     job = create_job(len(docs))
-    background_tasks.add_task(_generate_keywords_background, job.job_id, [d.id for d in docs])
+    background_tasks.add_task(_generate_keywords_background, job.job_id, [d.id for d in docs], system_prompt, model or None)
 
     logger.info(
         "ai_overview_upload_started",
@@ -125,6 +127,11 @@ class BatchDeleteRequest(BaseModel):
     ids: list[int]
 
 
+class GenerateKeywordsRequest(BaseModel):
+    system_prompt: str | None = None
+    model: str | None = None
+
+
 @router.delete("/batch")
 async def batch_delete_documents(
     request: Request,
@@ -135,6 +142,18 @@ async def batch_delete_documents(
         raise HTTPException(status_code=400, detail="삭제할 문서 ID가 없습니다")
     deleted = await ai_overview_document_service.bulk_delete_documents(body.ids)
     logger.info("ai_overview_batch_delete_api", requested=len(body.ids), deleted=deleted)
+    return {"deleted": deleted}
+
+
+# ── 전체 삭제 (static 경로 — /{doc_id} 보다 먼저 등록) ───────────────────────────
+
+@router.delete("/all")
+async def delete_all_documents(
+    request: Request,
+    _user: User = Depends(get_current_user),
+):
+    deleted = await ai_overview_document_service.delete_all_documents()
+    logger.info("ai_overview_delete_all_api", deleted=deleted)
     return {"deleted": deleted}
 
 
@@ -223,13 +242,16 @@ async def delete_document(
 async def generate_keywords(
     request: Request,
     doc_id: int,
+    body: GenerateKeywordsRequest = Body(default=None),
     _user: User = Depends(get_current_user),
 ):
     doc = await ai_overview_document_service.get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     try:
-        keywords = await ai_overview_document_service.generate_keywords(doc_id)
+        system_prompt = body.system_prompt if body else None
+        model_name = body.model if body else None
+        keywords = await ai_overview_document_service.generate_keywords(doc_id, system_prompt=system_prompt, model_name=model_name)
         return {"doc_id": doc_id, "keyword_count": len(keywords)}
     except Exception as e:
         logger.error("generate_keywords_api_failed", doc_id=doc_id, error=str(e))

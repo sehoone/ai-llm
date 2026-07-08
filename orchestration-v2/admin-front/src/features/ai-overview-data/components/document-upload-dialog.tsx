@@ -2,11 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { CheckCircle2, FileJson, Upload, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Download, FileJson, Upload, XCircle } from 'lucide-react'
 import { aiOverviewApi, type UploadProgress } from '@/api/ai-overview'
+import { getChatModels, type ChatModel } from '@/api/llm-resources'
+import { downloadSampleJson } from '../sample-download'
 import { logger } from '@/lib/logger'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -15,6 +22,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { DEFAULT_KEYWORD_PROMPT } from './keyword-prompt-dialog'
+
+const FORMAT_PREVIEW =
+  '반드시 다음 JSON 형식만 반환하세요 (설명 없이):\n{\n  "keywords": ["키워드1", "키워드2"],\n  "synonyms": {\n    "키워드1": ["동의어A", "동의어B"],\n    "키워드2": ["동의어C"]\n  }\n}'
 
 type Step = 'select' | 'progress' | 'done'
 
@@ -36,6 +56,11 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
   const [parseError, setParseError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [prompt, setPrompt] = useState(DEFAULT_KEYWORD_PROMPT)
+  const [promptOpen, setPromptOpen] = useState(false)
+
+  const [selectedModel, setSelectedModel] = useState<string>('')
+  const [chatModels, setChatModels] = useState<ChatModel[]>([])
 
   const [jobId, setJobId] = useState<string | null>(null)
   const [progress, setProgress] = useState<UploadProgress | null>(null)
@@ -49,6 +74,10 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
       pollRef.current = null
     }
   }
+
+  useEffect(() => {
+    getChatModels().then(setChatModels).catch((e) => logger.error('Failed to load chat models', e))
+  }, [])
 
   useEffect(() => {
     if (step !== 'progress' || !jobId) return
@@ -67,7 +96,7 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
       }
     }
 
-    poll() // immediate first call
+    poll()
     pollRef.current = setInterval(poll, 3000)
     return stopPolling
   }, [step, jobId, onSuccess])
@@ -81,6 +110,9 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
     setJobId(null)
     setProgress(null)
     setUploading(false)
+    setPrompt(DEFAULT_KEYWORD_PROMPT)
+    setPromptOpen(false)
+    setSelectedModel('')
   }
 
   const parseFile = useCallback((f: File) => {
@@ -131,7 +163,7 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
     if (!file || !preview || preview.valid.length === 0) return
     setUploading(true)
     try {
-      const result = await aiOverviewApi.uploadDocumentsJson(file)
+      const result = await aiOverviewApi.uploadDocumentsJson(file, prompt, selectedModel || undefined)
       setJobId(result.job_id)
       setProgress({
         job_id: result.job_id,
@@ -164,11 +196,21 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
           <>
             <DialogHeader>
               <DialogTitle>문서 업로드</DialogTitle>
-              <DialogDescription>
-                JSON 배열 파일을 업로드하세요.{' '}
-                <code className='text-xs bg-muted px-1 rounded'>
-                  [{'{'}title, content, source_url?{'}'}]
-                </code>
+              <DialogDescription className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+                <span>
+                  JSON 배열 파일을 업로드하세요.{' '}
+                  <code className='text-xs bg-muted px-1 rounded'>
+                    [{'{'}title, content, source_url?{'}'}]
+                  </code>
+                </span>
+                <button
+                  type='button'
+                  onClick={downloadSampleJson}
+                  className='inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline shrink-0'
+                >
+                  <Download className='h-3 w-3' />
+                  샘플 다운로드
+                </button>
               </DialogDescription>
             </DialogHeader>
 
@@ -232,6 +274,58 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
                 </div>
               </div>
             )}
+
+            {/* 키워드 생성 프롬프트 */}
+            <Collapsible open={promptOpen} onOpenChange={setPromptOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  type='button'
+                  className='flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors'
+                >
+                  <span>키워드 생성 프롬프트 설정</span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${promptOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className='flex flex-col gap-2 pt-2'>
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='text-xs'>LLM 모델</Label>
+                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <SelectTrigger className='text-sm'>
+                      <SelectValue placeholder='기본 모델 사용' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chatModels.length === 0 ? (
+                        <SelectItem value='__none__' disabled>
+                          등록된 모델 없음
+                        </SelectItem>
+                      ) : (
+                        chatModels.map((m) => (
+                          <SelectItem key={m.id} value={m.modelName ?? m.name}>
+                            {m.modelName ?? m.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='text-xs'>시스템 프롬프트</Label>
+                  <Textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    rows={5}
+                    placeholder='키워드 추출 지침을 입력하세요'
+                    className='resize-none text-sm'
+                  />
+                </div>
+                <div className='flex flex-col gap-1'>
+                  <Label className='text-muted-foreground text-xs'>자동 추가되는 포맷 지침 (변경 불가)</Label>
+                  <pre className='rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap'>
+                    {FORMAT_PREVIEW}
+                  </pre>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <DialogFooter className='mt-2'>
               <Button variant='outline' onClick={() => { reset(); onOpenChange(false) }}>취소</Button>

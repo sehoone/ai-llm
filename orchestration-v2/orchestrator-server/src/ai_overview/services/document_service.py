@@ -5,7 +5,7 @@ from datetime import datetime, UTC
 from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from sqlmodel import Session, select, func
+from sqlmodel import Session, delete, select, func
 
 from src.ai_overview.models.document_model import AiOverviewDocument
 from src.ai_overview.models.keyword_model import AiOverviewKeyword
@@ -13,13 +13,13 @@ from src.common.logging import logger
 from src.common.services.database import database_service
 from src.common.services.llm import llm_service
 
-_KEYWORD_SYSTEM = """문서에서 검색에 사용될 핵심 키워드와 동의어를 추출하세요.
+_KEYWORD_PROMPT_DEFAULT = """문서에서 검색에 사용될 핵심 키워드와 동의어를 추출하세요.
 
 추출 기준:
 - 핵심 명사, 업무 용어, 고유 명사 중심
-- 동의어는 같은 개념의 다른 표현(약어, 한자어, 영문 혼용 등)
+- 동의어는 같은 개념의 다른 표현(약어, 한자어, 영문 혼용 등)"""
 
-반드시 다음 JSON 형식만 반환하세요 (설명 없이):
+_KEYWORD_FORMAT = """반드시 다음 JSON 형식만 반환하세요 (설명 없이):
 {
   "keywords": ["키워드1", "키워드2"],
   "synonyms": {
@@ -104,6 +104,14 @@ class AiOverviewDocumentService:
             logger.info("ai_overview_document_deleted", doc_id=doc_id)
             return True
 
+    async def delete_all_documents(self) -> int:
+        with self._session() as session:
+            count = session.exec(select(func.count(AiOverviewDocument.id))).one()
+            session.exec(delete(AiOverviewDocument))
+            session.commit()
+            logger.info("ai_overview_all_deleted", count=count)
+            return count
+
     async def bulk_delete_documents(self, ids: list[int]) -> int:
         with self._session() as session:
             count = 0
@@ -159,7 +167,7 @@ class AiOverviewDocumentService:
                 raw = raw[4:]
         return json.loads(raw.strip())
 
-    async def generate_keywords(self, doc_id: int) -> list[AiOverviewKeyword]:
+    async def generate_keywords(self, doc_id: int, system_prompt: str | None = None, model_name: str | None = None) -> list[AiOverviewKeyword]:
         """Extract keywords and synonyms from document content via LLM."""
         doc = await self.get_document(doc_id)
         if not doc:
@@ -167,13 +175,16 @@ class AiOverviewDocumentService:
 
         self._update_status(doc_id, "processing")
 
+        prompt_base = system_prompt.strip() if system_prompt and system_prompt.strip() else _KEYWORD_PROMPT_DEFAULT
+        full_system_prompt = f"{prompt_base}\n\n{_KEYWORD_FORMAT}"
+
         try:
             response = await llm_service.call(
                 messages=[
-                    SystemMessage(content=_KEYWORD_SYSTEM),
+                    SystemMessage(content=full_system_prompt),
                     HumanMessage(content=f"문서 제목: {doc.title}\n\n문서 내용:\n{doc.content[:8000]}"),
                 ],
-                model_name="gpt-4o-mini",
+                model_name=model_name,
             )
 
             raw = response.content

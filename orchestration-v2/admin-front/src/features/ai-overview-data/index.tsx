@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
   type ColumnDef,
@@ -10,9 +10,21 @@ import {
   useReactTable,
   flexRender,
 } from '@tanstack/react-table'
-import { Plus, Tag, Trash2, Wand2, RefreshCw } from 'lucide-react'
+import { Plus, Tag, Trash2, Wand2, RefreshCw, Download } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import {
   aiOverviewApi,
+  type AiOverviewDocumentDetail,
   type AiOverviewDocumentSummary,
   type AiOverviewKeyword,
 } from '@/api/ai-overview'
@@ -29,7 +41,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import { downloadSampleJson } from './sample-download'
+import { DocumentDetailDialog } from './components/document-detail-dialog'
 import { DocumentUploadDialog } from './components/document-upload-dialog'
+import { KeywordPromptDialog } from './components/keyword-prompt-dialog'
 import { KeywordViewDialog } from './components/keyword-view-dialog'
 
 const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -48,6 +63,7 @@ export default function AiOverviewData() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [generatingId, setGeneratingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [deleteAllPending, setDeleteAllPending] = useState(false)
 
   // 서버 사이드 페이지네이션 / 검색 상태
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 20 })
@@ -57,6 +73,10 @@ export default function AiOverviewData() {
   const [refreshKey, setRefreshKey] = useState(0)
   const refresh = useCallback(() => { setRowSelection({}); setRefreshKey((k) => k + 1) }, [])
 
+  const [detailDoc, setDetailDoc] = useState<AiOverviewDocumentDetail | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [promptDialogDoc, setPromptDialogDoc] = useState<AiOverviewDocumentSummary | null>(null)
   const [keywordDialogDoc, setKeywordDialogDoc] = useState<AiOverviewDocumentSummary | null>(null)
   const [keywordDialogData, setKeywordDialogData] = useState<AiOverviewKeyword[]>([])
   const [keywordDialogLoading, setKeywordDialogLoading] = useState(false)
@@ -127,11 +147,12 @@ export default function AiOverviewData() {
   }
 
   // ── 키워드 생성 ────────────────────────────────────────────────────────────
-  const handleGenerateKeywords = useCallback(async (doc: AiOverviewDocumentSummary) => {
+  const handleGenerateKeywords = useCallback(async (doc: AiOverviewDocumentSummary, systemPrompt?: string, model?: string) => {
+    setPromptDialogDoc(null)
     setGeneratingId(doc.id)
     setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: 'processing' } : d)))
     try {
-      const result = await aiOverviewApi.generateKeywords(doc.id)
+      const result = await aiOverviewApi.generateKeywords(doc.id, systemPrompt, model)
       toast.success(`키워드 ${result.keyword_count}개 생성 완료`)
       setDocs((prev) =>
         prev.map((d) =>
@@ -160,6 +181,35 @@ export default function AiOverviewData() {
       setKeywordDialogLoading(false)
     }
   }, [])
+
+  const handleOpenDetail = useCallback(async (doc: AiOverviewDocumentSummary) => {
+    setDetailOpen(true)
+    setDetailDoc(null)
+    setDetailLoading(true)
+    try {
+      setDetailDoc(await aiOverviewApi.getDocument(doc.id))
+    } catch (error) {
+      logger.error(error)
+      toast.error('문서를 불러오지 못했습니다')
+      setDetailOpen(false)
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
+
+  const handleDeleteAll = async () => {
+    setDeleteAllPending(true)
+    try {
+      const { deleted } = await aiOverviewApi.deleteAllDocuments()
+      toast.success(`${deleted}개 문서가 모두 삭제되었습니다`)
+      refresh()
+    } catch (error) {
+      logger.error(error)
+      toast.error('전체 삭제에 실패했습니다')
+    } finally {
+      setDeleteAllPending(false)
+    }
+  }
 
   const handleKeywordsChange = (updated: AiOverviewKeyword[]) => {
     setKeywordDialogData(updated)
@@ -196,7 +246,15 @@ export default function AiOverviewData() {
       {
         accessorKey: 'title',
         header: '제목',
-        cell: ({ row }) => <span className='font-medium line-clamp-1'>{row.getValue('title')}</span>,
+        cell: ({ row }) => (
+          <button
+            type='button'
+            className='font-medium line-clamp-1 text-left hover:underline underline-offset-2 cursor-pointer'
+            onClick={() => handleOpenDetail(row.original)}
+          >
+            {row.getValue('title')}
+          </button>
+        ),
         enableHiding: false,
       },
       {
@@ -241,7 +299,7 @@ export default function AiOverviewData() {
                 <Tag className='h-3 w-3 mr-1' />키워드
               </Button>
               <Button variant='ghost' size='sm' className='h-7 px-2 text-xs'
-                onClick={() => handleGenerateKeywords(doc)} disabled={isGenerating || isDeleting}>
+                onClick={() => setPromptDialogDoc(doc)} disabled={isGenerating || isDeleting}>
                 <Wand2 className={`h-3 w-3 mr-1 ${isGenerating ? 'animate-spin' : ''}`} />
                 {isGenerating ? '생성중' : '키워드 생성'}
               </Button>
@@ -257,7 +315,7 @@ export default function AiOverviewData() {
         enableHiding: false,
       },
     ],
-    [generatingId, deletingId, bulkDeleting, handleDelete, handleGenerateKeywords, handleOpenKeywords]
+    [generatingId, deletingId, bulkDeleting, handleDelete, handleGenerateKeywords, handleOpenKeywords, handleOpenDetail]
   )
 
   // ── TanStack Table (서버 사이드 페이지네이션/필터링) ───────────────────────
@@ -296,6 +354,36 @@ export default function AiOverviewData() {
           <Button variant='outline' size='icon' onClick={refresh} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
+          <Button variant='outline' onClick={downloadSampleJson}>
+            <Download className='mr-2 h-4 w-4' />
+            샘플 다운로드
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant='outline' className='text-destructive hover:text-destructive' disabled={deleteAllPending || total === 0}>
+                <Trash2 className='mr-2 h-4 w-4' />
+                {deleteAllPending ? '삭제 중...' : '전체 삭제'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>전체 삭제</AlertDialogTitle>
+                <AlertDialogDescription>
+                  등록된 문서 {total}개와 키워드 데이터가 모두 삭제됩니다.{' '}
+                  이 작업은 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction
+                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  onClick={handleDeleteAll}
+                >
+                  전체 삭제
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button onClick={() => setUploadOpen(true)}>
             <Plus className='mr-2 h-4 w-4' />
             문서 등록
@@ -368,7 +456,22 @@ export default function AiOverviewData() {
       <DataTablePagination table={table} />
 
       {/* 다이얼로그 */}
+      <DocumentDetailDialog
+        open={detailOpen}
+        doc={detailDoc}
+        loading={detailLoading}
+        onOpenChange={setDetailOpen}
+      />
+
       <DocumentUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onSuccess={refresh} />
+
+      <KeywordPromptDialog
+        open={!!promptDialogDoc}
+        doc={promptDialogDoc}
+        onOpenChange={(open) => { if (!open) setPromptDialogDoc(null) }}
+        onGenerate={handleGenerateKeywords}
+        isGenerating={promptDialogDoc !== null && generatingId === promptDialogDoc.id}
+      />
 
       {keywordDialogDoc && (
         <KeywordViewDialog

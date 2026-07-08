@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -9,7 +9,7 @@ import {
   ChevronDown, ChevronUp, RotateCcw, Bot, FileText,
 } from 'lucide-react'
 import { aiOverviewApi, type AiOverviewSource } from '@/api/ai-overview'
-import { DEFAULT_LLM_MODEL, type LlmModel, LLM_MODELS } from '@/config/models'
+import { getChatModels, type ChatModel } from '@/api/llm-resources'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -70,9 +70,19 @@ function BouncingDots() {
 // ── 메인 ──────────────────────────────────────────────────────────────────────
 export default function AiOverview() {
   const [query, setQuery] = useState('')
-  const [model, setModel] = useState<LlmModel>(DEFAULT_LLM_MODEL)
+  const [model, setModel] = useState('')
+  const [chatModels, setChatModels] = useState<ChatModel[]>([])
   const [systemPrompt, setSystemPrompt] = useState('')
   const [showConfig, setShowConfig] = useState(false)
+
+  useEffect(() => {
+    getChatModels()
+      .then((models) => {
+        setChatModels(models)
+        if (models.length > 0) setModel(models[0].modelName ?? models[0].name)
+      })
+      .catch((e) => logger.error('Failed to load chat models', e))
+  }, [])
 
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState(false)
@@ -143,14 +153,20 @@ export default function AiOverview() {
               disabled={loading || streaming}
             />
           </div>
-          <Select value={model} onValueChange={(v) => setModel(v as LlmModel)}>
-            <SelectTrigger className='w-[150px] h-11'>
-              <SelectValue />
+          <Select value={model} onValueChange={setModel}>
+            <SelectTrigger className='w-[180px] h-11'>
+              <SelectValue placeholder='모델 선택' />
             </SelectTrigger>
             <SelectContent>
-              {LLM_MODELS.map((m) => (
-                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-              ))}
+              {chatModels.length === 0 ? (
+                <SelectItem value='__none__' disabled>등록된 모델 없음</SelectItem>
+              ) : (
+                chatModels.map((m) => (
+                  <SelectItem key={m.id} value={m.modelName ?? m.name}>
+                    {m.modelName ?? m.name}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
           <Button type='submit' disabled={loading || streaming || !query.trim()} className='h-11 px-6'>
