@@ -32,13 +32,13 @@ public class LlmResourceService {
     }
 
     public List<LlmResourceResponse> getAll() {
-        return repository.findByIsActiveOrderByPriorityDesc(true).stream()
+        return repository.findAllByOrderByPriorityDesc().stream()
                 .map(LlmResourceResponse::from)
                 .toList();
     }
 
     public List<LlmResourceResponse> getByType(String resourceType) {
-        return repository.findByResourceTypeAndIsActiveOrderByPriorityDesc(resourceType, true).stream()
+        return repository.findByResourceTypeOrderByPriorityDesc(resourceType).stream()
                 .map(LlmResourceResponse::from)
                 .toList();
     }
@@ -64,8 +64,10 @@ public class LlmResourceService {
                captureFirstArgAsResourceId = true)
     public LlmResourceResponse update(Long id, LlmResourceUpdateRequest req) {
         LlmResource resource = find(id);
-        resource.update(req.name(), req.modelName(), req.apiBase(), req.apiKey(),
-                req.deploymentName(), req.apiVersion(), req.priority(), req.weight());
+        resource.update(req.name(), req.resourceType(), req.modelName(),
+                req.provider(), req.apiBase(), req.apiKey(),
+                req.deploymentName(), req.apiVersion(), req.region(),
+                req.priority(), req.weight(), req.isActive());
         return LlmResourceResponse.from(resource);
     }
 

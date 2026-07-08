@@ -7,8 +7,8 @@ export const llmResourceSchema = z.object({
   modelName: z.string().optional(),
   provider: z.string().min(1, { message: "Provider is required" }),
   apiBase: z.string().url({ message: "Invalid URL" }),
-  // apiKey: 생성/수정 폼에서만 사용, 서버 응답에는 포함되지 않음 (보안)
-  apiKey: z.string().optional(),
+  // apiKey: 생성/수정 폼에서만 사용, 서버 응답에는 포함되지 않음 (보안). 빈 문자열은 undefined로 취급.
+  apiKey: z.string().optional().transform(v => (v === '' ? undefined : v)),
   deploymentName: z.string().optional(),
   apiVersion: z.string().optional(),
   region: z.string().optional(),

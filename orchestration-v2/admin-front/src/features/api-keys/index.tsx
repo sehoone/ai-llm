@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Copy, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Copy, Trash2, Loader2, KeyRound, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -18,12 +18,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
-import { getApiKeys, createApiKey, revokeApiKey } from '@/api/api-keys'
+import { getApiKeys, createApiKey, revokeApiKey, type ApiKey } from '@/api/api-keys'
 import { logger } from '@/lib/logger'
 import { ApiKeyCreateDialog } from './components/api-key-create-dialog'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import type { ApiKey } from '@/features/api-keys/data/schema'
 
 export default function ApiKeys() {
   const [keys, setKeys] = useState<ApiKey[]>([])
@@ -31,13 +31,13 @@ export default function ApiKeys() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [revokeId, setRevokeId] = useState<number | null>(null)
   const [isRevoking, setIsRevoking] = useState(false)
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
 
   const fetchKeys = async () => {
     try {
       setIsLoading(true)
       const data = await getApiKeys()
-       // Type assertion or data transformation if needed, usually schema matches api
-      setKeys(data as unknown as ApiKey[])
+      setKeys(data)
     } catch (error) {
       logger.error(error)
       toast.error('Failed to fetch API keys')
@@ -52,12 +52,15 @@ export default function ApiKeys() {
 
   const handleCreate = async (values: { name: string; expiresAt?: Date }) => {
     try {
-      await createApiKey({
+      const created = await createApiKey({
         name: values.name,
-        expiresAt: values.expiresAt ? values.expiresAt.toISOString() : undefined
+        // ISO with Z fails LocalDateTime deserialization — strip timezone
+        expiresAt: values.expiresAt
+          ? format(values.expiresAt, "yyyy-MM-dd'T'HH:mm:ss")
+          : undefined,
       })
-      toast.success('API Key created successfully')
       setIsCreateOpen(false)
+      setNewlyCreatedKey(created.key)
       fetchKeys()
     } catch (error) {
       logger.error(error)
@@ -67,7 +70,7 @@ export default function ApiKeys() {
 
   const handleConfirmRevoke = async () => {
     if (revokeId === null) return
-    
+
     try {
       setIsRevoking(true)
       await revokeApiKey(revokeId)
@@ -95,7 +98,7 @@ export default function ApiKeys() {
       document.execCommand('copy')
       document.body.removeChild(el)
     }
-    toast.success('API Key copied to clipboard')
+    toast.success('Copied to clipboard')
   }
 
   return (
@@ -111,6 +114,43 @@ export default function ApiKeys() {
           <Plus className='mr-2 h-4 w-4' /> Create New Key
         </Button>
       </div>
+
+      {/* One-time key reveal — shown only right after creation */}
+      {newlyCreatedKey && (
+        <Alert className='border-green-500 bg-green-50 dark:bg-green-950/20'>
+          <KeyRound className='h-4 w-4 text-green-600' />
+          <AlertTitle className='text-green-800 dark:text-green-400'>
+            API Key Created — Copy it now!
+          </AlertTitle>
+          <AlertDescription>
+            <p className='mb-2 text-sm text-green-700 dark:text-green-300'>
+              This is the only time the full key will be shown. Store it somewhere safe.
+            </p>
+            <div className='flex items-center gap-2 rounded-md border border-green-300 bg-white px-3 py-2 dark:bg-green-950/40'>
+              <code className='flex-1 truncate text-xs font-mono text-green-900 dark:text-green-200'>
+                {newlyCreatedKey}
+              </code>
+              <Button
+                size='sm'
+                variant='outline'
+                className='shrink-0 border-green-400 text-green-700 hover:bg-green-100'
+                onClick={() => copyToClipboard(newlyCreatedKey)}
+              >
+                <Copy className='mr-1 h-3 w-3' /> Copy
+              </Button>
+              <Button
+                size='icon'
+                variant='ghost'
+                className='shrink-0 h-8 w-8 text-green-600 hover:bg-green-100'
+                onClick={() => setNewlyCreatedKey(null)}
+              >
+                <X className='h-4 w-4' />
+                <span className='sr-only'>Dismiss</span>
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -149,16 +189,7 @@ export default function ApiKeys() {
                   <TableRow key={key.id}>
                     <TableCell className='font-medium'>{key.name}</TableCell>
                     <TableCell className='font-mono text-xs'>
-                      {key.key.substring(0, 8)}...
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        className='ml-2 h-6 w-6'
-                        onClick={() => copyToClipboard(key.key)}
-                      >
-                        <Copy className='h-3 w-3' />
-                        <span className='sr-only'>Copy API Key</span>
-                      </Button>
+                      {key.key}
                     </TableCell>
                     <TableCell>
                       {format(new Date(key.createdAt), 'MMM d, yyyy')}
@@ -209,10 +240,9 @@ export default function ApiKeys() {
       <ConfirmDialog
         open={!!revokeId}
         onOpenChange={(open) => !open && setRevokeId(null)}
-        title="Are you absolutely sure?"
-        desc="This action cannot be undone. This will permanently revoke the API key and any applications using it will no longer be able to authenticate."
-        confirmText="Revoke Key"
-        // destructive={true}
+        title='Are you absolutely sure?'
+        desc='This action cannot be undone. This will permanently revoke the API key and any applications using it will no longer be able to authenticate.'
+        confirmText='Revoke Key'
         handleConfirm={handleConfirmRevoke}
         isLoading={isRevoking}
       />

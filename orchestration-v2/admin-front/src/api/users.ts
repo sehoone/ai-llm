@@ -12,7 +12,9 @@ export const createUser = async (data: Partial<User> & { password?: string }): P
 }
 
 export const updateUser = async (id: string | number, data: Partial<User> & { password?: string }): Promise<User> => {
-  const response = await api.patch(`v1/users/${id}`, data)
+  const { password, ...rest } = data
+  const payload = password ? { ...rest, password } : rest
+  const response = await api.patch(`v1/users/${id}`, payload)
   return response.data
 }
 

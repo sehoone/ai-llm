@@ -220,8 +220,19 @@ export function LLMResourceDialog({
                 <FormItem>
                   <FormLabel>API Key</FormLabel>
                   <FormControl>
-                    <Input {...field} type='password' autoComplete='off' />
+                    <Input
+                      {...field}
+                      value={field.value ?? ''}
+                      type='password'
+                      autoComplete='off'
+                      placeholder={resource ? '변경 시에만 입력 (비우면 기존 키 유지)' : ''}
+                    />
                   </FormControl>
+                  {resource && (
+                    <FormDescription>
+                      보안상 기존 키는 표시되지 않습니다. 변경할 경우에만 입력하세요.
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

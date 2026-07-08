@@ -80,16 +80,22 @@ public class LlmResource extends BaseEntity {
     public int getWeight() { return weight; }
     public boolean isActive() { return isActive; }
 
-    public void update(String name, String modelName, String apiBase, String apiKey,
-                       String deploymentName, String apiVersion, int priority, int weight) {
+    public void update(String name, String resourceType, String modelName,
+                       String provider, String apiBase, String apiKey,
+                       String deploymentName, String apiVersion, String region,
+                       Integer priority, Integer weight, Boolean isActive) {
         if (name != null) this.name = name;
+        if (resourceType != null) this.resourceType = resourceType;
         if (modelName != null) this.modelName = modelName;
+        if (provider != null) this.provider = provider;
         if (apiBase != null) this.apiBase = apiBase;
-        if (apiKey != null) this.apiKey = apiKey;
+        if (apiKey != null && !apiKey.isBlank()) this.apiKey = apiKey;
         if (deploymentName != null) this.deploymentName = deploymentName;
         if (apiVersion != null) this.apiVersion = apiVersion;
-        this.priority = priority;
-        this.weight = weight;
+        if (region != null) this.region = region;
+        if (priority != null) this.priority = priority;
+        if (weight != null) this.weight = weight;
+        if (isActive != null) this.isActive = isActive;
     }
 
     public void toggleActive() { this.isActive = !this.isActive; }

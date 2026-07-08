@@ -56,11 +56,17 @@ export function ApiKeyCreateDialog({
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     await onSubmit(values)
-    form.reset()
+    // reset is handled by onOpenChange below after close
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) form.reset()
+        onOpenChange(isOpen)
+      }}
+    >
       <DialogContent className='sm:max-w-[425px]'>
         <DialogHeader>
           <DialogTitle>Create API Key</DialogTitle>

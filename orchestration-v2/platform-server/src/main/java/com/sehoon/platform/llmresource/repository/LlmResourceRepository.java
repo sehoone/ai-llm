@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface LlmResourceRepository extends JpaRepository<LlmResource, Long> {
+    List<LlmResource> findAllByOrderByPriorityDesc();
+    List<LlmResource> findByResourceTypeOrderByPriorityDesc(String resourceType);
     List<LlmResource> findByResourceTypeAndIsActiveOrderByPriorityDesc(String resourceType, boolean isActive);
     List<LlmResource> findByIsActiveOrderByPriorityDesc(boolean isActive);
 }
