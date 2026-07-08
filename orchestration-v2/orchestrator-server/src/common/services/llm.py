@@ -223,12 +223,18 @@ class LLMService:
         else:  # openai, other
             model_id = resource.model_name or resource.deployment_name or resource.name
 
+        # Reasoning models (gpt-5 family, o1, o3) do not support arbitrary temperature values
+        _REASONING_PREFIXES = ("gpt-5", "o1-", "o3-", "o1", "o3")
+        model_name_lower = (resource.model_name or "").lower()
+        is_reasoning = any(model_name_lower == p or model_name_lower.startswith(p) for p in _REASONING_PREFIXES)
+
         params: Dict[str, Any] = {
             "api_key": resource.api_key,
             "api_base": resource.api_base,
             "max_tokens": settings.MAX_TOKENS,
-            "temperature": settings.DEFAULT_LLM_TEMPERATURE,
         }
+        if not is_reasoning:
+            params["temperature"] = settings.DEFAULT_LLM_TEMPERATURE
 
         if provider == "azure" and resource.api_version:
             params["api_version"] = resource.api_version
