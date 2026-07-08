@@ -14,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -129,11 +130,19 @@ public class OrchestratorProxyFilter extends OncePerRequestFilter {
                 }
             });
 
-            // 응답 바디 스트리밍 (SSE 포함)
+            // 응답 바디 스트리밍 (NDJSON/SSE: 청크마다 즉시 flush)
+            // transferTo는 Tomcat 버퍼가 찰 때까지 flush하지 않으므로
+            // 소형 NDJSON 청크가 스트리밍 끝까지 지연되는 문제 방지
+            response.flushBuffer();
             try (InputStream body = proxyResponse.body()) {
-                body.transferTo(response.getOutputStream());
+                byte[] buf = new byte[1024];
+                int n;
+                OutputStream out = response.getOutputStream();
+                while ((n = body.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                    out.flush();
+                }
             }
-            response.getOutputStream().flush();
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
