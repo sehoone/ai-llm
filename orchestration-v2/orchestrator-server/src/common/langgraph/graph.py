@@ -29,11 +29,7 @@ _langfuse_callbacks: list = []
 if settings.langfuse_is_enabled:
     try:
         from langfuse.langchain import CallbackHandler
-        _langfuse_callbacks = [CallbackHandler(
-            public_key=settings.LANGFUSE_PUBLIC_KEY,
-            secret_key=settings.LANGFUSE_SECRET_KEY,
-            host=settings.LANGFUSE_HOST,
-        )]
+        _langfuse_callbacks = [CallbackHandler()]
         logger.info("langfuse_callback_handler_initialized", host=settings.LANGFUSE_HOST)
     except Exception as e:
         logger.warning("langfuse_callback_handler_failed", error=str(e))
