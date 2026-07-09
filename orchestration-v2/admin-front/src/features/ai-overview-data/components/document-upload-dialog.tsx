@@ -189,7 +189,7 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v) }}>
-      <DialogContent className='max-w-lg'>
+      <DialogContent className='max-w-lg max-h-[90vh] flex flex-col overflow-hidden'>
 
         {/* ── Step 1: 파일 선택 ── */}
         {step === 'select' && (
@@ -214,118 +214,120 @@ export function DocumentUploadDialog({ open, onOpenChange, onSuccess }: Props) {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Drop zone */}
-            <div
-              className={`mt-2 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer
-                ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-primary/50'}`}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-            >
-              <FileJson className='h-10 w-10 text-muted-foreground' />
-              {file ? (
-                <div className='text-center'>
-                  <p className='text-sm font-medium'>{file.name}</p>
-                  <p className='text-xs text-muted-foreground'>
-                    {(file.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
-              ) : (
-                <div className='text-center'>
-                  <p className='text-sm font-medium'>JSON 파일을 드래그하거나 클릭하세요</p>
-                  <p className='text-xs text-muted-foreground'>*.json, 배열 형식</p>
+            <div className='flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 py-1 pr-1'>
+              {/* Drop zone */}
+              <div
+                className={`flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer
+                  ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-primary/50'}`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+              >
+                <FileJson className='h-10 w-10 text-muted-foreground' />
+                {file ? (
+                  <div className='text-center'>
+                    <p className='text-sm font-medium'>{file.name}</p>
+                    <p className='text-xs text-muted-foreground'>
+                      {(file.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                ) : (
+                  <div className='text-center'>
+                    <p className='text-sm font-medium'>JSON 파일을 드래그하거나 클릭하세요</p>
+                    <p className='text-xs text-muted-foreground'>*.json, 배열 형식</p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept='.json,application/json'
+                  className='hidden'
+                  onChange={handleFileChange}
+                />
+              </div>
+
+              {/* Parse error */}
+              {parseError && (
+                <p className='text-sm text-destructive flex items-center gap-1.5'>
+                  <XCircle className='h-4 w-4' /> {parseError}
+                </p>
+              )}
+
+              {/* Preview */}
+              {preview && !parseError && (
+                <div className='rounded-md border bg-muted/30 p-3 flex flex-col gap-2'>
+                  <div className='flex items-center gap-2 text-sm'>
+                    <Badge variant='default'>{preview.valid.length}건 업로드 예정</Badge>
+                    {preview.skippedCount > 0 && (
+                      <Badge variant='secondary'>{preview.skippedCount}건 skip (title/content 없음)</Badge>
+                    )}
+                  </div>
+                  <div className='max-h-36 overflow-y-auto flex flex-col gap-0.5'>
+                    {preview.valid.slice(0, 50).map((v, i) => (
+                      <p key={i} className='text-xs text-muted-foreground truncate'>
+                        · {v.title}
+                      </p>
+                    ))}
+                    {preview.valid.length > 50 && (
+                      <p className='text-xs text-muted-foreground'>... 외 {preview.valid.length - 50}건</p>
+                    )}
+                  </div>
                 </div>
               )}
-              <input
-                ref={fileInputRef}
-                type='file'
-                accept='.json,application/json'
-                className='hidden'
-                onChange={handleFileChange}
-              />
-            </div>
 
-            {/* Parse error */}
-            {parseError && (
-              <p className='text-sm text-destructive flex items-center gap-1.5'>
-                <XCircle className='h-4 w-4' /> {parseError}
-              </p>
-            )}
-
-            {/* Preview */}
-            {preview && !parseError && (
-              <div className='rounded-md border bg-muted/30 p-3 flex flex-col gap-2'>
-                <div className='flex items-center gap-2 text-sm'>
-                  <Badge variant='default'>{preview.valid.length}건 업로드 예정</Badge>
-                  {preview.skippedCount > 0 && (
-                    <Badge variant='secondary'>{preview.skippedCount}건 skip (title/content 없음)</Badge>
-                  )}
-                </div>
-                <div className='max-h-36 overflow-y-auto flex flex-col gap-0.5'>
-                  {preview.valid.slice(0, 50).map((v, i) => (
-                    <p key={i} className='text-xs text-muted-foreground truncate'>
-                      · {v.title}
-                    </p>
-                  ))}
-                  {preview.valid.length > 50 && (
-                    <p className='text-xs text-muted-foreground'>... 외 {preview.valid.length - 50}건</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 키워드 생성 프롬프트 */}
-            <Collapsible open={promptOpen} onOpenChange={setPromptOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  type='button'
-                  className='flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors'
-                >
-                  <span>키워드 생성 프롬프트 설정</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${promptOpen ? 'rotate-180' : ''}`} />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className='flex flex-col gap-2 pt-2'>
-                <div className='flex flex-col gap-1.5'>
-                  <Label className='text-xs'>LLM 모델</Label>
-                  <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger className='text-sm'>
-                      <SelectValue placeholder='기본 모델 사용' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {chatModels.length === 0 ? (
-                        <SelectItem value='__none__' disabled>
-                          등록된 모델 없음
-                        </SelectItem>
-                      ) : (
-                        chatModels.map((m) => (
-                          <SelectItem key={m.id} value={m.modelName ?? m.name}>
-                            {m.modelName ?? m.name}
+              {/* 키워드 생성 프롬프트 */}
+              <Collapsible open={promptOpen} onOpenChange={setPromptOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type='button'
+                    className='flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors'
+                  >
+                    <span>키워드 생성 프롬프트 설정</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${promptOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className='flex flex-col gap-2 pt-2'>
+                  <div className='flex flex-col gap-1.5'>
+                    <Label className='text-xs'>LLM 모델</Label>
+                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                      <SelectTrigger className='text-sm'>
+                        <SelectValue placeholder='기본 모델 사용' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chatModels.length === 0 ? (
+                          <SelectItem value='__none__' disabled>
+                            등록된 모델 없음
                           </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className='flex flex-col gap-1.5'>
-                  <Label className='text-xs'>시스템 프롬프트</Label>
-                  <Textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    rows={5}
-                    placeholder='키워드 추출 지침을 입력하세요'
-                    className='resize-none text-sm'
-                  />
-                </div>
-                <div className='flex flex-col gap-1'>
-                  <Label className='text-muted-foreground text-xs'>자동 추가되는 포맷 지침 (변경 불가)</Label>
-                  <pre className='rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap'>
-                    {FORMAT_PREVIEW}
-                  </pre>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+                        ) : (
+                          chatModels.map((m) => (
+                            <SelectItem key={m.id} value={m.modelName ?? m.name}>
+                              {m.modelName ?? m.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='flex flex-col gap-1.5'>
+                    <Label className='text-xs'>시스템 프롬프트</Label>
+                    <Textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      rows={5}
+                      placeholder='키워드 추출 지침을 입력하세요'
+                      className='resize-none text-sm overflow-y-auto'
+                    />
+                  </div>
+                  <div className='flex flex-col gap-1'>
+                    <Label className='text-muted-foreground text-xs'>자동 추가되는 포맷 지침 (변경 불가)</Label>
+                    <pre className='rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap'>
+                      {FORMAT_PREVIEW}
+                    </pre>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
 
             <DialogFooter className='mt-2'>
               <Button variant='outline' onClick={() => { reset(); onOpenChange(false) }}>취소</Button>
