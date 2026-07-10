@@ -17,7 +17,6 @@ from fastapi import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from langfuse import Langfuse
 from slowapi.errors import RateLimitExceeded
 
 from src.chatbot.api.chatbot_api import agent
@@ -41,17 +40,11 @@ litellm.suppress_debug_info = True
 # Load environment variables
 load_dotenv()
 
-# Initialize Langfuse (optional - only if credentials are provided)
-langfuse = None
+# Register LiteLLM → Langfuse callback (traces every LLM call regardless of LangGraph config propagation)
 if settings.langfuse_is_enabled:
-    try:
-        langfuse = Langfuse(
-            public_key=settings.LANGFUSE_PUBLIC_KEY,
-            secret_key=settings.LANGFUSE_SECRET_KEY,
-            host=settings.LANGFUSE_HOST,
-        )
-    except Exception as e:
-        logger.warning("langfuse_initialization_failed", error=str(e))
+    litellm.success_callback = ["langfuse"]
+    litellm.failure_callback = ["langfuse"]
+    logger.info("langfuse_litellm_callback_registered", host=settings.LANGFUSE_HOST)
 else:
     logger.info("langfuse_disabled", reason="credentials not provided or LANGFUSE_ENABLED=false")
 
