@@ -26,7 +26,14 @@ from src.common.services.llm import LLMService
 from src.rag.services.rag_service import rag_service
 
 def _get_langfuse_callbacks() -> list:
-    return []
+    if not settings.langfuse_is_enabled:
+        return []
+    try:
+        from langfuse.langchain import CallbackHandler
+        return [CallbackHandler()]
+    except Exception as e:
+        logger.warning("langfuse_callback_creation_failed", error=str(e))
+        return []
 
 
 class LangGraphAgent(MemoryMixin, NodesMixin):
@@ -408,6 +415,9 @@ class LangGraphAgent(MemoryMixin, NodesMixin):
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
+                # langfuse 3.x reads these keys from metadata to attach session/user to the trace
+                "langfuse_session_id": session_id,
+                "langfuse_user_id": str(user_id) if user_id is not None else None,
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
             },

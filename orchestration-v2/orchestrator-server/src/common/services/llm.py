@@ -35,7 +35,8 @@ from src.common.config import (
 )
 from src.common.logging import logger
 
-# Langfuse callback attached directly to LLM instances (bypasses LangGraph config propagation)
+# Langfuse callback for standalone LLM calls (astream). LangGraph-mediated calls use a
+# per-request CallbackHandler(session_id, user_id) created in graph._get_langfuse_callbacks().
 _langfuse_callbacks: list = []
 if settings.langfuse_is_enabled:
     try:
@@ -250,9 +251,6 @@ class LLMService:
             params["api_version"] = resource.api_version
 
         params.update(kwargs)
-
-        if _langfuse_callbacks:
-            params["callbacks"] = _langfuse_callbacks
 
         llm: BaseChatModel = ChatLiteLLM(model=model_id, **params)
 
@@ -532,7 +530,8 @@ class LLMService:
                         circuit_state=cb.state.value,
                     )
                     llm = self._create_llm_from_resource(resource, **model_kwargs)
-                    async for chunk in llm.astream(messages):
+                    _cfg = {"callbacks": _langfuse_callbacks} if _langfuse_callbacks else {}
+                    async for chunk in llm.astream(messages, config=_cfg):
                         yield chunk
                     cb.record_success()
                     return
@@ -560,7 +559,8 @@ class LLMService:
         if self._bound_tools:
             llm = llm.bind_tools(self._bound_tools)
 
-        async for chunk in llm.astream(messages):
+        _cfg = {"callbacks": _langfuse_callbacks} if _langfuse_callbacks else {}
+        async for chunk in llm.astream(messages, config=_cfg):
             yield chunk
 
     def get_llm(self) -> Optional[BaseChatModel]:

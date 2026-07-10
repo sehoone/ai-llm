@@ -2,14 +2,14 @@
 
 # Script to view logs for deployed services
 # Usage: ./logs.sh [service] [environment]
-#   service: all | nginx | llm-admin | app | db | langfuse | clickhouse | redis | minio | prometheus | grafana | cadvisor (default: all)
+#   service: all | nginx | llm-admin | app | platform | db | langfuse | langfuse-worker | clickhouse | redis | minio | prometheus | grafana | cadvisor (default: all)
 #   environment: development | staging | production (default: production)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVICE=${1:-all}
 ENV=${2:-production}
 
-VALID_SERVICES="all nginx llm-admin app platform db langfuse clickhouse redis minio prometheus grafana cadvisor"
+VALID_SERVICES="all nginx llm-admin app platform db langfuse langfuse-worker clickhouse redis minio prometheus grafana cadvisor"
 if ! echo "$VALID_SERVICES" | grep -qw "$SERVICE"; then
   echo "Invalid service. Must be one of: $VALID_SERVICES"
   echo "Usage: $0 [service] [environment]"

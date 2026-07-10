@@ -38,6 +38,7 @@ orchestration/
 | app | (빌드) | - | FastAPI 백엔드 — 채팅·RAG·워크플로우 (`orchestrator-server/`) |
 | db | pgvector/pgvector:pg16 | `8066` | PostgreSQL + pgvector |
 | langfuse | langfuse/langfuse:3 | `8067` | LLM 추적/관찰 UI |
+| langfuse-worker | langfuse/langfuse-worker:3 | - | Langfuse trace 처리 워커 (Redis → ClickHouse) |
 | clickhouse | clickhouse-server:24.1 | - | Langfuse v3 분석 DB |
 | redis | redis:7-alpine | - | Langfuse v3 작업 큐 |
 | minio | minio/minio | - | Langfuse v3 오브젝트 스토리지 |
@@ -65,9 +66,12 @@ orchestration/
     └── cAdvisor   :8065  ←  Docker 컨테이너 리소스 메트릭
 
 Langfuse v3 내부 연결
-    ├── ClickHouse  ←  Langfuse (trace 데이터 저장)
-    ├── Redis       ←  Langfuse (작업 큐)
-    └── MinIO       ←  Langfuse (이벤트/미디어 파일)
+    ├── Redis            ←  langfuse (OTLP 수신 후 큐잉)
+    ├── langfuse-worker  ←  Redis 큐 소비 → ClickHouse 저장
+    ├── ClickHouse       ←  langfuse-worker (trace 데이터 저장)
+    └── MinIO            ←  langfuse-worker (이벤트/미디어 파일)
+
+> **주의:** langfuse-worker가 없으면 OTLP trace를 수신해도 Langfuse UI에 표시되지 않습니다.
 ```
 
 ---
@@ -254,17 +258,18 @@ docker compose down -v
 ./deploy/logs.sh
 
 # 특정 서비스 로그
-./deploy/logs.sh app          # FastAPI
-./deploy/logs.sh llm-admin    # Next.js
-./deploy/logs.sh nginx        # Nginx
-./deploy/logs.sh db           # PostgreSQL
-./deploy/logs.sh langfuse     # Langfuse
-./deploy/logs.sh clickhouse   # ClickHouse
-./deploy/logs.sh redis        # Redis
-./deploy/logs.sh minio        # MinIO
-./deploy/logs.sh prometheus   # Prometheus
-./deploy/logs.sh grafana      # Grafana
-./deploy/logs.sh cadvisor     # cAdvisor
+./deploy/logs.sh app              # FastAPI
+./deploy/logs.sh llm-admin        # Next.js
+./deploy/logs.sh nginx            # Nginx
+./deploy/logs.sh db               # PostgreSQL
+./deploy/logs.sh langfuse         # Langfuse UI
+./deploy/logs.sh langfuse-worker  # Langfuse Worker (trace 처리)
+./deploy/logs.sh clickhouse       # ClickHouse
+./deploy/logs.sh redis            # Redis
+./deploy/logs.sh minio            # MinIO
+./deploy/logs.sh prometheus       # Prometheus
+./deploy/logs.sh grafana          # Grafana
+./deploy/logs.sh cadvisor         # cAdvisor
 
 # 환경 지정
 ./deploy/logs.sh app staging
@@ -379,7 +384,35 @@ ClickHouse, Redis, MinIO가 모두 healthy 상태인지 확인합니다.
 docker compose ps clickhouse redis minio
 ```
 
-MinIO 버킷이 없을 경우 [버킷 초기화](#3-langfuse-minio-버킷-초기화-최초-1회) 단계를 수행합니다.
+MinIO 버킷이 없을 경우 [버킷 초기화](#4-langfuse-minio-버킷-초기화-최초-1회) 단계를 수행합니다.
+
+### Langfuse trace가 UI에 표시되지 않음
+
+`langfuse-worker` 컨테이너가 실행 중인지 확인합니다. worker가 없으면 OTLP 수신은 되지만 Redis 큐에서 꺼내 ClickHouse로 처리하지 않습니다.
+
+```bash
+docker compose ps langfuse-worker
+./deploy/logs.sh langfuse-worker staging
+```
+
+### Langfuse dashboard 에러 (`dashboard.allDashboards: Internal error`)
+
+**원인 A — ClickHouse 마이그레이션 실패:** Langfuse 기동 시점에 ClickHouse가 완전히 준비되지 않은 경우입니다. ClickHouse가 healthy 상태가 된 후 Langfuse를 재시작합니다.
+
+```bash
+docker compose ps clickhouse          # healthy 확인
+docker compose restart langfuse
+```
+
+**원인 B — langfuse 웹/워커 버전 불일치:** `langfuse/langfuse:3`과 `langfuse/langfuse-worker:3`의 로컬 캐시 버전이 다른 경우입니다. 최신 이미지를 pull한 후 재배포합니다.
+
+```bash
+docker pull langfuse/langfuse:3
+docker pull langfuse/langfuse-worker:3
+bash deploy.sh staging
+```
+
+> `deploy.sh`는 배포 시 자동으로 pre-built 이미지를 pull하므로 정상 배포 흐름에서는 발생하지 않습니다.
 
 ### Next.js 빌드 실패
 

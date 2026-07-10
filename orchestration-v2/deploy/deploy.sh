@@ -47,12 +47,19 @@ echo "  - cAdvisor      : http://localhost:8065"
 
 cd "$SCRIPT_DIR"
 
+# Pull latest versions of pre-built images (langfuse, redis, minio 등 build 없는 이미지).
+# build: 섹션이 있는 이미지(app, platform, llm-admin)는 건너뜀.
+# 이 단계를 생략하면 로컬 캐시의 구버전 이미지가 사용되어 버전 불일치가 발생할 수 있음.
+echo "Pulling latest pre-built images..."
+docker compose --env-file "$ORCH_ENV_FILE" pull --ignore-buildable
+
 APP_ENV=$ENV docker compose --env-file "$ORCH_ENV_FILE" up -d --build
 
 echo ""
 echo "All services started successfully."
 echo "  - Langfuse 초기 설정: http://localhost:8067 에서 계정 생성 후"
 echo "    API Keys 메뉴에서 Public/Secret key를 .env.$ENV에 입력하세요."
+echo "  - Langfuse Worker: trace 처리 상태 확인 → ./logs.sh langfuse-worker $ENV"
 echo "  - Grafana 초기 로그인: http://localhost:8064 (admin / \${GRAFANA_ADMIN_PASSWORD:-admin})"
 echo "    LLM Inference Latency 대시보드가 자동으로 프로비저닝됩니다."
 echo "  docker compose -f $SCRIPT_DIR/docker-compose.yml ps"
