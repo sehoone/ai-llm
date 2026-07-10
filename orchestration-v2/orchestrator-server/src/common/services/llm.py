@@ -35,6 +35,16 @@ from src.common.config import (
 )
 from src.common.logging import logger
 
+# Langfuse callback attached directly to LLM instances (bypasses LangGraph config propagation)
+_langfuse_callbacks: list = []
+if settings.langfuse_is_enabled:
+    try:
+        from langfuse.langchain import CallbackHandler
+        _langfuse_callbacks = [CallbackHandler()]
+        logger.info("langfuse_llm_service_callback_initialized", host=settings.LANGFUSE_HOST)
+    except Exception as e:
+        logger.warning("langfuse_llm_service_callback_failed", error=str(e))
+
 
 # ── LLM Registry ─────────────────────────────────────────────────────────────
 
@@ -240,6 +250,9 @@ class LLMService:
             params["api_version"] = resource.api_version
 
         params.update(kwargs)
+
+        if _langfuse_callbacks:
+            params["callbacks"] = _langfuse_callbacks
 
         llm: BaseChatModel = ChatLiteLLM(model=model_id, **params)
 
