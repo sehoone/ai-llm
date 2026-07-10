@@ -40,12 +40,7 @@ litellm.suppress_debug_info = True
 # Load environment variables
 load_dotenv()
 
-# Register LiteLLM → Langfuse callback (traces every LLM call regardless of LangGraph config propagation)
-if settings.langfuse_is_enabled:
-    litellm.success_callback = ["langfuse"]
-    litellm.failure_callback = ["langfuse"]
-    logger.info("langfuse_litellm_callback_registered", host=settings.LANGFUSE_HOST)
-else:
+if not settings.langfuse_is_enabled:
     logger.info("langfuse_disabled", reason="credentials not provided or LANGFUSE_ENABLED=false")
 
 # Define application lifespan events
