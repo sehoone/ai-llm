@@ -6,61 +6,52 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Trash2, Plus, Loader2, Upload, FileJson, CheckCircle2, XCircle } from 'lucide-react'
 import {
-  createEmbedding,
-  deleteEmbedding,
-  listEmbeddings,
-  bulkUploadEmbeddings,
-  type BulkEmbeddingItem,
-  type BulkEmbeddingResponse,
-} from '@/api/embeddings'
+  Trash2, Plus, Loader2, Upload, FileJson,
+  CheckCircle2, XCircle, Clock, Ban,
+} from 'lucide-react'
+import { createEmbedding, deleteEmbedding, listEmbeddings } from '@/api/embeddings'
 import { logger } from '@/lib/logger'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 
-// ── 단건 입력 폼 ────────────────────────────────────────────
+// ── 타입 ────────────────────────────────────────────────────
 
-const formSchema = z.object({
+type ItemStatus = 'pending' | 'processing' | 'success' | 'error' | 'cancelled'
+
+interface ProgressItem {
+  id: string | number
+  title: string
+  desc: string
+  status: ItemStatus
+  documentId?: number
+  error?: string
+}
+
+// ── 스키마 ──────────────────────────────────────────────────
+
+const singleSchema = z.object({
   title: z.string().min(1, '제목을 입력하세요').max(500),
   content: z.string().min(1, '내용을 입력하세요'),
 })
-type FormValues = z.infer<typeof formSchema>
-
-// ── JSON 파일 스키마 ────────────────────────────────────────
+type SingleValues = z.infer<typeof singleSchema>
 
 const jsonItemSchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -69,26 +60,46 @@ const jsonItemSchema = z.object({
 })
 const jsonFileSchema = z.array(jsonItemSchema).min(1, '항목이 1건 이상이어야 합니다.')
 
-// ── 메인 컴포넌트 ───────────────────────────────────────────
+// ── 상태 아이콘 ──────────────────────────────────────────────
+
+function StatusIcon({ status }: { status: ItemStatus }) {
+  if (status === 'pending')    return <Clock     className='h-4 w-4 text-muted-foreground' />
+  if (status === 'processing') return <Loader2   className='h-4 w-4 animate-spin text-blue-500' />
+  if (status === 'success')    return <CheckCircle2 className='h-4 w-4 text-green-500' />
+  if (status === 'error')      return <XCircle   className='h-4 w-4 text-destructive' />
+  if (status === 'cancelled')  return <Ban       className='h-4 w-4 text-muted-foreground' />
+  return null
+}
+
+function rowBg(status: ItemStatus) {
+  if (status === 'processing') return 'bg-blue-50 dark:bg-blue-950/20'
+  if (status === 'success')    return 'bg-green-50 dark:bg-green-950/20'
+  if (status === 'error')      return 'bg-red-50 dark:bg-red-950/20'
+  return ''
+}
+
+// ── 메인 컴포넌트 ────────────────────────────────────────────
 
 export function EmbeddingsFeature() {
   const queryClient = useQueryClient()
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
   // 단건 폼
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<SingleValues>({
+    resolver: zodResolver(singleSchema),
     defaultValues: { title: '', content: '' },
   })
 
-  // JSON 업로드 상태
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [parsedItems, setParsedItems] = useState<BulkEmbeddingItem[] | null>(null)
-  const [parseError, setParseError] = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [bulkResult, setBulkResult] = useState<BulkEmbeddingResponse | null>(null)
+  // 다건 업로드 상태
+  const fileInputRef  = useRef<HTMLInputElement>(null)
+  const cancelledRef  = useRef(false)
+  const [fileName,       setFileName]       = useState<string | null>(null)
+  const [parseError,     setParseError]     = useState<string | null>(null)
+  const [parsedItems,    setParsedItems]    = useState<z.infer<typeof jsonItemSchema>[] | null>(null)
+  const [progressItems,  setProgressItems]  = useState<ProgressItem[]>([])
+  const [isUploading,    setIsUploading]    = useState(false)
 
-  // ── 쿼리 / 뮤테이션 ──────────────────────────────────────
+  // ── 쿼리 / 뮤테이션 ─────────────────────────────────────
 
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ['embeddings'],
@@ -121,28 +132,9 @@ export function EmbeddingsFeature() {
     onSettled: () => setDeletingId(null),
   })
 
-  const bulkMutation = useMutation({
-    mutationFn: bulkUploadEmbeddings,
-    onSuccess: (data) => {
-      setBulkResult(data)
-      queryClient.invalidateQueries({ queryKey: ['embeddings'] })
-      if (data.failedCount === 0) {
-        toast.success(`${data.successCount}건 모두 업로드 완료되었습니다.`)
-      } else {
-        toast.warning(`${data.successCount}건 성공, ${data.failedCount}건 실패했습니다.`)
-      }
-    },
-    onError: (err) => {
-      logger.error('일괄 업로드 실패', err)
-      toast.error('업로드 중 오류가 발생했습니다.')
-    },
-  })
+  // ── 핸들러 ──────────────────────────────────────────────
 
-  // ── 핸들러 ───────────────────────────────────────────────
-
-  const onSingleSubmit = (values: FormValues) => {
-    createMutation.mutate(values)
-  }
+  const onSingleSubmit = (values: SingleValues) => createMutation.mutate(values)
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -151,12 +143,12 @@ export function EmbeddingsFeature() {
     setFileName(file.name)
     setParsedItems(null)
     setParseError(null)
-    setBulkResult(null)
+    setProgressItems([])
 
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const raw = JSON.parse(ev.target?.result as string)
+        const raw    = JSON.parse(ev.target?.result as string)
         const parsed = jsonFileSchema.parse(raw)
         setParsedItems(parsed)
       } catch (err) {
@@ -168,25 +160,87 @@ export function EmbeddingsFeature() {
       }
     }
     reader.readAsText(file)
-
-    // 같은 파일 재선택 허용
     e.target.value = ''
   }
 
-  const onBulkUpload = () => {
-    if (!parsedItems) return
-    setBulkResult(null)
-    bulkMutation.mutate(parsedItems)
+  const startUpload = async () => {
+    if (!parsedItems || parsedItems.length === 0) return
+
+    // 진행 목록 초기화 (모두 pending)
+    const initial: ProgressItem[] = parsedItems.map(item => ({ ...item, status: 'pending' }))
+    setProgressItems(initial)
+    cancelledRef.current = false
+    setIsUploading(true)
+
+    let successCount = 0
+    let errorCount   = 0
+
+    for (let i = 0; i < initial.length; i++) {
+      // 취소 확인
+      if (cancelledRef.current) {
+        setProgressItems(prev =>
+          prev.map((p, idx) => idx >= i ? { ...p, status: 'cancelled' } : p)
+        )
+        break
+      }
+
+      // 처리 중 표시
+      setProgressItems(prev =>
+        prev.map((p, idx) => idx === i ? { ...p, status: 'processing' } : p)
+      )
+
+      try {
+        const result = await createEmbedding({ title: initial[i].title, content: initial[i].desc })
+        setProgressItems(prev =>
+          prev.map((p, idx) =>
+            idx === i ? { ...p, status: 'success', documentId: result.id } : p
+          )
+        )
+        successCount++
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '알 수 없는 오류'
+        logger.error('다건 업로드 개별 실패', { id: initial[i].id, message })
+        setProgressItems(prev =>
+          prev.map((p, idx) => idx === i ? { ...p, status: 'error', error: message } : p)
+        )
+        errorCount++
+      }
+    }
+
+    setIsUploading(false)
+    queryClient.invalidateQueries({ queryKey: ['embeddings'] })
+
+    if (cancelledRef.current) {
+      toast.warning(`업로드가 취소되었습니다. (완료 ${successCount}건)`)
+    } else if (errorCount === 0) {
+      toast.success(`${successCount}건 모두 업로드 완료되었습니다.`)
+    } else {
+      toast.warning(`${successCount}건 성공, ${errorCount}건 실패했습니다.`)
+    }
   }
 
-  const resetFileUpload = () => {
+  const cancelUpload = () => { cancelledRef.current = true }
+
+  const resetBulk = () => {
     setParsedItems(null)
+    setProgressItems([])
     setParseError(null)
     setFileName(null)
-    setBulkResult(null)
+    cancelledRef.current = false
   }
 
-  // ── 렌더 ─────────────────────────────────────────────────
+  // ── 진행 통계 (파생값) ──────────────────────────────────
+
+  const doneCount    = progressItems.filter(p => p.status === 'success' || p.status === 'error').length
+  const successCount = progressItems.filter(p => p.status === 'success').length
+  const errorCount   = progressItems.filter(p => p.status === 'error').length
+  const totalCount   = progressItems.length
+  const progressPct  = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
+
+  const isStarted  = progressItems.length > 0
+  const isFinished = isStarted && !isUploading
+
+  // ── 렌더 ────────────────────────────────────────────────
 
   return (
     <>
@@ -195,6 +249,7 @@ export function EmbeddingsFeature() {
       </Header>
       <Main>
         <div className='space-y-6'>
+
           {/* 임베딩 생성 */}
           <Card>
             <CardHeader>
@@ -207,7 +262,7 @@ export function EmbeddingsFeature() {
                   <TabsTrigger value='bulk'>JSON 파일 업로드</TabsTrigger>
                 </TabsList>
 
-                {/* 단건 입력 */}
+                {/* ── 단건 입력 ── */}
                 <TabsContent value='single'>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSingleSubmit)} className='space-y-4'>
@@ -242,32 +297,22 @@ export function EmbeddingsFeature() {
                         )}
                       />
                       <Button type='submit' disabled={createMutation.isPending}>
-                        {createMutation.isPending ? (
-                          <>
-                            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                            임베딩 생성 중...
-                          </>
-                        ) : (
-                          <>
-                            <Plus className='mr-2 h-4 w-4' />
-                            임베딩 생성
-                          </>
-                        )}
+                        {createMutation.isPending
+                          ? <><Loader2 className='mr-2 h-4 w-4 animate-spin' />임베딩 생성 중...</>
+                          : <><Plus    className='mr-2 h-4 w-4' />임베딩 생성</>}
                       </Button>
                     </form>
                   </Form>
                 </TabsContent>
 
-                {/* JSON 파일 업로드 */}
+                {/* ── JSON 파일 업로드 ── */}
                 <TabsContent value='bulk'>
                   <div className='space-y-4'>
+
                     {/* 포맷 안내 */}
                     <div className='rounded-md bg-muted px-4 py-3 text-xs text-muted-foreground'>
                       <p className='mb-1 font-medium'>JSON 파일 형식</p>
-                      <pre className='font-mono'>{`[
-  { "id": 1, "title": "제목", "desc": "내용" },
-  { "id": 2, "title": "제목2", "desc": "내용2" }
-]`}</pre>
+                      <pre className='font-mono'>{`[\n  { "id": 1, "title": "제목", "desc": "내용" },\n  { "id": 2, "title": "제목2", "desc": "내용2" }\n]`}</pre>
                     </div>
 
                     {/* 파일 선택 */}
@@ -278,11 +323,12 @@ export function EmbeddingsFeature() {
                         accept='.json,application/json'
                         className='hidden'
                         onChange={onFileChange}
+                        disabled={isUploading}
                       />
                       <Button
                         variant='outline'
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={bulkMutation.isPending}
+                        disabled={isUploading}
                       >
                         <FileJson className='mr-2 h-4 w-4' />
                         JSON 파일 선택
@@ -297,15 +343,15 @@ export function EmbeddingsFeature() {
                       <p className='text-sm text-destructive'>{parseError}</p>
                     )}
 
-                    {/* 파일 미리보기 */}
-                    {parsedItems && parsedItems.length > 0 && !bulkResult && (
+                    {/* 미리보기 — 파일 파싱 완료, 아직 업로드 시작 전 */}
+                    {parsedItems && !isStarted && (
                       <div className='space-y-3'>
                         <p className='text-sm text-muted-foreground'>
                           파싱 완료 —{' '}
                           <span className='font-medium text-foreground'>{parsedItems.length}건</span>{' '}
                           확인됨
                         </p>
-                        <div className='max-h-56 overflow-y-auto rounded-md border'>
+                        <div className='max-h-48 overflow-y-auto rounded-md border'>
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -315,16 +361,12 @@ export function EmbeddingsFeature() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {parsedItems.map((item) => (
+                              {parsedItems.map(item => (
                                 <TableRow key={String(item.id)}>
-                                  <TableCell className='text-muted-foreground'>
-                                    {item.id}
-                                  </TableCell>
+                                  <TableCell className='text-muted-foreground'>{item.id}</TableCell>
                                   <TableCell className='font-medium'>{item.title}</TableCell>
                                   <TableCell className='max-w-xs truncate text-sm text-muted-foreground'>
-                                    {item.desc.length > 80
-                                      ? `${item.desc.slice(0, 80)}...`
-                                      : item.desc}
+                                    {item.desc.length > 80 ? `${item.desc.slice(0, 80)}...` : item.desc}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -332,43 +374,49 @@ export function EmbeddingsFeature() {
                           </Table>
                         </div>
                         <div className='flex gap-2'>
-                          <Button onClick={onBulkUpload} disabled={bulkMutation.isPending}>
-                            {bulkMutation.isPending ? (
-                              <>
-                                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                                업로드 중... ({parsedItems.length}건)
-                              </>
-                            ) : (
-                              <>
-                                <Upload className='mr-2 h-4 w-4' />
-                                일괄 업로드 ({parsedItems.length}건)
-                              </>
-                            )}
+                          <Button onClick={startUpload}>
+                            <Upload className='mr-2 h-4 w-4' />
+                            업로드 시작 ({parsedItems.length}건)
                           </Button>
-                          <Button variant='ghost' onClick={resetFileUpload}>
-                            초기화
-                          </Button>
+                          <Button variant='ghost' onClick={resetBulk}>초기화</Button>
                         </div>
                       </div>
                     )}
 
-                    {/* 업로드 결과 */}
-                    {bulkResult && (
+                    {/* 진행 목록 — 업로드 시작 후 */}
+                    {isStarted && (
                       <div className='space-y-3'>
-                        <div className='flex items-center gap-3'>
-                          <Badge variant='secondary'>전체 {bulkResult.total}건</Badge>
-                          <Badge className='bg-green-500 text-white hover:bg-green-600'>
-                            성공 {bulkResult.successCount}건
-                          </Badge>
-                          {bulkResult.failedCount > 0 && (
-                            <Badge variant='destructive'>실패 {bulkResult.failedCount}건</Badge>
-                          )}
+
+                        {/* 진행률 바 */}
+                        <div className='space-y-1'>
+                          <div className='flex items-center justify-between text-sm'>
+                            <span className='text-muted-foreground'>
+                              {isUploading ? '처리 중...' : '완료'}
+                            </span>
+                            <span className='font-medium'>
+                              {doneCount} / {totalCount}건
+                              {successCount > 0 && (
+                                <span className='ml-2 text-green-600'>✓{successCount}</span>
+                              )}
+                              {errorCount > 0 && (
+                                <span className='ml-1 text-destructive'>✗{errorCount}</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className='h-2 w-full overflow-hidden rounded-full bg-muted'>
+                            <div
+                              className='h-full bg-primary transition-all duration-300'
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className='max-h-64 overflow-y-auto rounded-md border'>
+
+                        {/* 건별 상태 목록 */}
+                        <div className='max-h-72 overflow-y-auto rounded-md border'>
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead className='w-16'></TableHead>
+                                <TableHead className='w-10'></TableHead>
                                 <TableHead className='w-20'>ID</TableHead>
                                 <TableHead>제목</TableHead>
                                 <TableHead className='w-24'>DB ID</TableHead>
@@ -376,31 +424,52 @@ export function EmbeddingsFeature() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {bulkResult.results.map((r) => (
-                                <TableRow key={String(r.id)}>
+                              {progressItems.map((item, idx) => (
+                                <TableRow key={String(item.id) + idx} className={rowBg(item.status)}>
                                   <TableCell>
-                                    {r.success ? (
-                                      <CheckCircle2 className='h-4 w-4 text-green-500' />
-                                    ) : (
-                                      <XCircle className='h-4 w-4 text-destructive' />
-                                    )}
+                                    <StatusIcon status={item.status} />
                                   </TableCell>
-                                  <TableCell className='text-muted-foreground'>{r.id}</TableCell>
-                                  <TableCell className='font-medium'>{r.title}</TableCell>
+                                  <TableCell className='text-muted-foreground'>{item.id}</TableCell>
+                                  <TableCell className='font-medium'>{item.title}</TableCell>
                                   <TableCell className='text-muted-foreground'>
-                                    {r.documentId ?? '-'}
+                                    {item.documentId ?? '-'}
                                   </TableCell>
-                                  <TableCell className='text-sm text-destructive'>
-                                    {r.error ?? ''}
+                                  <TableCell className='max-w-xs truncate text-xs text-destructive'>
+                                    {item.error ?? ''}
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
                         </div>
-                        <Button variant='outline' size='sm' onClick={resetFileUpload}>
-                          다시 업로드
-                        </Button>
+
+                        {/* 액션 버튼 */}
+                        <div className='flex gap-2'>
+                          {isUploading ? (
+                            <Button variant='destructive' size='sm' onClick={cancelUpload}>
+                              취소
+                            </Button>
+                          ) : (
+                            <>
+                              {isFinished && (
+                                <div className='flex items-center gap-2'>
+                                  <Badge variant='secondary'>전체 {totalCount}건</Badge>
+                                  {successCount > 0 && (
+                                    <Badge className='bg-green-500 text-white hover:bg-green-600'>
+                                      성공 {successCount}건
+                                    </Badge>
+                                  )}
+                                  {errorCount > 0 && (
+                                    <Badge variant='destructive'>실패 {errorCount}건</Badge>
+                                  )}
+                                </div>
+                              )}
+                              <Button variant='outline' size='sm' onClick={resetBulk}>
+                                다시 업로드
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -414,9 +483,7 @@ export function EmbeddingsFeature() {
             <CardHeader>
               <CardTitle className='text-base'>
                 저장된 문서
-                <Badge variant='secondary' className='ml-2'>
-                  {documents.length}건
-                </Badge>
+                <Badge variant='secondary' className='ml-2'>{documents.length}건</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -441,19 +508,15 @@ export function EmbeddingsFeature() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {documents.map((doc) => (
+                    {documents.map(doc => (
                       <TableRow key={doc.id}>
                         <TableCell className='text-muted-foreground'>{doc.id}</TableCell>
                         <TableCell className='font-medium'>{doc.title}</TableCell>
                         <TableCell className='max-w-xs truncate text-sm text-muted-foreground'>
-                          {doc.content.length > 100
-                            ? `${doc.content.slice(0, 100)}...`
-                            : doc.content}
+                          {doc.content.length > 100 ? `${doc.content.slice(0, 100)}...` : doc.content}
                         </TableCell>
                         <TableCell>
-                          <Badge variant='outline' className='text-xs'>
-                            {doc.model}
-                          </Badge>
+                          <Badge variant='outline' className='text-xs'>{doc.model}</Badge>
                         </TableCell>
                         <TableCell className='text-sm text-muted-foreground'>
                           {new Date(doc.createdAt).toLocaleString('ko-KR')}
@@ -474,22 +537,17 @@ export function EmbeddingsFeature() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>문서 삭제</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  &quot;{doc.title}&quot; 문서를 삭제합니다. 이 작업은 되돌릴 수
-                                  없습니다.
+                                  &quot;{doc.title}&quot; 문서를 삭제합니다. 이 작업은 되돌릴 수 없습니다.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel onClick={() => setDeletingId(null)}>
-                                  취소
-                                </AlertDialogCancel>
+                                <AlertDialogCancel onClick={() => setDeletingId(null)}>취소</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => deleteMutation.mutate(doc.id)}
                                   disabled={deleteMutation.isPending && deletingId === doc.id}
                                   className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
                                 >
-                                  {deleteMutation.isPending && deletingId === doc.id
-                                    ? '삭제 중...'
-                                    : '삭제'}
+                                  {deleteMutation.isPending && deletingId === doc.id ? '삭제 중...' : '삭제'}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
