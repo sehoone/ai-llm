@@ -9,7 +9,7 @@ public class Document {
     private Long id;
     private String title;
     private String content;
-    private float[] embedding;
+    private EmbeddingVector embedding;
     private String model;
     private LocalDateTime createdAt;
 }

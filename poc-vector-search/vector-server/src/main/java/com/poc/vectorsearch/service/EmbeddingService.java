@@ -1,6 +1,7 @@
 package com.poc.vectorsearch.service;
 
 import com.poc.vectorsearch.domain.Document;
+import com.poc.vectorsearch.domain.EmbeddingVector;
 import com.poc.vectorsearch.dto.BulkEmbeddingItem;
 import com.poc.vectorsearch.dto.BulkEmbeddingResponse;
 import com.poc.vectorsearch.dto.BulkEmbeddingResultItem;
@@ -26,7 +27,7 @@ public class EmbeddingService {
     public EmbeddingResponse create(EmbeddingRequest request) {
         log.info("임베딩 생성 시작 - 제목: {}", request.getTitle());
 
-        float[] embedding = openAiEmbeddingService.embed(request.getContent());
+        EmbeddingVector embedding = openAiEmbeddingService.embed(request.getContent());
 
         Document document = new Document();
         document.setTitle(request.getTitle());
@@ -72,7 +73,7 @@ public class EmbeddingService {
 
         for (BulkEmbeddingItem item : items) {
             try {
-                float[] embedding = openAiEmbeddingService.embed(item.getDesc());
+                EmbeddingVector embedding = openAiEmbeddingService.embed(item.getDesc());
 
                 Document document = new Document();
                 document.setTitle(item.getTitle());
