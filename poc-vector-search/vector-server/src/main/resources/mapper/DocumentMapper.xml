@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.poc.vectorsearch.mapper.DocumentMapper">
+
+    <resultMap id="documentResultMap" type="com.poc.vectorsearch.domain.Document">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="embedding" column="embedding"
+                typeHandler="com.poc.vectorsearch.handler.VectorTypeHandler"/>
+        <result property="model" column="model"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="searchResultMap" type="com.poc.vectorsearch.dto.SearchResult">
+        <result property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="score" column="score"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO documents (title, content, embedding, model)
+        VALUES (#{title}, #{content},
+                #{embedding, typeHandler=com.poc.vectorsearch.handler.VectorTypeHandler}::vector,
+                #{model})
+    </insert>
+
+    <select id="findAll" resultMap="documentResultMap">
+        SELECT id, title, content, model, created_at
+        FROM documents
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="findById" resultMap="documentResultMap">
+        SELECT id, title, content, model, created_at
+        FROM documents
+        WHERE id = #{id}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM documents WHERE id = #{id}
+    </delete>
+
+    <select id="searchByVector" resultMap="searchResultMap">
+        SELECT id, title, content, created_at,
+               1 - (embedding <![CDATA[ <=> ]]> #{queryVector}::vector) AS score
+        FROM documents
+        ORDER BY embedding <![CDATA[ <=> ]]> #{queryVector}::vector
+        LIMIT #{topK}
+    </select>
+
+</mapper>

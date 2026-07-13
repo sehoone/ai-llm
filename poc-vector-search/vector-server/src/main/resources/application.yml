@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/poc_vector
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    default-fetch-size: 100
+    default-statement-timeout: 30
+  type-handlers-package: com.poc.vectorsearch.handler
+
+jwt:
+  secret: poc-vector-search-jwt-secret-key-32ch!!
+  expiration: 3600000
+
+azure:
+  openai:
+    api-key: ${AZURE_OPENAI_API_KEY:your-azure-openai-api-key}
+    endpoint: ${AZURE_OPENAI_ENDPOINT:https://your-resource.openai.azure.com}
+    deployment-name: ${AZURE_OPENAI_DEPLOYMENT_NAME:text-embedding-3-small}
+    api-version: ${AZURE_OPENAI_API_VERSION:2024-02-01}
+
+logging:
+  level:
+    com.poc.vectorsearch: DEBUG
+    org.mybatis: DEBUG

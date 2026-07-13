@@ -1,0 +1,44 @@
+# 의존성
+node_modules/
+
+# Next.js 빌드 산출물
+.next/
+out/
+dist/
+dist-ssr/
+
+# 환경 변수 (로컬 전용 — .env.example / .env.production 은 커밋 대상)
+.env
+.env.local
+.env.*.local
+*.local
+
+# pnpm
+.pnpm-store/
+
+# 로그
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# TypeScript 빌드 캐시
+tsconfig.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
