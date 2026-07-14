@@ -7,6 +7,7 @@ import com.poc.vectorsearch.dto.BulkEmbeddingResponse;
 import com.poc.vectorsearch.dto.BulkEmbeddingResultItem;
 import com.poc.vectorsearch.dto.EmbeddingRequest;
 import com.poc.vectorsearch.dto.EmbeddingResponse;
+import com.poc.vectorsearch.dto.PageResponse;
 import com.poc.vectorsearch.mapper.DocumentMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,28 @@ public class EmbeddingService {
                         .createdAt(doc.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    public PageResponse<EmbeddingResponse> findPaged(int page, int size) {
+        long totalElements = documentMapper.countAll();
+        int offset = page * size;
+        List<EmbeddingResponse> content = documentMapper.findPaged(offset, size).stream()
+                .map(doc -> EmbeddingResponse.builder()
+                        .id(doc.getId())
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .model(doc.getModel())
+                        .createdAt(doc.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        return PageResponse.<EmbeddingResponse>builder()
+                .content(content)
+                .page(page)
+                .size(size)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .build();
     }
 
     public void delete(Long id) {

@@ -8,6 +8,14 @@ export interface DocumentItem {
   createdAt: string
 }
 
+export interface PagedResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export interface CreateEmbeddingRequest {
   title: string
   content: string
@@ -16,6 +24,7 @@ export interface CreateEmbeddingRequest {
 export interface SearchRequest {
   query: string
   topK: number
+  threshold: number
 }
 
 export interface SearchResult {
@@ -31,8 +40,8 @@ export const createEmbedding = async (data: CreateEmbeddingRequest): Promise<Doc
   return res.data
 }
 
-export const listEmbeddings = async (): Promise<DocumentItem[]> => {
-  const res = await api.get<DocumentItem[]>('v1/embeddings')
+export const listEmbeddings = async (page = 0, size = 10): Promise<PagedResponse<DocumentItem>> => {
+  const res = await api.get<PagedResponse<DocumentItem>>('v1/embeddings', { params: { page, size } })
   return res.data
 }
 

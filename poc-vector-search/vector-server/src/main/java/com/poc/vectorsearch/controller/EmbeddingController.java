@@ -4,6 +4,7 @@ import com.poc.vectorsearch.dto.BulkEmbeddingItem;
 import com.poc.vectorsearch.dto.BulkEmbeddingResponse;
 import com.poc.vectorsearch.dto.EmbeddingRequest;
 import com.poc.vectorsearch.dto.EmbeddingResponse;
+import com.poc.vectorsearch.dto.PageResponse;
 import com.poc.vectorsearch.service.EmbeddingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,8 +28,10 @@ public class EmbeddingController {
     }
 
     @GetMapping
-    public ResponseEntity<List<EmbeddingResponse>> findAll() {
-        return ResponseEntity.ok(embeddingService.findAll());
+    public ResponseEntity<PageResponse<EmbeddingResponse>> findAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(embeddingService.findPaged(page, size));
     }
 
     @PostMapping("/batch")

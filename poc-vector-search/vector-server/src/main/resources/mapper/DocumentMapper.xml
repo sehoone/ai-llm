@@ -32,6 +32,17 @@
         ORDER BY created_at DESC
     </select>
 
+    <select id="findPaged" resultMap="documentResultMap">
+        SELECT id, title, content, model, created_at
+        FROM documents
+        ORDER BY created_at DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM documents
+    </select>
+
     <select id="findById" resultMap="documentResultMap">
         SELECT id, title, content, model, created_at
         FROM documents
@@ -50,6 +61,7 @@
         SELECT id, title, content, created_at,
                1 - (embedding <![CDATA[ <=> ]]> #{queryVector}) AS score
         FROM documents
+        WHERE 1 - (embedding <![CDATA[ <=> ]]> #{queryVector}) <![CDATA[ >= ]]> #{threshold}
         ORDER BY embedding <![CDATA[ <=> ]]> #{queryVector}
         LIMIT #{topK}
     </select>

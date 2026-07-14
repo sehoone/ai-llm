@@ -12,8 +12,10 @@ import java.util.List;
 public interface DocumentMapper {
     void insert(Document document);
     List<Document> findAll();
+    List<Document> findPaged(@Param("offset") int offset, @Param("size") int size);
+    long countAll();
     Document findById(Long id);
     void deleteById(Long id);
     void deleteAll();
-    List<SearchResult> searchByVector(@Param("queryVector") EmbeddingVector queryVector, @Param("topK") int topK);
+    List<SearchResult> searchByVector(@Param("queryVector") EmbeddingVector queryVector, @Param("topK") int topK, @Param("threshold") double threshold);
 }

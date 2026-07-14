@@ -26,15 +26,14 @@ docker compose up -d
 $env:AZURE_OPENAI_API_KEY='your-api-key'
 $env:AZURE_OPENAI_ENDPOINT='https://your-resource.openai.azure.com'
 $env:AZURE_OPENAI_DEPLOYMENT_NAME='text-embedding-3-small'
-./gradlew bootRun    # gradlew 없으면 → Docker로 빌드: poc-deploy/ 참고
+# $env:AZURE_OPENAI_API_VERSION='2024-02-01'  # 기본값, 필요 시 변경
+./gradlew bootRun    # 로컬 Gradle 7.6.4+ 필요. 없으면 → poc-deploy/ Docker 사용
 
 # 3. Next.js 프론트엔드
 cd ../admin-front
 pnpm install         # 최초 1회
 pnpm dev             # http://localhost:3000
 ```
-
-> `gradlew` 파일이 없으므로 로컬 Gradle 설치 필요. 없다면 `poc-deploy/`의 Docker 배포 사용.
 
 ---
 
@@ -55,6 +54,7 @@ pnpm dev             # http://localhost:3000
 - **Spring Security**: `WebSecurityConfigurerAdapter` 상속 방식 (Boot 2.7). Boot 3의 람다 DSL 사용 불가
 - `schema.sql` + `data.sql`은 매 기동 시 실행 (`mode=always`) → `IF NOT EXISTS` / `WHERE NOT EXISTS` 필수
 - Docker 배포 시 `SPRING_SQL_INIT_MODE=never` → `poc-deploy/init.sql`이 스키마 담당
+- **TLS 1.2 강제**: Java 8과 Azure OpenAI 간 TLS 1.3 협상 실패 이슈 → `JAVA_TOOL_OPTIONS=-Dhttps.protocols=TLSv1.2 -Djdk.tls.client.protocols=TLSv1.2`로 회피 (Docker 배포 환경 포함)
 
 ### 패키지 구조
 
@@ -65,8 +65,8 @@ com.poc.vectorsearch
 ├── controller/ AuthController, EmbeddingController, SearchController, GlobalExceptionHandler
 ├── service/    AuthService, EmbeddingService, SearchService, OpenAiEmbeddingService
 ├── mapper/     UserMapper, DocumentMapper  (인터페이스만)
-├── domain/     User, Document
-└── dto/        Login*, Embedding*, Bulk*, Search*
+├── domain/     User, Document, EmbeddingVector  (float[] 래퍼, 직렬화·파싱 집중)
+└── dto/        Login*, Embedding*, Bulk*, Search*, PageResponse<T>
 ```
 
 ### API 엔드포인트
@@ -77,10 +77,11 @@ com.poc.vectorsearch
 | POST | `/api/v1/auth/refresh` | — | POC 스텁 |
 | POST | `/api/v1/auth/logout` | — | POC 스텁 |
 | POST | `/api/v1/embeddings` | JWT | 단건 임베딩 생성 (Azure OpenAI 호출 후 저장) |
-| GET  | `/api/v1/embeddings` | JWT | 문서 목록 (embedding 벡터 제외) |
+| GET  | `/api/v1/embeddings` | JWT | 문서 목록 페이지 (`?page=0&size=10`) → `PageResponse<EmbeddingResponse>` |
 | POST | `/api/v1/embeddings/batch` | JWT | JSON 배열 일괄 임베딩 (`id`, `title`, `desc`) |
 | DELETE | `/api/v1/embeddings/{id}` | JWT | 문서 삭제 |
-| POST | `/api/v1/search` | JWT | 코사인 유사도 검색 (`query`, `topK`) |
+| DELETE | `/api/v1/embeddings` | JWT | 전체 문서 삭제 |
+| POST | `/api/v1/search` | JWT | 코사인 유사도 검색 (`query`, `topK` 1~20, `threshold` 0.0~1.0 기본 0.7) |
 
 ### 예외 처리
 
@@ -92,8 +93,8 @@ com.poc.vectorsearch
 ### pgvector 핵심
 
 `VectorTypeHandler`: MyBatis ↔ pgvector 브리지
-- **쓰기**: `float[]` → `"[0.1,0.2,...]"` → `Types.OTHER`로 전달 (DB가 `::vector` 캐스트)
-- **읽기**: `getString()` → 파싱 → `float[]`
+- **쓰기**: `float[]` → `PGvector` → `Types.OTHER`로 전달 (DB가 `::vector` 캐스트)
+- **읽기**: `getString()` → `EmbeddingVector.parse()` → `float[]`
 - XML 매퍼에서 `<=>` 연산자는 반드시 `<![CDATA[ <=> ]]>`로 감쌀 것
 
 ### Azure OpenAI 연동
@@ -104,9 +105,11 @@ com.poc.vectorsearch
 - Request body에 `model` 필드 없음 (배포 이름이 URL에 포함)
 - 기본 모델: `text-embedding-3-small` (1536차원) — 모델 변경 시 `vector(1536)` 컬럼도 재생성 필요
 
-### 일괄 업로드 동작
+### 임베딩 텍스트 처리
 
-`EmbeddingService.bulkCreate()`: 건별 독립 처리 — 한 건 실패해도 나머지 계속 진행. 결과에 건별 `success`/`error` 포함.
+- 단건 생성: `content`만 임베딩. `title`은 저장만 됨 (`title + " - " + content` 방식이 검색 품질에 유리)
+- 일괄 업로드: `desc` 필드가 임베딩 텍스트이자 DB `content`로 저장됨. `id`는 참조용 식별자 (DB 저장 안 됨)
+- `EmbeddingService.bulkCreate()`: 건별 독립 처리 — 한 건 실패해도 나머지 계속 진행
 
 ---
 
@@ -148,13 +151,18 @@ API_URL=http://vector-server:8080
 
 | 피처 | 경로 | 기능 |
 |------|------|------|
-| `embeddings` | `/embeddings` | Tabs: 단건 입력 / JSON 파일 일괄 업로드 + 결과 확인 |
-| `search` | `/search` | 검색어 입력 → 유사도 카드 결과 (점수 바 표시) |
+| `embeddings` | `/embeddings` | Tabs: 단건 입력 / JSON 파일 일괄 업로드 + 결과 확인. 문서 목록(페이지네이션) + 전체/단건 삭제 |
+| `search` | `/search` | 검색어 입력 → 유사도 카드 결과 (점수 바 표시). 결과 클릭 시 Dialog로 전문 표시 |
 
 ### API 레이어 (`src/api/`)
 
 - `auth.ts` — login, refresh, logout
-- `embeddings.ts` — createEmbedding, listEmbeddings, deleteEmbedding, bulkUploadEmbeddings, searchEmbeddings
+- `embeddings.ts` — createEmbedding, listEmbeddings, deleteEmbedding, deleteAllEmbeddings, bulkUploadEmbeddings, searchEmbeddings
+
+공유 Axios 인스턴스(`axios.ts`) 인터셉터:
+- 만료 2초 전 토큰 선제 갱신
+- 갱신 중 요청 큐잉 (`failedQueue`)
+- 401 시 1회 재시도 → 실패 시 `/sign-in` 리다이렉트
 
 ### 피처 추가 패턴
 
@@ -167,6 +175,7 @@ API_URL=http://vector-server:8080
 
 - `console.*` 금지 → `import { logger } from '@/lib/logger'` 사용
 - Zod: numeric 필드에 `z.coerce.number()` 금지 → `z.number()` 사용 (RHF 제네릭 타입 오류 방지)
+- Zod v4: `ZodError.errors` → `ZodError.issues`
 - `src/components/ui/` — ESLint 적용 제외 (shadcn 생성 파일)
 - Prettier import 정렬: `react → 서드파티 → @/api → @/stores → @/lib → @/context → @/hooks → @/components → @/features → 상대경로`
 
@@ -220,3 +229,4 @@ CREATE INDEX documents_embedding_idx ON documents
 ```
 
 `embedding` 차원(1536)은 Azure 배포 모델에 종속 — 모델 변경 시 컬럼 재생성 필요.
+차원이 바뀌면 `schema.sql`과 `poc-deploy/init.sql` 두 파일을 모두 수정하고 DB에서 직접 컬럼 재생성 필요 (`IF NOT EXISTS`로 인해 자동 수정 안 됨).

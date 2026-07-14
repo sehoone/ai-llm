@@ -22,9 +22,9 @@ public class SearchService {
         log.info("벡터 검색 시작 - 쿼리: '{}', TopK: {}", request.getQuery(), request.getTopK());
 
         EmbeddingVector queryVector = openAiEmbeddingService.embed(request.getQuery());
-        List<SearchResult> results = documentMapper.searchByVector(queryVector, request.getTopK());
+        List<SearchResult> results = documentMapper.searchByVector(queryVector, request.getTopK(), request.getThreshold());
 
-        log.info("검색 완료 - 결과 수: {}", results.size());
+        log.info("검색 완료 - 결과 수: {} (threshold: {})", results.size(), request.getThreshold());
         return results;
     }
 }
