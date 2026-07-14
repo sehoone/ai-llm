@@ -13,5 +13,6 @@ public interface DocumentMapper {
     List<Document> findAll();
     Document findById(Long id);
     void deleteById(Long id);
+    void deleteAll();
     List<SearchResult> searchByVector(@Param("queryVector") String queryVector, @Param("topK") int topK);
 }

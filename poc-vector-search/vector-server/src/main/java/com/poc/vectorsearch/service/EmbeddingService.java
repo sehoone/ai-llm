@@ -65,6 +65,11 @@ public class EmbeddingService {
         log.info("문서 삭제 완료 - ID: {}", id);
     }
 
+    public void deleteAll() {
+        documentMapper.deleteAll();
+        log.info("전체 문서 삭제 완료");
+    }
+
     public BulkEmbeddingResponse bulkCreate(List<BulkEmbeddingItem> items) {
         log.info("일괄 임베딩 시작 - 총 {}건", items.size());
 

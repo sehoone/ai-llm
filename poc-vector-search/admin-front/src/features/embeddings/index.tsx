@@ -10,12 +10,15 @@ import {
   Trash2, Plus, Loader2, Upload, FileJson,
   CheckCircle2, XCircle, Clock, Ban,
 } from 'lucide-react'
-import { createEmbedding, deleteEmbedding, listEmbeddings } from '@/api/embeddings'
+import { createEmbedding, deleteAllEmbeddings, deleteEmbedding, listEmbeddings, type DocumentItem } from '@/api/embeddings'
 import { logger } from '@/lib/logger'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
@@ -83,6 +86,7 @@ function rowBg(status: ItemStatus) {
 export function EmbeddingsFeature() {
   const queryClient = useQueryClient()
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null)
 
   // 단건 폼
   const form = useForm<SingleValues>({
@@ -130,6 +134,18 @@ export function EmbeddingsFeature() {
       toast.error('삭제에 실패했습니다.')
     },
     onSettled: () => setDeletingId(null),
+  })
+
+  const deleteAllMutation = useMutation({
+    mutationFn: deleteAllEmbeddings,
+    onSuccess: () => {
+      toast.success('전체 문서가 삭제되었습니다.')
+      queryClient.invalidateQueries({ queryKey: ['embeddings'] })
+    },
+    onError: (err) => {
+      logger.error('전체 삭제 실패', err)
+      toast.error('전체 삭제에 실패했습니다.')
+    },
   })
 
   // ── 핸들러 ──────────────────────────────────────────────
@@ -480,11 +496,44 @@ export function EmbeddingsFeature() {
 
           {/* 저장된 문서 목록 */}
           <Card>
-            <CardHeader>
+            <CardHeader className='flex flex-row items-center justify-between'>
               <CardTitle className='text-base'>
                 저장된 문서
                 <Badge variant='secondary' className='ml-2'>{documents.length}건</Badge>
               </CardTitle>
+              {documents.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant='destructive'
+                      size='sm'
+                      disabled={deleteAllMutation.isPending}
+                    >
+                      {deleteAllMutation.isPending
+                        ? <><Loader2 className='mr-2 h-4 w-4 animate-spin' />삭제 중...</>
+                        : <><Trash2 className='mr-2 h-4 w-4' />전체 삭제</>}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>전체 문서 삭제</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        저장된 문서 <strong>{documents.length}건</strong>을 모두 삭제합니다.
+                        이 작업은 되돌릴 수 없습니다.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>취소</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteAllMutation.mutate()}
+                        className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                      >
+                        전체 삭제
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -509,7 +558,11 @@ export function EmbeddingsFeature() {
                   </TableHeader>
                   <TableBody>
                     {documents.map(doc => (
-                      <TableRow key={doc.id}>
+                      <TableRow
+                        key={doc.id}
+                        className='cursor-pointer'
+                        onClick={() => setSelectedDoc(doc)}
+                      >
                         <TableCell className='text-muted-foreground'>{doc.id}</TableCell>
                         <TableCell className='font-medium'>{doc.title}</TableCell>
                         <TableCell className='max-w-xs truncate text-sm text-muted-foreground'>
@@ -521,7 +574,7 @@ export function EmbeddingsFeature() {
                         <TableCell className='text-sm text-muted-foreground'>
                           {new Date(doc.createdAt).toLocaleString('ko-KR')}
                         </TableCell>
-                        <TableCell>
+                        <TableCell onClick={e => e.stopPropagation()}>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -562,6 +615,39 @@ export function EmbeddingsFeature() {
           </Card>
         </div>
       </Main>
+
+      {/* 문서 상세 팝업 */}
+      <Dialog open={!!selectedDoc} onOpenChange={open => { if (!open) setSelectedDoc(null) }}>
+        <DialogContent className='max-w-lg'>
+          <DialogHeader>
+            <DialogTitle>문서 상세</DialogTitle>
+          </DialogHeader>
+          {selectedDoc && (
+            <div className='space-y-4 text-sm'>
+              <div className='grid grid-cols-[6rem_1fr] gap-y-3'>
+                <span className='text-muted-foreground'>ID</span>
+                <span className='font-mono'>{selectedDoc.id}</span>
+
+                <span className='text-muted-foreground'>제목</span>
+                <span className='font-medium'>{selectedDoc.title}</span>
+
+                <span className='text-muted-foreground'>모델</span>
+                <Badge variant='outline' className='w-fit text-xs'>{selectedDoc.model}</Badge>
+
+                <span className='text-muted-foreground'>생성일시</span>
+                <span>{new Date(selectedDoc.createdAt).toLocaleString('ko-KR')}</span>
+              </div>
+
+              <div className='space-y-1'>
+                <p className='text-muted-foreground'>내용</p>
+                <div className='max-h-64 overflow-y-auto rounded-md border bg-muted/50 p-3 text-sm leading-relaxed whitespace-pre-wrap'>
+                  {selectedDoc.content}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

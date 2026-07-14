@@ -45,6 +45,10 @@
         DELETE FROM documents WHERE id = #{id}
     </delete>
 
+    <delete id="deleteAll">
+        DELETE FROM documents
+    </delete>
+
     <select id="searchByVector" resultMap="searchResultMap">
         SELECT id, title, content, created_at,
                1 - (embedding <![CDATA[ <=> ]]> #{queryVector}::vector) AS score

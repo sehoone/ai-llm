@@ -45,4 +45,10 @@ public class EmbeddingController {
         embeddingService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping
+    public ResponseEntity<Void> deleteAll() {
+        embeddingService.deleteAll();
+        return ResponseEntity.noContent().build();
+    }
 }

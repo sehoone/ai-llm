@@ -40,6 +40,10 @@ export const deleteEmbedding = async (id: number): Promise<void> => {
   await api.delete(`v1/embeddings/${id}`)
 }
 
+export const deleteAllEmbeddings = async (): Promise<void> => {
+  await api.delete('v1/embeddings')
+}
+
 export const searchEmbeddings = async (data: SearchRequest): Promise<SearchResult[]> => {
   const res = await api.post<SearchResult[]>('v1/search', data)
   return res.data
