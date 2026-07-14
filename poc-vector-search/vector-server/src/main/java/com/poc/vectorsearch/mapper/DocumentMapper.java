@@ -1,6 +1,7 @@
 package com.poc.vectorsearch.mapper;
 
 import com.poc.vectorsearch.domain.Document;
+import com.poc.vectorsearch.domain.EmbeddingVector;
 import com.poc.vectorsearch.dto.SearchResult;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -14,5 +15,5 @@ public interface DocumentMapper {
     Document findById(Long id);
     void deleteById(Long id);
     void deleteAll();
-    List<SearchResult> searchByVector(@Param("queryVector") String queryVector, @Param("topK") int topK);
+    List<SearchResult> searchByVector(@Param("queryVector") EmbeddingVector queryVector, @Param("topK") int topK);
 }

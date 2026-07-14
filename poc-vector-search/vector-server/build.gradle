@@ -24,6 +24,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:2.3.2'
     implementation 'org.postgresql:postgresql:42.7.3'
+    implementation 'com.pgvector:pgvector:0.1.6'
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 

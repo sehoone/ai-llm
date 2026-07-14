@@ -22,8 +22,7 @@ public class SearchService {
         log.info("벡터 검색 시작 - 쿼리: '{}', TopK: {}", request.getQuery(), request.getTopK());
 
         EmbeddingVector queryVector = openAiEmbeddingService.embed(request.getQuery());
-        List<SearchResult> results = documentMapper.searchByVector(
-                queryVector.toPgVectorString(), request.getTopK());
+        List<SearchResult> results = documentMapper.searchByVector(queryVector, request.getTopK());
 
         log.info("검색 완료 - 결과 수: {}", results.size());
         return results;

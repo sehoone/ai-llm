@@ -8,8 +8,7 @@
         <id property="id" column="id"/>
         <result property="title" column="title"/>
         <result property="content" column="content"/>
-        <result property="embedding" column="embedding"
-                typeHandler="com.poc.vectorsearch.handler.VectorTypeHandler"/>
+        <result property="embedding" column="embedding"/>
         <result property="model" column="model"/>
         <result property="createdAt" column="created_at"/>
     </resultMap>
@@ -24,9 +23,7 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO documents (title, content, embedding, model)
-        VALUES (#{title}, #{content},
-                #{embedding, typeHandler=com.poc.vectorsearch.handler.VectorTypeHandler}::vector,
-                #{model})
+        VALUES (#{title}, #{content}, #{embedding}, #{model})
     </insert>
 
     <select id="findAll" resultMap="documentResultMap">
@@ -51,9 +48,9 @@
 
     <select id="searchByVector" resultMap="searchResultMap">
         SELECT id, title, content, created_at,
-               1 - (embedding <![CDATA[ <=> ]]> #{queryVector}::vector) AS score
+               1 - (embedding <![CDATA[ <=> ]]> #{queryVector}) AS score
         FROM documents
-        ORDER BY embedding <![CDATA[ <=> ]]> #{queryVector}::vector
+        ORDER BY embedding <![CDATA[ <=> ]]> #{queryVector}
         LIMIT #{topK}
     </select>
 

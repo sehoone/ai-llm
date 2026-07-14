@@ -1,5 +1,6 @@
 package com.poc.vectorsearch.handler;
 
+import com.pgvector.PGvector;
 import com.poc.vectorsearch.domain.EmbeddingVector;
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
@@ -16,7 +17,8 @@ public class VectorTypeHandler extends BaseTypeHandler<EmbeddingVector> {
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, EmbeddingVector parameter, JdbcType jdbcType)
             throws SQLException {
-        ps.setObject(i, parameter.toPgVectorString(), java.sql.Types.OTHER);
+        PGvector.addVectorType(ps.getConnection());
+        ps.setObject(i, new PGvector(parameter.getValues()));
     }
 
     @Override
