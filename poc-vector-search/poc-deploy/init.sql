@@ -79,21 +79,20 @@ CREATE TABLE IF NOT EXISTS documents (
 --
 -- ── pgvector의 인덱스 종류 ───────────────────────────────────
 --
---   1) IVFFlat (Inverted File Flat)  ← 이 POC에서 사용
+--   1) IVFFlat (Inverted File Flat)
 --      - 학습 단계에서 벡터를 lists개의 클러스터로 분류한다.
 --      - 검색 시 가장 가까운 probe개 클러스터만 탐색 → 속도 향상.
 --      - 인덱스 빌드가 빠르고 메모리를 적게 쓴다.
 --      - 단점: 인덱스 생성 전에 데이터가 어느 정도 있어야 품질이 좋다.
 --              (빈 테이블에 만들면 클러스터가 의미 없다 → 나중에 REINDEX 권장)
 --
---   2) HNSW (Hierarchical Navigable Small World)  ← pgvector 0.5.0+
+--   2) HNSW (Hierarchical Navigable Small World)  ← 이 POC에서 사용 (pgvector 0.5.0+)
 --      - 그래프 기반 인덱스. 검색 정확도(recall)가 IVFFlat보다 높다.
---      - 빌드 시간이 길고 메모리를 더 쓴다.
---      - 수십만 건 이상 + 높은 정확도가 필요할 때 적합.
---      - 생성 예시:
---          CREATE INDEX ON documents
---              USING hnsw (embedding vector_cosine_ops)
---              WITH (m = 16, ef_construction = 64);
+--      - 빈 테이블에 생성해도 데이터 삽입 시 자동으로 그래프를 구성한다.
+--      - 빌드 시간이 길고 메모리를 더 쓴다 (m × ef_construction에 비례).
+--      - m: 레이어당 최대 연결 수 (기본 16, 높을수록 recall↑ 메모리↑)
+--      - ef_construction: 빌드 시 탐색 후보 크기 (기본 64, 높을수록 품질↑ 빌드↓)
+--      - 검색 시 SET hnsw.ef_search = N; 으로 탐색 정확도 조정 가능 (기본 40)
 --
 -- ── 유사도 연산자 종류 ───────────────────────────────────────
 --
@@ -118,27 +117,27 @@ CREATE TABLE IF NOT EXISTS documents (
 --   ※ MyBatis XML에서 <=> 연산자는 XML 파싱 오류를 막기 위해
 --     반드시 <![CDATA[ embedding <=> #{vec}::vector ]]> 로 감싸야 한다.
 --
--- ── lists 파라미터 튜닝 ──────────────────────────────────────
+-- ── HNSW 파라미터 튜닝 ──────────────────────────────────────
 --
---   lists: IVFFlat이 벡터를 나누는 클러스터(버킷) 수.
---   권장값 = sqrt(총 문서 수)
+--   m: 레이어당 최대 연결 수. 기본값 16, 범위 2~100.
+--     m이 클수록 recall 향상 / 메모리·빌드 시간 증가.
 --
---     문서 수   권장 lists
---     --------  ----------
---        1,000       32
---       10,000      100  ← 이 POC 기본값
---      100,000      316
---    1,000,000     1000
+--     문서 수   권장 m
+--     --------  ------
+--      ~ 10만       16  (기본값)
+--      ~ 100만      32
+--      100만 이상   64
 --
---   lists가 너무 작으면 클러스터당 벡터가 많아 탐색이 느리다.
---   lists가 너무 크면 클러스터 선택 오버헤드가 커지고 메모리를 낭비한다.
+--   ef_construction: 빌드 시 동적 후보 목록 크기. 기본값 64, 범위 4~.
+--     높을수록 인덱스 품질↑ / 빌드 시간↑. recall 목표 95%+ 시 128 권장.
 --
---   검색 시 SET ivfflat.probes = N; 으로 탐색 클러스터 수를 늘리면
---   정확도(recall)는 올라가지만 속도는 느려진다. (기본값 1)
+--   hnsw.ef_search: 검색 시 동적 후보 목록 크기. 기본값 40.
+--     SET hnsw.ef_search = N; 으로 쿼리 직전 세션에서 조정.
+--     높을수록 recall↑ 속도↓. ef_search ≥ topK 권장.
 --
 CREATE INDEX IF NOT EXISTS documents_embedding_idx
-    ON documents USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+    ON documents USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
 
 
 -- ══════════════════════════════════════════════════════════════

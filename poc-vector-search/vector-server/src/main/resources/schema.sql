@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS documents (
     created_at TIMESTAMP     NOT NULL DEFAULT NOW()
 );
 
--- cosine 유사도 검색 인덱스 (문서가 많아질 때 성능 향상)
+-- cosine 유사도 검색 인덱스 (HNSW: 데이터 없이 생성해도 동작, 높은 recall)
 CREATE INDEX IF NOT EXISTS documents_embedding_idx
-    ON documents USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+    ON documents USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
