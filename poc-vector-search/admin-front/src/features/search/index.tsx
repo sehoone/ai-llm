@@ -228,11 +228,11 @@ export function SearchFeature() {
           ) : (
             <div className='space-y-3'>
               <p className='text-sm text-muted-foreground'>
-                유사 문서 {results.length}건 (유사도 높은 순 · 임계값 {form.getValues('threshold')})
+                관련 문서 {results.length}건 (유사도 높은 순 · 임계값 {form.getValues('threshold')})
               </p>
               {results.map((result, idx) => (
                 <Card
-                  key={result.id}
+                  key={result.documentId}
                   className='cursor-pointer transition-shadow hover:shadow-md'
                   onClick={() => setSelected(result)}
                 >
@@ -244,9 +244,15 @@ export function SearchFeature() {
                             #{idx + 1}
                           </span>
                           <h3 className='font-semibold'>{result.title}</h3>
+                          {result.matchingChunks.length > 1 && (
+                            <Badge variant='secondary' className='text-xs'>
+                              {result.matchingChunks.length}개 청크 매칭
+                            </Badge>
+                          )}
                         </div>
+                        {/* 최고 점수 청크 내용 미리보기 */}
                         <p className='line-clamp-2 text-sm leading-relaxed text-muted-foreground'>
-                          {result.content}
+                          {result.matchingChunks[0]?.content}
                         </p>
                         <p className='text-xs text-muted-foreground'>
                           {new Date(result.createdAt).toLocaleString('ko-KR')}
@@ -263,8 +269,8 @@ export function SearchFeature() {
 
               {/* 상세 팝업 */}
               <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-                <DialogContent className='max-w-xl'>
-                  <DialogHeader>
+                <DialogContent className='flex max-h-[80vh] max-w-xl flex-col'>
+                  <DialogHeader className='shrink-0'>
                     <DialogTitle>{selected?.title}</DialogTitle>
                     <DialogDescription asChild>
                       <div className='flex items-center gap-2 pt-1'>
@@ -272,16 +278,21 @@ export function SearchFeature() {
                         <span className='text-xs text-muted-foreground'>
                           {selected ? `유사도 ${Math.round(selected.score * 100)}%` : ''}
                         </span>
+                        {selected && selected.matchingChunks.length > 1 && (
+                          <Badge variant='secondary' className='text-xs'>
+                            {selected.matchingChunks.length}개 청크 매칭
+                          </Badge>
+                        )}
                       </div>
                     </DialogDescription>
                   </DialogHeader>
-                  <Separator />
-                  <div className='space-y-3'>
-                    <p className='text-sm leading-relaxed whitespace-pre-wrap'>{selected?.content}</p>
+                  <Separator className='shrink-0' />
+                  <div className='min-h-0 flex-1 overflow-y-auto space-y-4'>
+                    <p className='text-sm leading-relaxed whitespace-pre-wrap'>{selected?.fullContent}</p>
                   </div>
-                  <Separator />
-                  <div className='flex justify-between text-xs text-muted-foreground'>
-                    <span>ID: {selected?.id}</span>
+                  <Separator className='shrink-0' />
+                  <div className='flex shrink-0 justify-between text-xs text-muted-foreground'>
+                    <span>문서 ID: {selected?.documentId}</span>
                     <span>
                       {selected ? new Date(selected.createdAt).toLocaleString('ko-KR') : ''}
                     </span>

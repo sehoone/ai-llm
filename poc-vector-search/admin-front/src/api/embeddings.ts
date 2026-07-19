@@ -3,9 +3,13 @@ import api from './axios'
 export interface DocumentItem {
   id: number
   title: string
-  content: string
-  model: string
+  content: string                                           // full_content
+  sourceType: string
+  status: 'pending' | 'processing' | 'indexed' | 'failed'
+  model?: string | null
+  errorMessage?: string | null
   createdAt: string
+  updatedAt: string
 }
 
 export interface PagedResponse<T> {
@@ -27,12 +31,21 @@ export interface SearchRequest {
   threshold: number
 }
 
-export interface SearchResult {
+export interface ChunkMatch {
   id: number
-  title: string
+  chunkIndex: number
+  chunkTotal: number
   content: string
   score: number
+}
+
+export interface SearchResult {
+  documentId: number
+  title: string
+  fullContent: string
+  score: number        // 매칭 청크 중 최고 유사도
   createdAt: string
+  matchingChunks: ChunkMatch[]
 }
 
 export const createEmbedding = async (data: CreateEmbeddingRequest): Promise<DocumentItem> => {
@@ -53,6 +66,11 @@ export const deleteAllEmbeddings = async (): Promise<void> => {
   await api.delete('v1/embeddings')
 }
 
+export const retryEmbedding = async (id: number): Promise<DocumentItem> => {
+  const res = await api.post<DocumentItem>(`v1/embeddings/${id}/retry`)
+  return res.data
+}
+
 export const searchEmbeddings = async (data: SearchRequest): Promise<SearchResult[]> => {
   const res = await api.post<SearchResult[]>('v1/search', data)
   return res.data
@@ -64,26 +82,4 @@ export interface BulkEmbeddingItem {
   id: string | number
   title: string
   desc: string
-}
-
-export interface BulkEmbeddingResultItem {
-  id: string | number
-  title: string
-  success: boolean
-  documentId?: number
-  error?: string
-}
-
-export interface BulkEmbeddingResponse {
-  total: number
-  successCount: number
-  failedCount: number
-  results: BulkEmbeddingResultItem[]
-}
-
-export const bulkUploadEmbeddings = async (
-  items: BulkEmbeddingItem[]
-): Promise<BulkEmbeddingResponse> => {
-  const res = await api.post<BulkEmbeddingResponse>('v1/embeddings/batch', items)
-  return res.data
 }

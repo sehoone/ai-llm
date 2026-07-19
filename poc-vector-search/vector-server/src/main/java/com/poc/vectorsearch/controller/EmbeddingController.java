@@ -43,6 +43,12 @@ public class EmbeddingController {
         return ResponseEntity.ok(embeddingService.bulkCreate(items));
     }
 
+    @PostMapping("/{id}/retry")
+    public ResponseEntity<EmbeddingResponse> retry(@PathVariable Long id) {
+        EmbeddingResponse response = embeddingService.retry(id);
+        return ResponseEntity.accepted().body(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         embeddingService.delete(id);

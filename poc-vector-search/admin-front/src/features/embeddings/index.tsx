@@ -8,9 +8,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   Trash2, Plus, Loader2, Upload, FileJson, FileText, File, Download,
-  CheckCircle2, XCircle, Clock, Ban, ChevronLeft, ChevronRight,
+  CheckCircle2, XCircle, Clock, Ban, ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react'
-import { createEmbedding, deleteAllEmbeddings, deleteEmbedding, listEmbeddings, type DocumentItem } from '@/api/embeddings'
+import { createEmbedding, deleteAllEmbeddings, deleteEmbedding, listEmbeddings, retryEmbedding, type DocumentItem } from '@/api/embeddings'
+
+// ── 인덱싱 상태 뱃지 ────────────────────────────────────────
+
+function StatusBadge({ status }: { status: DocumentItem['status'] }) {
+  if (status === 'indexed')
+    return <Badge className='bg-green-500 text-white hover:bg-green-600 text-xs'>인덱싱 완료</Badge>
+  if (status === 'processing')
+    return <Badge className='animate-pulse bg-blue-500 text-white hover:bg-blue-600 text-xs'>처리 중</Badge>
+  if (status === 'pending')
+    return <Badge variant='secondary' className='text-xs'>대기 중</Badge>
+  if (status === 'failed')
+    return <Badge variant='destructive' className='text-xs'>실패</Badge>
+  return null
+}
 import { logger } from '@/lib/logger'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,6 +86,11 @@ const SAMPLE_DATA = [
   { id: 19, title: 'Excel 업무 활용 고급', desc: '과정 소개:\n엑셀을 업무에서 더 효율적으로 사용하기 위한 고급 기능을 학습합니다. 반복 업무 자동화와 데이터 분석에 집중합니다.\n\n학습 목표:\n- VLOOKUP, INDEX/MATCH, XLOOKUP 마스터\n- 피벗 테이블 고급 활용\n- 조건부 서식 자동화\n- 매크로 및 VBA 기초\n- 파워 쿼리를 활용한 데이터 변환\n\n커리큘럼:\n1주차: 고급 함수 (VLOOKUP, INDEX/MATCH, 배열 수식)\n2주차: 피벗 테이블 고급, 피벗 차트\n3주차: 조건부 서식, 데이터 유효성 검사\n4주차: 매크로 기록 및 VBA 기초\n5주차: 파워 쿼리 데이터 연결 및 변환\n6주차: 업무 자동화 프로젝트\n\n수강 대상: Excel 기본 사용 가능자, 사무 직군 전반\n교육 기간: 6주 (주 1회, 회당 2시간)\n교육 형태: 집합교육 (컴퓨터 실습실)\n수강 정원: 20명' },
   { id: 20, title: '디자인 씽킹 (Design Thinking)', desc: '과정 소개:\n사용자 중심의 문제 해결 방법론인 디자인 씽킹을 습득하여 혁신적인 아이디어를 도출하고 실행하는 과정입니다.\n\n학습 목표:\n- 디자인 씽킹 5단계 프로세스 이해 (공감-정의-아이디에이션-프로토타이핑-테스트)\n- 사용자 인터뷰 및 공감 맵 작성\n- HMW(How Might We) 질문법\n- 아이디어 도출 및 우선순위화\n- 빠른 프로토타이핑 기법\n\n커리큘럼:\n1일차: 디자인 씽킹 개요, 사례 연구\n2일차: 공감 단계 - 사용자 인터뷰 실습\n3일차: 정의 단계 - POV, HMW 작성\n4일차: 아이디에이션 - 브레인스토밍, 아이디어 선정\n5일차: 프로토타이핑 및 테스트 실습\n\n수강 대상: 기획, 서비스, UX 직무 및 혁신 활동 참여자\n교육 기간: 5일 (연속 진행)\n교육 형태: 팀 프로젝트 중심 워크숍\n수강 정원: 20명 (4명 × 5팀)' },
   { id: 21, title: 'Git & GitHub 버전 관리 실무', desc: '과정 소개:\nGit 버전 관리 시스템과 GitHub을 활용하여 팀 협업 개발 워크플로우를 구축하고 운영하는 과정입니다.\n\n학습 목표:\n- Git 기본 명령어 완전 이해\n- 브랜치 전략 (Git Flow, GitHub Flow)\n- Pull Request 및 코드 리뷰 문화\n- 충돌 해결 및 rebase 활용\n- GitHub Actions를 활용한 CI/CD 기초\n\n커리큘럼:\n1주차: Git 기초 (init, add, commit, push, pull)\n2주차: 브랜치 생성, 병합, 충돌 해결\n3주차: GitHub Flow, Pull Request 실습\n4주차: rebase, cherry-pick, stash\n5주차: GitHub Actions CI/CD 파이프라인\n6주차: 팀 프로젝트 협업 실습\n\n수강 대상: 개발 직군 전원 (신입 포함)\n교육 기간: 6주 (주 1회, 회당 2시간)\n교육 형태: 실습 중심\n수강 정원: 15명\n선수 과목: 기본 터미널/명령어 사용 가능자' },
+
+  // ── 청크 분할 테스트용 (800자 초과) ─────────────────────────
+  { id: 22, title: '머신러닝 엔지니어링 심화 [청크 분할 테스트 ~1600자]', desc: '과정 소개:\n머신러닝의 핵심 알고리즘을 이론과 실습으로 깊이 있게 학습하는 심화 과정입니다. Python의 scikit-learn, XGBoost, LightGBM 라이브러리를 활용하여 실제 비즈니스 문제를 해결하는 역량을 기릅니다.\n\n학습 목표:\n- 머신러닝의 개념과 학습 유형 이해 (지도학습, 비지도학습, 강화학습)\n- 데이터 전처리 및 특성 엔지니어링 심화\n- 주요 알고리즘 이론과 구현 (선형회귀, 로지스틱회귀, 의사결정트리, 랜덤포레스트, SVM, KNN)\n- 앙상블 기법 심화 (배깅, 부스팅, 스태킹)\n- 모델 평가 지표 이해 (정확도, 정밀도, 재현율, F1-score, AUC-ROC)\n- 교차 검증 및 하이퍼파라미터 튜닝 (GridSearch, RandomSearch, Optuna)\n- 불균형 데이터 처리 기법 (오버샘플링, 언더샘플링, SMOTE)\n- MLflow를 활용한 실험 관리 및 모델 버저닝\n\n커리큘럼:\n1주차: 머신러닝 개요, 개발 환경 구성, 데이터 파이프라인 설계\n2주차: 탐색적 데이터 분석(EDA) 및 고급 전처리 기법\n3주차: 회귀 알고리즘 심화 (선형회귀, 릿지, 라쏘, 엘라스틱넷)\n4주차: 분류 알고리즘 심화 (SVM, KNN, 나이브 베이즈)\n5주차: 트리 기반 앙상블 (랜덤포레스트, 엑스트라트리)\n6주차: 부스팅 앙상블 (그래디언트 부스팅, XGBoost, LightGBM, CatBoost)\n7주차: 모델 선택, 교차 검증, 하이퍼파라미터 최적화\n8주차: 불균형 데이터 처리 및 이상 탐지\n9주차: 특성 선택 및 차원 축소 (PCA, t-SNE, UMAP)\n10주차: MLflow 실험 관리, 모델 배포 기초\n11~12주차: 캡스톤 프로젝트 (실제 비즈니스 문제 해결 및 발표)\n\n평가 방법:\n- 주차별 실습 과제 (30%)\n- 중간 미니 프로젝트 (20%)\n- 캡스톤 프로젝트 발표 (50%)\n\n수강 대상: Python 데이터 분석 경험자, 데이터 사이언티스트 지망생, AI/ML 프로젝트 담당자\n교육 기간: 12주 (주 2회, 회당 2.5시간)\n교육 형태: 소그룹 집합교육 (GPU 서버 환경 제공)\n수강 정원: 10명\n선수 과목: Python 데이터 분석 (pandas, numpy), 통계 기초' },
+
+  { id: 23, title: 'LLM 파인튜닝 및 서비스 구축 [청크 분할 테스트 ~2700자]', desc: '과정 소개:\n사전 학습된 대규모 언어 모델(LLM)을 기업 환경에 맞게 파인튜닝하고 실제 서비스로 구축하는 전 과정을 학습합니다. Hugging Face Transformers, PEFT, LangChain을 활용하며, OpenAI API와 오픈소스 모델(LLaMA, Mistral) 양쪽을 모두 다룹니다.\n\n학습 목표:\n- 트랜스포머 아키텍처의 이해 (Self-Attention, Multi-Head Attention, Positional Encoding)\n- 주요 LLM 계열 비교 (GPT, LLaMA, Mistral, Gemma, Claude)\n- 프롬프트 엔지니어링 심화 (Zero-shot, Few-shot, Chain-of-Thought, ReAct)\n- 파인튜닝 기법 이해 및 실습 (Full Fine-tuning, LoRA, QLoRA, Instruction Tuning)\n- RAG(검색 증강 생성) 시스템 설계 및 구현\n- 벡터 데이터베이스 활용 (Chroma, Pinecone, pgvector)\n- LangChain과 LlamaIndex를 활용한 LLM 애플리케이션 개발\n- LLM 평가 방법론 (BLEU, ROUGE, BERTScore, 인간 평가)\n- 프로덕션 배포 및 운영 (vLLM, TGI, API 서버 구축)\n- LLM 보안 및 책임감 있는 AI (프롬프트 인젝션, 편향, 환각 현상 대응)\n\n커리큘럼:\n1주차: LLM 개요, 트랜스포머 아키텍처 이해, 개발 환경 구성\n2주차: Hugging Face 생태계 활용 (Datasets, Tokenizers, Transformers 라이브러리)\n3주차: 프롬프트 엔지니어링 심화 실습 및 평가\n4주차: OpenAI API 활용 및 Function Calling, Assistants API\n5주차: 파인튜닝 이론 (LoRA, QLoRA) 및 Hugging Face PEFT 실습\n6주차: Instruction Tuning, RLHF 개념 및 DPO 실습\n7주차: RAG 시스템 설계 (청킹 전략, 임베딩 모델 선택, 벡터 검색)\n8주차: LangChain을 활용한 에이전트 및 체인 구성\n9주차: LlamaIndex를 활용한 고급 RAG 패턴 (HyDE, 재순위화, 쿼리 변환)\n10주차: LLM 평가 프레임워크 구축 (RAGAS, LangSmith, 자동 평가)\n11주차: 프로덕션 배포 (vLLM 서버, Docker, Kubernetes, 로드밸런싱)\n12주차: 비용 최적화, 캐싱 전략, 모니터링 및 옵저버빌리티 구축\n13~14주차: 팀 프로젝트 (실제 비즈니스 LLM 서비스 개발 및 최종 발표)\n\n프로젝트 예시:\n- 사내 문서 기반 Q&A 챗봇 (RAG + LLM 파인튜닝)\n- 고객 상담 자동화 시스템 (파인튜닝 + API 서버 배포)\n- 코드 리뷰 자동화 에이전트 (Tool Use + ReAct)\n- 다국어 콘텐츠 요약 및 번역 서비스\n- 개인화 추천 시스템 (임베딩 + LLM 하이브리드)\n\n평가 방법:\n- 주차별 실습 과제 (25%)\n- 중간 발표: 개인 RAG 시스템 구축 및 평가 (25%)\n- 팀 최종 프로젝트 발표 및 데모 (50%)\n\n수강 대상: ML 엔지니어, 백엔드 개발자, 데이터 사이언티스트 중 LLM 서비스 구축에 관심 있는 임직원\n교육 기간: 14주 (주 2회, 회당 3시간)\n교육 형태: 소그룹 집합교육 (GPU A100 서버 1인 1대 제공)\n수강 정원: 8명\n선수 과목: Python 심화, 딥러닝 기초 또는 머신러닝 엔지니어링 과정 수료\n특이사항: 수강생 전원 Hugging Face Pro 계정 및 OpenAI API 크레딧 지원' },
 ]
 
 const SAMPLE_JSON = JSON.stringify(SAMPLE_DATA, null, 2)
@@ -187,6 +206,7 @@ const PAGE_SIZE = 10
 export function EmbeddingsFeature() {
   const queryClient = useQueryClient()
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [retryingId, setRetryingId] = useState<number | null>(null)
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null)
   const [docDialogOpen, setDocDialogOpen] = useState(false)
   const [page, setPage] = useState(0)
@@ -212,6 +232,13 @@ export function EmbeddingsFeature() {
   const { data: pagedData, isLoading } = useQuery({
     queryKey: ['embeddings', page],
     queryFn: () => listEmbeddings(page, PAGE_SIZE),
+    // pending/processing 문서가 있으면 3초마다 자동 갱신
+    refetchInterval: (query) => {
+      const hasActiveJobs = query.state.data?.content.some(
+        (doc) => doc.status === 'pending' || doc.status === 'processing'
+      )
+      return hasActiveJobs ? 3000 : false
+    },
   })
 
   const documents = pagedData?.content ?? []
@@ -230,6 +257,19 @@ export function EmbeddingsFeature() {
       logger.error('임베딩 생성 실패', err)
       toast.error('임베딩 생성에 실패했습니다.')
     },
+  })
+
+  const retryMutation = useMutation({
+    mutationFn: retryEmbedding,
+    onSuccess: (data) => {
+      toast.success(`"${data.title}" 재시도 등록. 백그라운드에서 인덱싱 중입니다.`)
+      queryClient.invalidateQueries({ queryKey: ['embeddings'] })
+    },
+    onError: (err) => {
+      logger.error('재시도 실패', err)
+      toast.error('재시도에 실패했습니다.')
+    },
+    onSettled: () => setRetryingId(null),
   })
 
   const deleteMutation = useMutation({
@@ -708,7 +748,7 @@ export function EmbeddingsFeature() {
                         <TableHead className='w-16'>ID</TableHead>
                         <TableHead className='w-48'>제목</TableHead>
                         <TableHead>내용</TableHead>
-                        <TableHead className='w-40'>모델</TableHead>
+                        <TableHead className='w-32'>상태</TableHead>
                         <TableHead className='w-44'>생성일시</TableHead>
                         <TableHead className='w-16'></TableHead>
                       </TableRow>
@@ -726,12 +766,30 @@ export function EmbeddingsFeature() {
                             {doc.content.length > 100 ? `${doc.content.slice(0, 100)}...` : doc.content}
                           </TableCell>
                           <TableCell>
-                            <Badge variant='outline' className='text-xs'>{doc.model}</Badge>
+                            <StatusBadge status={doc.status} />
                           </TableCell>
                           <TableCell className='text-sm text-muted-foreground'>
                             {new Date(doc.createdAt).toLocaleString('ko-KR')}
                           </TableCell>
                           <TableCell onClick={e => e.stopPropagation()}>
+                            <div className='flex items-center gap-1'>
+                              {doc.status === 'failed' && (
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-8 w-8 text-muted-foreground hover:text-blue-500'
+                                  disabled={retryingId === doc.id}
+                                  onClick={() => {
+                                    setRetryingId(doc.id)
+                                    retryMutation.mutate(doc.id)
+                                  }}
+                                  title='재시도'
+                                >
+                                  {retryingId === doc.id
+                                    ? <Loader2 className='h-4 w-4 animate-spin' />
+                                    : <RefreshCw className='h-4 w-4' />}
+                                </Button>
+                              )}
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button
@@ -762,6 +820,7 @@ export function EmbeddingsFeature() {
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -836,8 +895,22 @@ export function EmbeddingsFeature() {
               <span className='text-muted-foreground'>제목</span>
               <span className='font-medium'>{selectedDoc?.title}</span>
 
-              <span className='text-muted-foreground'>모델</span>
-              <Badge variant='outline' className='w-fit text-xs'>{selectedDoc?.model}</Badge>
+              <span className='text-muted-foreground'>상태</span>
+              {selectedDoc && <StatusBadge status={selectedDoc.status} />}
+
+              {selectedDoc?.model && (
+                <>
+                  <span className='text-muted-foreground'>모델</span>
+                  <Badge variant='outline' className='w-fit text-xs'>{selectedDoc.model}</Badge>
+                </>
+              )}
+
+              {selectedDoc?.errorMessage && (
+                <>
+                  <span className='text-muted-foreground'>오류</span>
+                  <span className='text-xs text-destructive'>{selectedDoc.errorMessage}</span>
+                </>
+              )}
 
               <span className='text-muted-foreground'>생성일시</span>
               <span>{selectedDoc ? new Date(selectedDoc.createdAt).toLocaleString('ko-KR') : ''}</span>

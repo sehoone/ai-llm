@@ -10,7 +10,11 @@ import java.time.LocalDateTime;
 public class EmbeddingResponse {
     private Long id;
     private String title;
-    private String content;
+    private String content;       // full_content
+    private String sourceType;
+    private String status;        // pending | processing | indexed | failed
     private String model;
+    private String errorMessage;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

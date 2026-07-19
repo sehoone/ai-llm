@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.poc.vectorsearch.mapper.DocumentChunkMapper">
+
+    <!-- DB에서 읽어오는 raw 청크 결과 (SearchService에서 문서 단위로 집계) -->
+    <resultMap id="chunkResultMap" type="com.poc.vectorsearch.dto.ChunkResult">
+        <result property="id" column="id"/>
+        <result property="documentId" column="document_id"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="fullContent" column="full_content"/>
+        <result property="score" column="score"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="chunkIndex" column="chunk_index"/>
+        <result property="chunkTotal" column="chunk_total"/>
+    </resultMap>
+
+    <delete id="deleteByDocumentId">
+        DELETE FROM document_chunks WHERE document_id = #{documentId}
+    </delete>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO document_chunks (document_id, chunk_index, chunk_total, content, embedding)
+        VALUES (#{documentId}, #{chunkIndex}, #{chunkTotal}, #{content}, #{embedding})
+    </insert>
+
+    <!--
+        청크 단위 벡터 검색 — SearchService에서 문서 단위로 집계
+        limit = topK * 3 으로 여유 있게 조회하여 집계 후 topK 문서 보장
+        d.status = 'indexed': DocumentStatus.INDEXED("indexed") 에 대응
+    -->
+    <select id="searchChunks" resultMap="chunkResultMap">
+        SELECT
+            c.id, c.document_id, d.title, c.content, d.full_content,
+            c.chunk_index, c.chunk_total, c.created_at,
+            1 - (c.embedding <![CDATA[ <=> ]]> #{queryVector}) AS score
+        FROM document_chunks c
+        JOIN documents d ON d.id = c.document_id
+        WHERE d.status = 'indexed'
+          AND 1 - (c.embedding <![CDATA[ <=> ]]> #{queryVector}) <![CDATA[ >= ]]> #{threshold}
+        ORDER BY score DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

@@ -54,16 +54,40 @@ CREATE TABLE IF NOT EXISTS users (
 --     text-embedding-3-large       → 3072차원
 --     OpenAI text-embedding-3-*    → 차원 축소 옵션 있음(256~3072)
 --
---   ※ 모델을 바꾸거나 차원을 변경하면 이 컬럼을 DROP하고 재생성해야 한다.
+--   ※ 모델을 바꾸거나 차원을 변경하면 document_chunks.embedding 컬럼을 재생성해야 한다.
 --     기존 데이터와 차원이 다른 벡터는 저장·검색 모두 불가능하다.
 --
+-- ── 테이블 분리 설계 ─────────────────────────────────────────
+--   documents       : 원본 문서 (소스 관리, 인덱싱 상태 추적)
+--   document_chunks : 청크 + 벡터 (실제 검색 대상)
+--
+--   documents.status: pending → processing → indexed | failed
+--   ON DELETE CASCADE: documents 삭제 시 document_chunks 자동 삭제
+--
+
+-- 원본 문서 테이블
 CREATE TABLE IF NOT EXISTS documents (
-    id         BIGSERIAL    PRIMARY KEY,
-    title      VARCHAR(500) NOT NULL,
-    content    TEXT         NOT NULL,
-    embedding  vector(1536),   -- AI 모델이 생성한 1536차원 벡터
-    model      VARCHAR(100),   -- 임베딩 생성에 사용된 모델명 기록용
-    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+    id            BIGSERIAL    PRIMARY KEY,
+    title         VARCHAR(500) NOT NULL,
+    full_content  TEXT         NOT NULL,
+    source_type   VARCHAR(50)  NOT NULL DEFAULT 'manual',
+    status        VARCHAR(20)  NOT NULL DEFAULT 'pending',
+    model         VARCHAR(100),
+    error_message TEXT,
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+-- 청크 + 벡터 테이블
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id           BIGSERIAL PRIMARY KEY,
+    document_id  BIGINT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_index  INTEGER   NOT NULL,
+    chunk_total  INTEGER   NOT NULL,
+    content      TEXT      NOT NULL,
+    embedding    vector(1536),
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (document_id, chunk_index)
 );
 
 
@@ -135,9 +159,12 @@ CREATE TABLE IF NOT EXISTS documents (
 --     SET hnsw.ef_search = N; 으로 쿼리 직전 세션에서 조정.
 --     높을수록 recall↑ 속도↓. ef_search ≥ topK 권장.
 --
-CREATE INDEX IF NOT EXISTS documents_embedding_idx
-    ON documents USING hnsw (embedding vector_cosine_ops)
+CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx
+    ON document_chunks USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
+
+CREATE INDEX IF NOT EXISTS document_chunks_document_id_idx
+    ON document_chunks (document_id);
 
 
 -- ══════════════════════════════════════════════════════════════

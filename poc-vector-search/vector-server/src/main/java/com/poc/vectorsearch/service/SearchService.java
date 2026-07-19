@@ -1,30 +1,72 @@
 package com.poc.vectorsearch.service;
 
 import com.poc.vectorsearch.domain.EmbeddingVector;
+import com.poc.vectorsearch.dto.ChunkMatch;
+import com.poc.vectorsearch.dto.ChunkResult;
 import com.poc.vectorsearch.dto.SearchRequest;
 import com.poc.vectorsearch.dto.SearchResult;
-import com.poc.vectorsearch.mapper.DocumentMapper;
+import com.poc.vectorsearch.mapper.DocumentChunkMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SearchService {
 
-    private final DocumentMapper documentMapper;
+    private final DocumentChunkMapper documentChunkMapper;
     private final OpenAiEmbeddingService openAiEmbeddingService;
 
     public List<SearchResult> search(SearchRequest request) {
         log.info("벡터 검색 시작 - 쿼리: '{}', TopK: {}", request.getQuery(), request.getTopK());
 
         EmbeddingVector queryVector = openAiEmbeddingService.embed(request.getQuery());
-        List<SearchResult> results = documentMapper.searchByVector(queryVector, request.getTopK(), request.getThreshold());
 
-        log.info("검색 완료 - 결과 수: {} (threshold: {})", results.size(), request.getThreshold());
+        // topK * 3 으로 여유 있게 조회 → 집계 후 topK 문서 보장
+        List<ChunkResult> chunks = documentChunkMapper.searchChunks(
+                queryVector, request.getTopK() * 3, request.getThreshold());
+
+        // 문서 단위 집계 (LinkedHashMap: score DESC 순서 유지)
+        // chunks가 score DESC 정렬이므로 문서의 첫 등장 = 해당 문서 최고 점수
+        Map<Long, SearchResult> grouped = new LinkedHashMap<>();
+        for (ChunkResult chunk : chunks) {
+            grouped.computeIfAbsent(chunk.getDocumentId(), id ->
+                    SearchResult.builder()
+                            .documentId(id)
+                            .title(chunk.getTitle())
+                            .fullContent(chunk.getFullContent())
+                            .score(chunk.getScore())
+                            .createdAt(chunk.getCreatedAt())
+                            .matchingChunks(new ArrayList<>())
+                            .build()
+            );
+            grouped.get(chunk.getDocumentId()).getMatchingChunks().add(
+                    ChunkMatch.builder()
+                            .id(chunk.getId())
+                            .chunkIndex(chunk.getChunkIndex())
+                            .chunkTotal(chunk.getChunkTotal())
+                            .content(chunk.getContent())
+                            .score(chunk.getScore())
+                            .build()
+            );
+        }
+
+        // 문서별 최고 점수 기준 정렬 후 topK 제한
+        List<SearchResult> results = grouped.values().stream()
+                .sorted(Comparator.comparingDouble(SearchResult::getScore).reversed())
+                .limit(request.getTopK())
+                .collect(Collectors.toList());
+
+        log.info("검색 완료 - 문서: {}건, 총 매칭 청크: {}개 (threshold: {})",
+                results.size(), chunks.size(), request.getThreshold());
         return results;
     }
 }

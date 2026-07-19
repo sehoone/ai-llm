@@ -8,8 +8,11 @@ import java.time.LocalDateTime;
 public class Document {
     private Long id;
     private String title;
-    private String content;
-    private EmbeddingVector embedding;
+    private String fullContent;
+    private String sourceType;
+    private String status;        // pending | processing | indexed | failed
     private String model;
+    private String errorMessage;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }
