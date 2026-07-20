@@ -28,8 +28,6 @@
 
     <!--
         청크 단위 벡터 검색 — SearchService에서 문서 단위로 집계
-        limit = topK * 3 으로 여유 있게 조회하여 집계 후 topK 문서 보장
-        d.status = 'indexed': DocumentStatus.INDEXED("indexed") 에 대응
     -->
     <select id="searchChunks" resultMap="chunkResultMap">
         SELECT

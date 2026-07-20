@@ -79,7 +79,7 @@ export function SearchFeature() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { query: '', topK: 5, threshold: 0.7 },
+    defaultValues: { query: '', topK: 5, threshold: 0.1 },
   })
 
   const searchMutation = useMutation({
@@ -185,11 +185,15 @@ export function SearchFeature() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value='0.5'>0.5 (낮음)</SelectItem>
+                            <SelectItem value='0.1'>0.1</SelectItem>
+                            <SelectItem value='0.2'>0.2</SelectItem>
+                            <SelectItem value='0.3'>0.3</SelectItem>
+                            <SelectItem value='0.4'>0.4</SelectItem>
+                            <SelectItem value='0.5'>0.5</SelectItem>
                             <SelectItem value='0.6'>0.6</SelectItem>
-                            <SelectItem value='0.7'>0.7 (기본)</SelectItem>
+                            <SelectItem value='0.7'>0.7</SelectItem>
                             <SelectItem value='0.8'>0.8</SelectItem>
-                            <SelectItem value='0.9'>0.9 (높음)</SelectItem>
+                            <SelectItem value='0.9'>0.9</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
