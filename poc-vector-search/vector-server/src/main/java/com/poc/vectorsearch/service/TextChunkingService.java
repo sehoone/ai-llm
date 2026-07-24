@@ -23,7 +23,7 @@ public class TextChunkingService {
 
     public TextChunkingService() {
         EncodingRegistry registry = Encodings.newDefaultEncodingRegistry();
-        this.encoding = registry.getEncodingForModel(ModelType.TEXT_EMBEDDING_ADA_002);
+        this.encoding = registry.getEncodingForModel(ModelType.TEXT_EMBEDDING_3_SMALL);
     }
 
     public List<String> chunk(String text) {

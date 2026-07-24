@@ -19,5 +19,5 @@ public class SearchRequest {
 
     @DecimalMin("0.0")
     @DecimalMax("1.0")
-    private double threshold = 0.7;
+    private double threshold = 0.3;
 }

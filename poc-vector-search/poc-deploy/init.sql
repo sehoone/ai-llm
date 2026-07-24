@@ -9,12 +9,12 @@
 -- [1] pgvector 확장
 -- ══════════════════════════════════════════════════════════════
 --
--- pgvector란?
+-- pgvector란
 --   PostgreSQL에 "벡터 데이터 타입"과 "벡터 유사도 검색"을 추가하는 공식 확장.
 --   텍스트·이미지·오디오를 AI 모델로 숫자 배열(임베딩)로 바꾼 뒤,
 --   "의미가 비슷한 것"을 빠르게 찾아주는 것이 핵심 역할이다.
 --
--- 왜 필요한가?
+-- 왜 필요한가
 --   일반 SQL의 WHERE/LIKE는 문자가 정확히 일치할 때만 동작한다.
 --   "강아지"와 "개"처럼 표현은 달라도 의미가 같은 경우를 찾으려면
 --   벡터 간 거리(유사도)를 계산해야 하고, pgvector가 그 기능을 제공한다.
@@ -159,9 +159,10 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 --     SET hnsw.ef_search = N; 으로 쿼리 직전 세션에서 조정.
 --     높을수록 recall↑ 속도↓. ef_search ≥ topK 권장.
 --
+-- m=32, ef_construction=128: 100만 건 기준 권장값 (10만 건 이하면 m=16, ef_construction=64로 낮춰도 무방)
 CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx
     ON document_chunks USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
+    WITH (m = 32, ef_construction = 128);
 
 CREATE INDEX IF NOT EXISTS document_chunks_document_id_idx
     ON document_chunks (document_id);

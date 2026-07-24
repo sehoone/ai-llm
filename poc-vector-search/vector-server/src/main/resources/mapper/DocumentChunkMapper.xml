@@ -37,8 +37,7 @@
         FROM document_chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.status = 'indexed'
-          AND 1 - (c.embedding <![CDATA[ <=> ]]> #{queryVector}) <![CDATA[ >= ]]> #{threshold}
-        ORDER BY score DESC
+        ORDER BY c.embedding <![CDATA[ <=> ]]> #{queryVector}
         LIMIT #{limit}
     </select>
 

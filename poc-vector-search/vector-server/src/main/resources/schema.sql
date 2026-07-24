@@ -38,9 +38,10 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 );
 
 -- 벡터 검색 인덱스 (document_chunks)
+-- m=32, ef_construction=128: 100만 건 기준 권장값 (10만 건 이하면 m=16, ef_construction=64로 낮춰도 무방)
 CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx
     ON document_chunks USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
+    WITH (m = 32, ef_construction = 128);
 
 CREATE INDEX IF NOT EXISTS document_chunks_document_id_idx
     ON document_chunks (document_id);

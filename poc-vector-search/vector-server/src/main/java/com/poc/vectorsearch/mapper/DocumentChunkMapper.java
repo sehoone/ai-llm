@@ -14,7 +14,6 @@ public interface DocumentChunkMapper {
     void deleteByDocumentId(Long documentId);
     List<ChunkResult> searchChunks(
             @Param("queryVector") EmbeddingVector queryVector,
-            @Param("limit") int limit,
-            @Param("threshold") double threshold
+            @Param("limit") int limit
     );
 }

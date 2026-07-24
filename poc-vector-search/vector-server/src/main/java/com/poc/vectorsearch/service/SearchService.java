@@ -9,6 +9,7 @@ import com.poc.vectorsearch.mapper.DocumentChunkMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,14 +26,20 @@ public class SearchService {
     private final DocumentChunkMapper documentChunkMapper;
     private final OpenAiEmbeddingService openAiEmbeddingService;
 
+    @Transactional(readOnly = true)
     public List<SearchResult> search(SearchRequest request) {
         log.info("벡터 검색 시작 - 쿼리: '{}', TopK: {}", request.getQuery(), request.getTopK());
 
         EmbeddingVector queryVector = openAiEmbeddingService.embed(request.getQuery());
 
-        // topK * 3 으로 여유 있게 조회 → 집계 후 topK 문서 보장
-        List<ChunkResult> chunks = documentChunkMapper.searchChunks(
-                queryVector, request.getTopK() * 3, request.getThreshold());
+        // topK * 10 으로 여유 있게 조회 → Java threshold 필터 후 topK 문서 보장
+        // threshold는 DB WHERE가 아닌 Java에서 필터링 (WHERE 절 사용 시 HNSW 인덱스 미사용)
+        int limit = request.getTopK() * 10;
+        List<ChunkResult> allChunks = documentChunkMapper.searchChunks(
+                queryVector, limit);
+        List<ChunkResult> chunks = allChunks.stream()
+                .filter(c -> c.getScore() >= request.getThreshold())
+                .collect(Collectors.toList());
 
         // 문서 단위 집계 (LinkedHashMap: score DESC 순서 유지)
         // chunks가 score DESC 정렬이므로 문서의 첫 등장 = 해당 문서 최고 점수
