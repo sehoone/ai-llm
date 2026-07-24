@@ -45,3 +45,6 @@ CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx
 
 CREATE INDEX IF NOT EXISTS document_chunks_document_id_idx
     ON document_chunks (document_id);
+
+-- HNSW 검색 정확도 보장: topK 최대 20 → limit 최대 200, ef_search >= limit 필요
+ALTER DATABASE poc_vector SET hnsw.ef_search = 200;
