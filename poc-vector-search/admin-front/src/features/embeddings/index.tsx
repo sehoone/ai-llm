@@ -338,7 +338,6 @@ export function EmbeddingsFeature() {
   const startUpload = async () => {
     if (!parsedItems || parsedItems.length === 0) return
 
-    // 진행 목록 초기화 (모두 pending)
     const initial: ProgressItem[] = parsedItems.map(item => ({ ...item, status: 'pending' }))
     setProgressItems(initial)
     cancelledRef.current = false
@@ -346,37 +345,47 @@ export function EmbeddingsFeature() {
 
     let successCount = 0
     let errorCount   = 0
+    let nextIndex    = 0
 
-    for (let i = 0; i < initial.length; i++) {
-      // 취소 확인
-      if (cancelledRef.current) {
+    // 워커 N개가 인덱스를 순서대로 가져가며 동시에 처리
+    const CONCURRENCY = 5
+    const worker = async () => {
+      while (nextIndex < parsedItems.length) {
+        if (cancelledRef.current) break
+
+        const index = nextIndex++
+        const item  = parsedItems[index]
+
         setProgressItems(prev =>
-          prev.map((p, idx) => idx >= i ? { ...p, status: 'cancelled' } : p)
+          prev.map((p, idx) => idx === index ? { ...p, status: 'processing' } : p)
         )
-        break
-      }
 
-      // 처리 중 표시
-      setProgressItems(prev =>
-        prev.map((p, idx) => idx === i ? { ...p, status: 'processing' } : p)
-      )
-
-      try {
-        const result = await createEmbedding({ title: initial[i].title, content: initial[i].desc })
-        setProgressItems(prev =>
-          prev.map((p, idx) =>
-            idx === i ? { ...p, status: 'success', documentId: result.id } : p
+        try {
+          const result = await createEmbedding({ title: item.title, content: item.desc })
+          setProgressItems(prev =>
+            prev.map((p, idx) =>
+              idx === index ? { ...p, status: 'success', documentId: result.id } : p
+            )
           )
-        )
-        successCount++
-      } catch (err) {
-        const message = err instanceof Error ? err.message : '알 수 없는 오류'
-        logger.error('다건 업로드 개별 실패', { id: initial[i].id, message })
-        setProgressItems(prev =>
-          prev.map((p, idx) => idx === i ? { ...p, status: 'error', error: message } : p)
-        )
-        errorCount++
+          successCount++
+        } catch (err) {
+          const message = err instanceof Error ? err.message : '알 수 없는 오류'
+          logger.error('다건 업로드 개별 실패', { id: item.id, message })
+          setProgressItems(prev =>
+            prev.map((p, idx) => idx === index ? { ...p, status: 'error', error: message } : p)
+          )
+          errorCount++
+        }
       }
+    }
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker))
+
+    // 취소 시 아직 pending 상태인 항목을 cancelled로 표시
+    if (cancelledRef.current) {
+      setProgressItems(prev =>
+        prev.map(p => p.status === 'pending' ? { ...p, status: 'cancelled' } : p)
+      )
     }
 
     setIsUploading(false)
