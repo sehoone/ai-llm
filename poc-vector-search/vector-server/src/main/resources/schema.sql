@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- status: pending | processing | indexed | failed
 CREATE TABLE IF NOT EXISTS documents (
     id            BIGSERIAL    PRIMARY KEY,
+    external_id   VARCHAR(255),
     title         VARCHAR(500) NOT NULL,
     full_content  TEXT         NOT NULL,
     source_type   VARCHAR(50)  NOT NULL DEFAULT 'manual',
@@ -24,6 +25,8 @@ CREATE TABLE IF NOT EXISTS documents (
     created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMP    NOT NULL DEFAULT NOW()
 );
+-- 기존 DB에서 컬럼이 없는 경우를 위한 마이그레이션
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS external_id VARCHAR(255);
 
 -- 청크 + 벡터 (검색 대상, documents 삭제 시 CASCADE)
 CREATE TABLE IF NOT EXISTS document_chunks (

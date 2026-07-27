@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 @Builder
 public class EmbeddingResponse {
     private Long id;
+    private String externalId;
     private String title;
     private String content;       // full_content
     private String sourceType;

@@ -30,6 +30,14 @@ public class IndexingService {
      * - 배치: 호출부에서 건별 catch 후 다음 문서 계속 처리
      * - retry: 예외가 HTTP 500으로 전달되어 호출자가 실패를 즉시 인지
      */
+    /**
+     * 단일 문서를 청킹 → 임베딩 → 저장 순으로 인덱싱한다.
+     * 배치 잡과 retry 엔드포인트 양쪽에서 호출한다.
+     *
+     * 실패 시 status를 'failed'로 기록하고 RuntimeException을 던진다.
+     * - 배치: 호출부에서 건별 catch 후 다음 문서 계속 처리
+     * - retry: 예외가 HTTP 500으로 전달되어 호출자가 실패를 즉시 인지
+     */
     public void index(Document document) {
         log.info("인덱싱 시작 - ID: {}, 제목: {}", document.getId(), document.getTitle());
         documentMapper.updateStatus(document.getId(), DocumentStatus.PROCESSING);

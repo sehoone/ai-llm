@@ -6,6 +6,7 @@
 
     <resultMap id="documentResultMap" type="com.poc.vectorsearch.domain.Document">
         <id property="id" column="id"/>
+        <result property="externalId" column="external_id"/>
         <result property="title" column="title"/>
         <result property="fullContent" column="full_content"/>
         <result property="sourceType" column="source_type"/>
@@ -17,12 +18,12 @@
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO documents (title, full_content, source_type, status)
-        VALUES (#{title}, #{fullContent}, #{sourceType}, #{status})
+        INSERT INTO documents (external_id, title, full_content, source_type, status)
+        VALUES (#{externalId}, #{title}, #{fullContent}, #{sourceType}, #{status})
     </insert>
 
     <select id="findPaged" resultMap="documentResultMap">
-        SELECT id, title, full_content, source_type, status, model, error_message, created_at, updated_at
+        SELECT id, external_id, title, full_content, source_type, status, model, error_message, created_at, updated_at
         FROM documents
         ORDER BY created_at DESC
         LIMIT #{size} OFFSET #{offset}
@@ -33,13 +34,13 @@
     </select>
 
     <select id="findById" resultMap="documentResultMap">
-        SELECT id, title, full_content, source_type, status, model, error_message, created_at, updated_at
+        SELECT id, external_id, title, full_content, source_type, status, model, error_message, created_at, updated_at
         FROM documents
         WHERE id = #{id}
     </select>
 
     <select id="findByStatus" resultMap="documentResultMap">
-        SELECT id, title, full_content, source_type, status, model, error_message, created_at, updated_at
+        SELECT id, external_id, title, full_content, source_type, status, model, error_message, created_at, updated_at
         FROM documents
         WHERE status = #{status}
         ORDER BY created_at ASC

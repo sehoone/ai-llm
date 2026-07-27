@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 @Data
 public class Document {
     private Long id;
+    private String externalId;
     private String title;
     private String fullContent;
     private String sourceType;

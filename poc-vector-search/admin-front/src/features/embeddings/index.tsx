@@ -218,14 +218,18 @@ export function EmbeddingsFeature() {
   })
 
   // 다건 업로드 상태
-  const fileInputRef  = useRef<HTMLInputElement>(null)
-  const cancelledRef  = useRef(false)
+  const fileInputRef       = useRef<HTMLInputElement>(null)
+  const cancelledRef       = useRef(false)
+  const pendingUpdatesRef  = useRef<Array<{ index: number; update: Partial<ProgressItem> }>>([])
   const [fileName,       setFileName]       = useState<string | null>(null)
   const [fileType,       setFileType]       = useState<'json' | 'csv' | null>(null)
   const [parseError,     setParseError]     = useState<string | null>(null)
   const [parsedItems,    setParsedItems]    = useState<z.infer<typeof jsonItemSchema>[] | null>(null)
   const [progressItems,  setProgressItems]  = useState<ProgressItem[]>([])
+  const [progressPage,   setProgressPage]   = useState(0)
   const [isUploading,    setIsUploading]    = useState(false)
+
+  const PROGRESS_PAGE_SIZE = 100
 
   // ── 쿼리 / 뮤테이션 ─────────────────────────────────────
 
@@ -335,17 +339,34 @@ export function EmbeddingsFeature() {
     e.target.value = ''
   }
 
+  const applyPendingUpdates = (prev: ProgressItem[]) => {
+    const updates = pendingUpdatesRef.current.splice(0)
+    if (updates.length === 0) return prev
+    const next = [...prev]
+    for (const { index, update } of updates) {
+      next[index] = { ...next[index], ...update }
+    }
+    return next
+  }
+
   const startUpload = async () => {
     if (!parsedItems || parsedItems.length === 0) return
 
     const initial: ProgressItem[] = parsedItems.map(item => ({ ...item, status: 'pending' }))
     setProgressItems(initial)
+    setProgressPage(0)
+    pendingUpdatesRef.current = []
     cancelledRef.current = false
     setIsUploading(true)
 
     let successCount = 0
     let errorCount   = 0
     let nextIndex    = 0
+
+    // 상태 변경을 150ms 간격으로 묶어 flush — 리렌더 빈도 제한
+    const flushInterval = setInterval(() => {
+      setProgressItems(prev => applyPendingUpdates(prev))
+    }, 150)
 
     // 워커 N개가 인덱스를 순서대로 가져가며 동시에 처리
     const CONCURRENCY = 5
@@ -356,30 +377,26 @@ export function EmbeddingsFeature() {
         const index = nextIndex++
         const item  = parsedItems[index]
 
-        setProgressItems(prev =>
-          prev.map((p, idx) => idx === index ? { ...p, status: 'processing' } : p)
-        )
+        pendingUpdatesRef.current.push({ index, update: { status: 'processing' } })
 
         try {
-          const result = await createEmbedding({ title: item.title, content: item.desc })
-          setProgressItems(prev =>
-            prev.map((p, idx) =>
-              idx === index ? { ...p, status: 'success', documentId: result.id } : p
-            )
-          )
+          const result = await createEmbedding({ externalId: String(item.id), title: item.title, content: item.desc })
+          pendingUpdatesRef.current.push({ index, update: { status: 'success', documentId: result.id } })
           successCount++
         } catch (err) {
           const message = err instanceof Error ? err.message : '알 수 없는 오류'
           logger.error('다건 업로드 개별 실패', { id: item.id, message })
-          setProgressItems(prev =>
-            prev.map((p, idx) => idx === index ? { ...p, status: 'error', error: message } : p)
-          )
+          pendingUpdatesRef.current.push({ index, update: { status: 'error', error: message } })
           errorCount++
         }
       }
     }
 
     await Promise.all(Array.from({ length: CONCURRENCY }, worker))
+
+    // 인터벌 종료 후 남은 업데이트 한 번에 flush
+    clearInterval(flushInterval)
+    setProgressItems(prev => applyPendingUpdates(prev))
 
     // 취소 시 아직 pending 상태인 항목을 cancelled로 표시
     if (cancelledRef.current) {
@@ -405,9 +422,11 @@ export function EmbeddingsFeature() {
   const resetBulk = () => {
     setParsedItems(null)
     setProgressItems([])
+    setProgressPage(0)
     setParseError(null)
     setFileName(null)
     setFileType(null)
+    pendingUpdatesRef.current = []
     cancelledRef.current = false
   }
 
@@ -421,6 +440,13 @@ export function EmbeddingsFeature() {
 
   const isStarted  = progressItems.length > 0
   const isFinished = isStarted && !isUploading
+
+  // 진행 목록 페이지네이션 — 한 페이지에 100행으로 제한해 DOM 과부하 방지
+  const progressTotalPages   = Math.ceil(progressItems.length / PROGRESS_PAGE_SIZE)
+  const visibleProgressItems = progressItems.slice(
+    progressPage * PROGRESS_PAGE_SIZE,
+    (progressPage + 1) * PROGRESS_PAGE_SIZE,
+  )
 
   // ── 렌더 ────────────────────────────────────────────────
 
@@ -633,35 +659,70 @@ export function EmbeddingsFeature() {
                         </div>
 
                         {/* 건별 상태 목록 */}
-                        <div className='max-h-72 overflow-y-auto rounded-md border'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className='w-10'></TableHead>
-                                <TableHead className='w-20'>ID</TableHead>
-                                <TableHead>제목</TableHead>
-                                <TableHead className='w-24'>DB ID</TableHead>
-                                <TableHead>오류</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {progressItems.map((item, idx) => (
-                                <TableRow key={String(item.id) + idx} className={rowBg(item.status)}>
-                                  <TableCell>
-                                    <StatusIcon status={item.status} />
-                                  </TableCell>
-                                  <TableCell className='text-muted-foreground'>{item.id}</TableCell>
-                                  <TableCell className='font-medium'>{item.title}</TableCell>
-                                  <TableCell className='text-muted-foreground'>
-                                    {item.documentId ?? '-'}
-                                  </TableCell>
-                                  <TableCell className='max-w-xs truncate text-xs text-destructive'>
-                                    {item.error ?? ''}
-                                  </TableCell>
+                        <div className='rounded-md border'>
+                          <div className='max-h-72 overflow-y-auto'>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className='w-10'></TableHead>
+                                  <TableHead className='w-20'>ID</TableHead>
+                                  <TableHead>제목</TableHead>
+                                  <TableHead className='w-24'>DB ID</TableHead>
+                                  <TableHead>오류</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                              </TableHeader>
+                              <TableBody>
+                                {visibleProgressItems.map((item, idx) => (
+                                  <TableRow key={String(item.id) + idx} className={rowBg(item.status)}>
+                                    <TableCell>
+                                      <StatusIcon status={item.status} />
+                                    </TableCell>
+                                    <TableCell className='text-muted-foreground'>{item.id}</TableCell>
+                                    <TableCell className='font-medium'>{item.title}</TableCell>
+                                    <TableCell className='text-muted-foreground'>
+                                      {item.documentId ?? '-'}
+                                    </TableCell>
+                                    <TableCell className='max-w-xs truncate text-xs text-destructive'>
+                                      {item.error ?? ''}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+
+                          {/* 진행 목록 페이지네이션 */}
+                          {progressTotalPages > 1 && (
+                            <div className='flex items-center justify-between border-t px-3 py-2'>
+                              <span className='text-xs text-muted-foreground'>
+                                {progressPage * PROGRESS_PAGE_SIZE + 1}–
+                                {Math.min((progressPage + 1) * PROGRESS_PAGE_SIZE, totalCount)} / {totalCount}건
+                              </span>
+                              <div className='flex items-center gap-1'>
+                                <Button
+                                  variant='outline'
+                                  size='icon'
+                                  className='h-6 w-6'
+                                  onClick={() => setProgressPage(p => p - 1)}
+                                  disabled={progressPage === 0}
+                                >
+                                  <ChevronLeft className='h-3 w-3' />
+                                </Button>
+                                <span className='px-1 text-xs'>
+                                  {progressPage + 1} / {progressTotalPages}
+                                </span>
+                                <Button
+                                  variant='outline'
+                                  size='icon'
+                                  className='h-6 w-6'
+                                  onClick={() => setProgressPage(p => p + 1)}
+                                  disabled={progressPage >= progressTotalPages - 1}
+                                >
+                                  <ChevronRight className='h-3 w-3' />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* 액션 버튼 */}
@@ -754,7 +815,8 @@ export function EmbeddingsFeature() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className='w-16'>ID</TableHead>
+                        <TableHead className='w-16'>DB ID</TableHead>
+                        <TableHead className='w-24'>외부 ID</TableHead>
                         <TableHead className='w-48'>제목</TableHead>
                         <TableHead>내용</TableHead>
                         <TableHead className='w-32'>상태</TableHead>
@@ -770,6 +832,7 @@ export function EmbeddingsFeature() {
                           onClick={() => { setSelectedDoc(doc); setDocDialogOpen(true) }}
                         >
                           <TableCell className='text-muted-foreground'>{doc.id}</TableCell>
+                          <TableCell className='text-muted-foreground'>{doc.externalId ?? '-'}</TableCell>
                           <TableCell className='font-medium'>{doc.title}</TableCell>
                           <TableCell className='max-w-xs truncate text-sm text-muted-foreground'>
                             {doc.content.length > 100 ? `${doc.content.slice(0, 100)}...` : doc.content}
@@ -898,8 +961,15 @@ export function EmbeddingsFeature() {
           </DialogHeader>
           <div className='space-y-4 text-sm'>
             <div className='grid grid-cols-[6rem_1fr] gap-y-3'>
-              <span className='text-muted-foreground'>ID</span>
+              <span className='text-muted-foreground'>DB ID</span>
               <span className='font-mono'>{selectedDoc?.id}</span>
+
+              {selectedDoc?.externalId && (
+                <>
+                  <span className='text-muted-foreground'>외부 ID</span>
+                  <span className='font-mono'>{selectedDoc.externalId}</span>
+                </>
+              )}
 
               <span className='text-muted-foreground'>제목</span>
               <span className='font-medium'>{selectedDoc?.title}</span>

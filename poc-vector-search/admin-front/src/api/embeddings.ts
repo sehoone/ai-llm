@@ -2,6 +2,7 @@ import api from './axios'
 
 export interface DocumentItem {
   id: number
+  externalId?: string | null
   title: string
   content: string                                           // full_content
   sourceType: string
@@ -21,6 +22,7 @@ export interface PagedResponse<T> {
 }
 
 export interface CreateEmbeddingRequest {
+  externalId?: string | null
   title: string
   content: string
 }

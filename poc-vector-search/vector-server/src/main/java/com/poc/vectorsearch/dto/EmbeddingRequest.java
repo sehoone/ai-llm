@@ -7,6 +7,8 @@ import javax.validation.constraints.Size;
 
 @Data
 public class EmbeddingRequest {
+    private String externalId;
+
     @NotBlank
     @Size(max = 500)
     private String title;

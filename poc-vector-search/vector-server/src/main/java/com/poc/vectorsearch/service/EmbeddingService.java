@@ -27,6 +27,7 @@ public class EmbeddingService {
 
     public EmbeddingResponse create(EmbeddingRequest request) {
         Document document = new Document();
+        document.setExternalId(request.getExternalId());
         document.setTitle(request.getTitle());
         document.setFullContent(request.getContent());
         document.setSourceType("manual");
@@ -91,6 +92,7 @@ public class EmbeddingService {
         for (BulkEmbeddingItem item : items) {
             try {
                 EmbeddingRequest req = new EmbeddingRequest();
+                req.setExternalId(item.getId() != null ? item.getId().toString() : null);
                 req.setTitle(item.getTitle());
                 req.setContent(item.getDesc());
                 EmbeddingResponse created = create(req);
@@ -125,6 +127,7 @@ public class EmbeddingService {
     private EmbeddingResponse toResponse(Document doc) {
         return EmbeddingResponse.builder()
                 .id(doc.getId())
+                .externalId(doc.getExternalId())
                 .title(doc.getTitle())
                 .content(doc.getFullContent())
                 .sourceType(doc.getSourceType())

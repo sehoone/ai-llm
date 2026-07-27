@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- 원본 문서 테이블
 CREATE TABLE IF NOT EXISTS documents (
     id            BIGSERIAL    PRIMARY KEY,
+    external_id   VARCHAR(255),
     title         VARCHAR(500) NOT NULL,
     full_content  TEXT         NOT NULL,
     source_type   VARCHAR(50)  NOT NULL DEFAULT 'manual',
