@@ -30,8 +30,9 @@ public class EmbeddingController {
     @GetMapping
     public ResponseEntity<PageResponse<EmbeddingResponse>> findAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(embeddingService.findPaged(page, size));
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(embeddingService.findPaged(page, size, status));
     }
 
     @PostMapping("/batch")

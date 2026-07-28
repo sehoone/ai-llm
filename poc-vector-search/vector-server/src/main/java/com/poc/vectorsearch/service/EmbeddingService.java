@@ -57,10 +57,11 @@ public class EmbeddingService {
         return toResponse(saved);
     }
 
-    public PageResponse<EmbeddingResponse> findPaged(int page, int size) {
-        long totalElements = documentMapper.countAll();
+    public PageResponse<EmbeddingResponse> findPaged(int page, int size, String status) {
+        String statusFilter = (status != null && !status.isEmpty()) ? status : null;
+        long totalElements = documentMapper.countAll(statusFilter);
         int offset = page * size;
-        List<EmbeddingResponse> content = documentMapper.findPaged(offset, size).stream()
+        List<EmbeddingResponse> content = documentMapper.findPaged(offset, size, statusFilter).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
         int totalPages = (int) Math.ceil((double) totalElements / size);

@@ -55,8 +55,10 @@ export const createEmbedding = async (data: CreateEmbeddingRequest): Promise<Doc
   return res.data
 }
 
-export const listEmbeddings = async (page = 0, size = 10): Promise<PagedResponse<DocumentItem>> => {
-  const res = await api.get<PagedResponse<DocumentItem>>('v1/embeddings', { params: { page, size } })
+export const listEmbeddings = async (page = 0, size = 10, status?: string): Promise<PagedResponse<DocumentItem>> => {
+  const params: Record<string, unknown> = { page, size }
+  if (status) params.status = status
+  const res = await api.get<PagedResponse<DocumentItem>>('v1/embeddings', { params })
   return res.data
 }
 

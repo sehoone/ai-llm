@@ -11,6 +11,9 @@ import {
   CheckCircle2, XCircle, Clock, Ban, ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react'
 import { createEmbedding, deleteAllEmbeddings, deleteEmbedding, listEmbeddings, retryEmbedding, type DocumentItem } from '@/api/embeddings'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 
 // ── 인덱싱 상태 뱃지 ────────────────────────────────────────
 
@@ -210,6 +213,7 @@ export function EmbeddingsFeature() {
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null)
   const [docDialogOpen, setDocDialogOpen] = useState(false)
   const [page, setPage] = useState(0)
+  const [statusFilter, setStatusFilter] = useState<string>('')
 
   // 단건 폼
   const form = useForm<SingleValues>({
@@ -234,8 +238,8 @@ export function EmbeddingsFeature() {
   // ── 쿼리 / 뮤테이션 ─────────────────────────────────────
 
   const { data: pagedData, isLoading } = useQuery({
-    queryKey: ['embeddings', page],
-    queryFn: () => listEmbeddings(page, PAGE_SIZE),
+    queryKey: ['embeddings', page, statusFilter],
+    queryFn: () => listEmbeddings(page, PAGE_SIZE, statusFilter || undefined),
     // pending/processing 문서가 있으면 3초마다 자동 갱신
     refetchInterval: (query) => {
       const hasActiveJobs = query.state.data?.content.some(
@@ -763,10 +767,30 @@ export function EmbeddingsFeature() {
           {/* 저장된 문서 목록 */}
           <Card>
             <CardHeader className='flex flex-row items-center justify-between'>
-              <CardTitle className='text-base'>
-                저장된 문서
-                <Badge variant='secondary' className='ml-2'>{totalElements}건</Badge>
-              </CardTitle>
+              <div className='flex items-center gap-3'>
+                <CardTitle className='text-base'>
+                  저장된 문서
+                  <Badge variant='secondary' className='ml-2'>{totalElements}건</Badge>
+                </CardTitle>
+                <Select
+                  value={statusFilter || 'all'}
+                  onValueChange={(val) => {
+                    setStatusFilter(val === 'all' ? '' : val)
+                    setPage(0)
+                  }}
+                >
+                  <SelectTrigger className='h-8 w-36 text-xs'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='all'>전체</SelectItem>
+                    <SelectItem value='pending'>대기 중</SelectItem>
+                    <SelectItem value='processing'>처리 중</SelectItem>
+                    <SelectItem value='indexed'>인덱싱 완료</SelectItem>
+                    <SelectItem value='failed'>실패</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {documents.length > 0 && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

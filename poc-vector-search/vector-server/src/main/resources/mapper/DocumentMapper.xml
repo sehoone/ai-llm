@@ -25,12 +25,18 @@
     <select id="findPaged" resultMap="documentResultMap">
         SELECT id, external_id, title, full_content, source_type, status, model, error_message, created_at, updated_at
         FROM documents
+        <if test="status != null and status != ''">
+            WHERE status = #{status}
+        </if>
         ORDER BY created_at DESC
         LIMIT #{size} OFFSET #{offset}
     </select>
 
     <select id="countAll" resultType="long">
         SELECT COUNT(*) FROM documents
+        <if test="status != null and status != ''">
+            WHERE status = #{status}
+        </if>
     </select>
 
     <select id="findById" resultMap="documentResultMap">

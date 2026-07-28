@@ -9,8 +9,8 @@ import java.util.List;
 @Mapper
 public interface DocumentMapper {
     void insert(Document document);
-    List<Document> findPaged(@Param("offset") int offset, @Param("size") int size);
-    long countAll();
+    List<Document> findPaged(@Param("offset") int offset, @Param("size") int size, @Param("status") String status);
+    long countAll(@Param("status") String status);
     Document findById(Long id);
     List<Document> findByStatus(@Param("status") String status, @Param("limit") int limit);
     void updateStatus(@Param("id") Long id, @Param("status") String status);
