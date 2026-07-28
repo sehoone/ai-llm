@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class ChunkResult {
     private Long id;
     private Long documentId;
+    private String externalId;
     private String title;
     private String content;
     private String fullContent;

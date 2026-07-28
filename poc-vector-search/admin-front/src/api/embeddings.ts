@@ -43,6 +43,7 @@ export interface ChunkMatch {
 
 export interface SearchResult {
   documentId: number
+  externalId?: string | null
   title: string
   fullContent: string
   score: number        // 매칭 청크 중 최고 유사도

@@ -8,6 +8,7 @@
     <resultMap id="chunkResultMap" type="com.poc.vectorsearch.dto.ChunkResult">
         <result property="id" column="id"/>
         <result property="documentId" column="document_id"/>
+        <result property="externalId" column="external_id"/>
         <result property="title" column="title"/>
         <result property="content" column="content"/>
         <result property="fullContent" column="full_content"/>
@@ -31,7 +32,7 @@
     -->
     <select id="searchChunks" resultMap="chunkResultMap">
         SELECT
-            c.id, c.document_id, d.title, c.content, d.full_content,
+            c.id, c.document_id, d.external_id, d.title, c.content, d.full_content,
             c.chunk_index, c.chunk_total, c.created_at,
             1 - (c.embedding <![CDATA[ <=> ]]> #{queryVector}) AS score
         FROM document_chunks c

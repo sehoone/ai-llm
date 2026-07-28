@@ -295,8 +295,13 @@ export function SearchFeature() {
                     <p className='text-sm leading-relaxed whitespace-pre-wrap'>{selected?.fullContent}</p>
                   </div>
                   <Separator className='shrink-0' />
-                  <div className='flex shrink-0 justify-between text-xs text-muted-foreground'>
-                    <span>문서 ID: {selected?.documentId}</span>
+                  <div className='flex shrink-0 flex-wrap justify-between gap-1 text-xs text-muted-foreground'>
+                    <div className='flex gap-3'>
+                      <span>문서 ID: {selected?.documentId}</span>
+                      {selected?.externalId && (
+                        <span>External ID: {selected.externalId}</span>
+                      )}
+                    </div>
                     <span>
                       {selected ? new Date(selected.createdAt).toLocaleString('ko-KR') : ''}
                     </span>

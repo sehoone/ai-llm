@@ -14,6 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 public class SearchResult {
     private Long documentId;
+    private String externalId;
     private String title;
     private String fullContent;
     private double score;                    // 매칭 청크 중 최고 유사도

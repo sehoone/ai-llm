@@ -48,6 +48,7 @@ public class SearchService {
             grouped.computeIfAbsent(chunk.getDocumentId(), id ->
                     SearchResult.builder()
                             .documentId(id)
+                            .externalId(chunk.getExternalId())
                             .title(chunk.getTitle())
                             .fullContent(chunk.getFullContent())
                             .score(chunk.getScore())
