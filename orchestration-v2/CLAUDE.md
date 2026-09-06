@@ -43,12 +43,18 @@ JWT 흐름 (HS256 전용)
   Client → POST /api/v1/auth/login → platform-server 발급 (HS256)
                                    → orchestrator-server 동일 JWT_SECRET_KEY로 검증
 
+JWT payload (서비스 간 공유 계약):
+  { "sub": "<user_id>", "username": "...", "email": "...", "role": "USER|ADMIN|SUPERADMIN|MANAGER|CASHIER",
+    "iat": 0, "exp": 0, "jti": "<uuid>" }
+  orchestrator-server는 sub(user_id)를 사용. 역할 값은 대문자.
+
 PostgreSQL + pgvector  (schema: llmonl)
   ├── 스키마 생성: deploy/postgres/init.sql (Docker 볼륨 최초 1회) 또는 수동 생성
   ├── platform-server 소유: users, api_key, refresh_token, llm_resource
-  │   └── JPA ddl-auto: validate (기동 시 스키마 검증, 테이블 생성 없음)
+  │   └── JPA ddl-auto: none(local) | validate(dev/staging/prod) | create-drop(test)
+  │       → local/dev 기동 전 llmonl 스키마·테이블이 DB에 존재해야 함
   └── orchestrator-server 소유: session, gpt_chat_message, rag_embedding, workflow, ...
-      └── SQLModel ORM 자동 생성
+      └── SQLModel ORM 자동 생성 (모든 환경)
 
 Observability
   ├── Prometheus  :8063  ← FastAPI /metrics + cAdvisor
@@ -65,11 +71,18 @@ Langfuse v3 (LLM 트레이싱)
 
 ## Quick Start (Development)
 
+Each service has a detailed `CLAUDE.md` — read it before editing that service.
+
 ### platform-server (`platform-server/`)
 ```powershell
 cd platform-server
 cp .env.example .env.local   # JWT_SECRET_KEY, POSTGRES_* 설정
 $env:APP_ENV='local'; ./gradlew bootRun
+
+./gradlew test                                           # H2 인메모리
+./gradlew test --tests "com.sehoon.platform.auth.AuthServiceTest"
+./gradlew compileJava                                    # 컴파일만
+./gradlew bootJar                                        # 실행 가능 JAR
 ```
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 
@@ -82,6 +95,11 @@ cd orchestrator-server
 uv sync --group dev                # Install deps including poethepoet
 cp .env.example .env.development   # fill in secrets
 $env:APP_ENV='development'; uv run poe dev   # hot-reload on port 8000
+
+uv run poe lint                              # ruff linter
+uv run poe format                            # ruff formatter
+uv run poe test                              # pytest
+uv run pytest -v path/to/test.py            # single test file
 ```
 Swagger UI: `http://localhost:8000/docs`
 
@@ -91,6 +109,10 @@ cd admin-front
 pnpm install
 cp .env.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:8000
 pnpm dev                     # http://localhost:3000
+
+pnpm lint
+pnpm format
+pnpm knip    # dead code analysis
 ```
 
 ---
@@ -204,4 +226,6 @@ docker exec minio mc mb local/langfuse-exports
 | CORS 오류 | `ALLOWED_ORIGINS`에 Nginx 주소(`http://<ip>:8060`) 포함 필요 |
 | WebSocket 실패 | `NEXT_PUBLIC_WS_URL` 포트가 Nginx 포트(8060)와 일치해야 함 |
 | Langfuse 시작 안 됨 | `docker compose ps clickhouse redis minio` — 모두 healthy여야 함 |
+| Langfuse trace가 UI에 안 보임 | `langfuse-worker` 컨테이너가 실행 중인지 확인 — worker가 없으면 OTLP 수신은 되나 Redis 큐에서 ClickHouse로 처리 안 됨 (`./logs.sh langfuse-worker`) |
 | Next.js 빌드 실패 | `admin/llm-admin/.env.production` 빌드 전 존재해야 함 |
+| Docker 빌드 후 API URL이 localhost | `admin-front/.dockerignore`에 `.env.local` 포함 필요 — 없으면 `.env.local`이 `.env.production`을 빌드 시 덮어써 `NEXT_PUBLIC_API_URL`이 잘못 임베딩됨 |
