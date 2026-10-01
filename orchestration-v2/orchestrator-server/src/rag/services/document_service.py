@@ -10,6 +10,7 @@ from sqlmodel import (
 
 from src.common.logging import logger
 from src.rag.models.document_model import Document
+from src.rag.models.rag_embedding_model import RAGEmbedding
 from src.common.services.database import database_service
 
 
@@ -100,6 +101,13 @@ class DocumentService:
             doc = session.get(Document, doc_id)
             if not doc:
                 return False
+            # rag_embedding references document without ON DELETE CASCADE,
+            # so its chunks must be removed explicitly before the document.
+            embeddings = session.exec(
+                select(RAGEmbedding).where(RAGEmbedding.doc_id == doc_id)
+            ).all()
+            for emb in embeddings:
+                session.delete(emb)
             session.delete(doc)
             session.commit()
             logger.info("document_deleted", doc_id=doc_id)

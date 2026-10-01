@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message(session_i
 
 CREATE TABLE chat_attachment (
     id SERIAL PRIMARY KEY,
-    message_id INTEGER NOT NULL REFERENCES chat_message(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL,
     session_id TEXT NOT NULL,
     filename TEXT NOT NULL,
     content_type TEXT NOT NULL,
@@ -129,6 +129,44 @@ CREATE TABLE chat_attachment (
 
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_message_id ON chat_attachment(message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_session_id ON chat_attachment(session_id);
+
+-- Artifact: a logical artifact (stable identity across versions)
+CREATE TABLE IF NOT EXISTS artifact (
+    id              TEXT         PRIMARY KEY,
+    session_id      TEXT         NOT NULL,
+    user_id         INTEGER      NOT NULL,
+    identifier      TEXT         NOT NULL,
+    artifact_type   TEXT         NOT NULL,
+    title           TEXT         NOT NULL DEFAULT '',
+    current_version INTEGER      NOT NULL DEFAULT 1,
+    is_published    BOOLEAN      NOT NULL DEFAULT false,
+    public_token    TEXT,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_session_id   ON artifact(session_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_user_id      ON artifact(user_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_identifier   ON artifact(identifier);
+CREATE INDEX IF NOT EXISTS idx_artifact_public_token ON artifact(public_token);
+
+-- ArtifactVersion: immutable content snapshot per version
+CREATE TABLE IF NOT EXISTS artifact_version (
+    id          SERIAL       PRIMARY KEY,
+    artifact_id TEXT         NOT NULL,
+    version     INTEGER      NOT NULL,
+    content     TEXT         NOT NULL,
+    message_id  INTEGER,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_artifact_id ON artifact_version(artifact_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_message_id  ON artifact_version(message_id);
+
+-- ArtifactData: mutable interactive state (user input), 1:1 with artifact
+CREATE TABLE IF NOT EXISTS artifact_data (
+    artifact_id TEXT      PRIMARY KEY,
+    data        TEXT      NOT NULL DEFAULT '{}',
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE gpt_chat_message (
     id SERIAL PRIMARY KEY,
@@ -217,7 +255,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_user_id ON agent(user_id);
 
 CREATE TABLE IF NOT EXISTS agent_session (
     id          TEXT PRIMARY KEY,
-    agent_id    TEXT NOT NULL REFERENCES agent(id) ON DELETE CASCADE,
+    agent_id    TEXT NOT NULL,
     user_id     INTEGER NOT NULL,
     name        TEXT NOT NULL DEFAULT '',
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

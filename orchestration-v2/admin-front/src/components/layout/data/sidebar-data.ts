@@ -14,6 +14,7 @@ import {
   BrainCog,
   Sparkles,
   Database,
+  Shapes,
   // GalleryVerticalEnd,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -57,6 +58,11 @@ export const sidebarData: SidebarData = {
               title: 'Chats',
               url: '/chats',
               icon: MessagesSquare,
+            },
+            {
+              title: 'Artifacts',
+              url: '/artifacts',
+              icon: Shapes,
             },
             {
               title: 'Agents',

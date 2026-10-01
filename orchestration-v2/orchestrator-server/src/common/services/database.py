@@ -18,6 +18,7 @@ from src.chatbot.services.attachment_repository import AttachmentRepositoryMixin
 from src.chatbot.services.gpt_repository import GPTRepositoryMixin
 from src.llm_resources.services.llm_resource_repository import LLMResourceRepositoryMixin
 from src.workflow.services.workflow_repository import WorkflowRepositoryMixin
+from src.artifact.services.artifact_repository import ArtifactRepositoryMixin
 
 
 class DatabaseService(
@@ -27,6 +28,7 @@ class DatabaseService(
     GPTRepositoryMixin,
     LLMResourceRepositoryMixin,
     WorkflowRepositoryMixin,
+    ArtifactRepositoryMixin,
 ):
     """Unified database service.
 

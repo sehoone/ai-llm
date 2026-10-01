@@ -26,7 +26,7 @@ class GPTChatMessage(SQLModel, table=True):
     __tablename__ = "gpt_chat_message"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    session_id: str = Field(index=True, foreign_key="gpt_session.id")
+    session_id: str = Field(index=True)
     question: str = Field(nullable=False)
     answer: str = Field(nullable=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

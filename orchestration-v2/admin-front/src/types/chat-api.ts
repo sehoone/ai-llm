@@ -31,9 +31,71 @@ export interface ChatResponse {
   messages: Message[]
 }
 
+export type StreamEventType =
+  | 'content'
+  | 'title'
+  | 'artifact_start'
+  | 'artifact_delta'
+  | 'artifact_end'
+
 export interface StreamResponse {
   content: string
   done: boolean
+  type?: StreamEventType
+  title?: string
+  artifact_id?: string
+  artifact_type?: string
+  artifact_title?: string
+  version?: number
+}
+
+/** The six supported artifact content types. */
+export type ArtifactType =
+  | 'text/html'
+  | 'application/vnd.react'
+  | 'image/svg+xml'
+  | 'application/vnd.mermaid'
+  | 'text/markdown'
+  | 'application/vnd.code'
+
+/** A streaming/open artifact held in the client store (keyed by identifier). */
+export interface ArtifactState {
+  identifier: string
+  type: string
+  title: string
+  content: string
+  version: number
+  isStreaming: boolean
+  serverId?: string // artifact.id (uuid), resolved after stream completes
+}
+
+/** Discriminated artifact events surfaced to the chat stream consumer. */
+export type ArtifactStreamEvent =
+  | { kind: 'start'; identifier: string; type: string; title: string }
+  | { kind: 'delta'; identifier: string; text: string }
+  | { kind: 'end'; identifier: string; version?: number }
+
+export interface ArtifactSummary {
+  id: string
+  session_id: string
+  identifier: string
+  artifact_type: string
+  title: string
+  current_version: number
+  is_published: boolean
+  public_token?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ArtifactDetail extends ArtifactSummary {
+  content: string
+}
+
+export interface ArtifactVersionItem {
+  version: number
+  content: string
+  created_at: string
 }
 
 export interface ChatSession {

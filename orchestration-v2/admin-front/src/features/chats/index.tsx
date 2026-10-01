@@ -30,10 +30,13 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ChatArea } from './components/chat-area'
 import { ChatInput } from './components/chat-input'
+import { ArtifactPanel } from '@/features/artifacts/components/artifact-panel'
 import { chatService } from '@/api/chat'
+import { artifactService } from '@/api/artifacts'
 import { ragGroupApi, type RagGroup } from '@/api/rag-groups'
 import { getChatModels, type ChatModel } from '@/api/llm-resources'
 import { type ChatSession, type Message, type FileAttachment } from '@/types/chat-api'
+import { useArtifactStore } from '@/stores/artifact-store'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 
@@ -52,6 +55,8 @@ export function Chats() {
   const [chatModels, setChatModels] = useState<ChatModel[]>([])
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
 
+  const isArtifactOpen = useArtifactStore((s) => s.isOpen)
+
   // Fetch sessions, RAG groups, and chat models on mount
   useEffect(() => {
     loadSessions()
@@ -59,14 +64,75 @@ export function Chats() {
     loadChatModels()
   }, [])
 
-  // Fetch messages when session is selected
+  // Deep link from the Artifacts library: /chats?session=<id> selects that session.
   useEffect(() => {
+    const sessionParam = new URLSearchParams(window.location.search).get('session')
+    if (sessionParam) {
+      setSelectedSessionId(sessionParam)
+      setMobileSelectedSessionId(sessionParam)
+    }
+  }, [])
+
+  // Fetch messages when session is selected; reset the artifact canvas per session.
+  useEffect(() => {
+    useArtifactStore.getState().reset()
     if (selectedSessionId) {
       loadMessages(selectedSessionId)
     } else {
       setMessages([])
     }
   }, [selectedSessionId])
+
+  // Resolve server ids (for versioning/publish) onto artifacts created while streaming.
+  const syncArtifactServerIds = useCallback(async (sessionId: string) => {
+    try {
+      const summaries = await artifactService.list(sessionId)
+      const store = useArtifactStore.getState()
+      for (const s of summaries) {
+        const existing = store.artifacts[s.identifier]
+        if (existing) {
+          store.upsertArtifact({ ...existing, serverId: s.id, version: s.current_version })
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to sync artifact server ids', error)
+    }
+  }, [])
+
+  // Open an artifact referenced from a chat message, loading it if not cached.
+  const handleOpenArtifact = useCallback(
+    async (identifier: string) => {
+      const store = useArtifactStore.getState()
+      if (store.artifacts[identifier]?.content) {
+        store.open(identifier)
+        return
+      }
+      if (!selectedSessionId) return
+      try {
+        const summaries = await artifactService.list(selectedSessionId)
+        const match = summaries.find((s) => s.identifier === identifier)
+        if (!match) {
+          toast.error('아티펙트를 찾을 수 없습니다')
+          return
+        }
+        const detail = await artifactService.get(match.id)
+        store.upsertArtifact({
+          identifier: detail.identifier,
+          type: detail.artifact_type,
+          title: detail.title,
+          content: detail.content,
+          version: detail.current_version,
+          isStreaming: false,
+          serverId: detail.id,
+        })
+        store.open(identifier)
+      } catch (error) {
+        logger.error('Failed to open artifact', error)
+        toast.error('아티펙트를 불러오지 못했습니다')
+      }
+    },
+    [selectedSessionId]
+  )
 
   const loadSessions = async () => {
     try {
@@ -190,12 +256,12 @@ export function Chats() {
       await chatService.streamMessage(
         selectedSessionId,
         messagesToSend,
-        (chunk, done, title) => {
+        (chunk, _done, title) => {
            if (title) {
-             setSessions((prev) => 
-               prev.map(session => 
-                 session.session_id === selectedSessionId 
-                   ? { ...session, name: title } 
+             setSessions((prev) =>
+               prev.map(session =>
+                 session.session_id === selectedSessionId
+                   ? { ...session, name: title }
                    : session
                )
              );
@@ -223,8 +289,20 @@ export function Chats() {
         },
         isDeepThinking,
         selectedRagGroup ?? undefined,
-        selectedModelId ?? undefined
+        selectedModelId ?? undefined,
+        (event) => {
+          const store = useArtifactStore.getState()
+          if (event.kind === 'start') {
+            store.startArtifact({ identifier: event.identifier, type: event.type, title: event.title })
+          } else if (event.kind === 'delta') {
+            store.appendDelta(event.identifier, event.text)
+          } else if (event.kind === 'end') {
+            store.endArtifact(event.identifier, event.version)
+          }
+        }
       )
+      // Artifacts streamed this turn lack server ids until persisted — resolve them.
+      await syncArtifactServerIds(selectedSessionId)
     } catch (error) {
       logger.error('Failed to send message', error)
       toast.error('Failed to send message')
@@ -374,20 +452,33 @@ export function Chats() {
                 </div>
               </div>
 
-              {/* Chat Content */}
-              <ChatArea messages={messages} isLoading={isSending && messages.length > 0 && messages[messages.length-1].role !== 'assistant'} />
+              {/* Chat + Artifact canvas (split on wide screens, overlay on narrow) */}
+              <div className='relative flex min-h-0 flex-1'>
+                <div className='flex min-w-0 flex-1 flex-col'>
+                  <ChatArea
+                    messages={messages}
+                    isLoading={isSending && messages.length > 0 && messages[messages.length-1].role !== 'assistant'}
+                    onOpenArtifact={handleOpenArtifact}
+                  />
+                  <ChatInput
+                    isSending={isSending}
+                    onSend={handleSendMessage}
+                    ragGroups={ragGroups}
+                    selectedRagGroup={selectedRagGroup}
+                    onRagGroupChange={setSelectedRagGroup}
+                    chatModels={chatModels}
+                    selectedModelId={selectedModelId}
+                    onModelChange={setSelectedModelId}
+                  />
+                </div>
 
-              {/* Input Area */}
-              <ChatInput
-                isSending={isSending}
-                onSend={handleSendMessage}
-                ragGroups={ragGroups}
-                selectedRagGroup={selectedRagGroup}
-                onRagGroupChange={setSelectedRagGroup}
-                chatModels={chatModels}
-                selectedModelId={selectedModelId}
-                onModelChange={setSelectedModelId}
-              />
+                {isArtifactOpen && (
+                  // Narrow screens: full overlay over the chat. Wide (md+): side-by-side.
+                  <div className='absolute inset-0 z-30 bg-background p-2 md:static md:z-auto md:min-w-0 md:flex-1 lg:flex-[1.3]'>
+                    <ArtifactPanel />
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div

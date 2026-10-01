@@ -110,7 +110,10 @@ async def delete_session(session_id: str, user: User = Depends(get_current_user)
         await get_owned_chat_session(sanitized_session_id, user)
 
         # checkpoint 테이블 먼저 정리 후 세션 삭제
+        # FK(ON DELETE CASCADE) 미사용이므로 자식 데이터(아티팩트)를 명시적으로 먼저 삭제.
+        # 메시지·첨부파일은 delete_session 내부에서 함께 삭제됨.
         await agent.clear_chat_history(sanitized_session_id)
+        await database_service.delete_session_artifacts(sanitized_session_id)
         await database_service.delete_session(sanitized_session_id)
 
         logger.info("session_deleted", session_id=session_id, user_id=user.id)
