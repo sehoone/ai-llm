@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_session_user_id ON llmonl.session (user_id);
 -- 채팅 메시지
 CREATE TABLE IF NOT EXISTS llmonl.chat_message (
     id         BIGSERIAL    PRIMARY KEY,
-    session_id VARCHAR      NOT NULL REFERENCES llmonl.session(id),
+    session_id VARCHAR      NOT NULL,
     question   TEXT         NOT NULL,
     answer     TEXT         NOT NULL,
     created_at TIMESTAMP    NOT NULL DEFAULT NOW()
@@ -86,7 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON llmonl.chat_message (s
 -- 채팅 첨부파일
 CREATE TABLE IF NOT EXISTS llmonl.chat_attachment (
     id           BIGSERIAL    PRIMARY KEY,
-    message_id   BIGINT       NOT NULL REFERENCES llmonl.chat_message(id),
+    message_id   BIGINT       NOT NULL,
     session_id   VARCHAR      NOT NULL,
     filename     VARCHAR      NOT NULL,
     content_type VARCHAR      NOT NULL,
@@ -116,7 +116,7 @@ CREATE INDEX IF NOT EXISTS idx_custom_gpt_rag_key    ON llmonl.custom_gpt (rag_k
 CREATE TABLE IF NOT EXISTS llmonl.gpt_session (
     id            VARCHAR      PRIMARY KEY,
     user_id       INT          NOT NULL,
-    custom_gpt_id VARCHAR      NOT NULL REFERENCES llmonl.custom_gpt(id),
+    custom_gpt_id VARCHAR      NOT NULL,
     name          VARCHAR      NOT NULL DEFAULT '',
     created_at    TIMESTAMP    NOT NULL DEFAULT NOW()
 );
@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_gpt_session_custom_gpt_id ON llmonl.gpt_session (
 -- Custom GPT 메시지
 CREATE TABLE IF NOT EXISTS llmonl.gpt_chat_message (
     id         BIGSERIAL    PRIMARY KEY,
-    session_id VARCHAR      NOT NULL REFERENCES llmonl.gpt_session(id),
+    session_id VARCHAR      NOT NULL,
     question   TEXT         NOT NULL,
     answer     TEXT         NOT NULL,
     created_at TIMESTAMP    NOT NULL DEFAULT NOW()
@@ -189,7 +189,7 @@ CREATE INDEX IF NOT EXISTS idx_document_rag_type  ON llmonl.document (rag_type);
 -- RAG 임베딩 (pgvector)
 CREATE TABLE IF NOT EXISTS llmonl.rag_embedding (
     id          BIGSERIAL    PRIMARY KEY,
-    doc_id      BIGINT       NOT NULL REFERENCES llmonl.document(id) ON DELETE CASCADE,
+    doc_id      BIGINT       NOT NULL,
     rag_key     VARCHAR      NOT NULL,
     rag_group   VARCHAR      NOT NULL,
     rag_type    VARCHAR      NOT NULL,
@@ -367,8 +367,7 @@ CREATE TABLE IF NOT EXISTS llmonl.ai_overview_document (
 -- keyword_type: 'keyword' | 'synonym' — 구분 없이 동일 컬럼으로 pg_trgm 검색됨
 CREATE TABLE IF NOT EXISTS llmonl.ai_overview_keyword (
     id           BIGSERIAL   PRIMARY KEY,
-    document_id  BIGINT      NOT NULL
-                             REFERENCES llmonl.ai_overview_document(id) ON DELETE CASCADE,
+    document_id  BIGINT      NOT NULL,
     keyword      VARCHAR(200) NOT NULL,
     keyword_type VARCHAR(20)  NOT NULL,
     created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
@@ -380,6 +379,97 @@ CREATE INDEX IF NOT EXISTS idx_ai_overview_keyword_doc
 CREATE INDEX IF NOT EXISTS idx_ai_overview_keyword_trgm
     ON llmonl.ai_overview_keyword
     USING GIN (keyword gin_trgm_ops);
+
+-- ─────────────────────────────────────────────────────────────
+-- 아티펙트 (세션별 버전 관리되는 샌드박스 산출물)
+-- ─────────────────────────────────────────────────────────────
+
+-- 논리 아티펙트 (버전 묶음의 안정 식별자)
+CREATE TABLE IF NOT EXISTS llmonl.artifact (
+    id              VARCHAR      PRIMARY KEY,
+    session_id      VARCHAR      NOT NULL,
+    user_id         INT          NOT NULL,
+    identifier      VARCHAR      NOT NULL,          -- LLM이 준 식별자 (세션 내 고유)
+    artifact_type   VARCHAR      NOT NULL,
+    title           VARCHAR      NOT NULL DEFAULT '',
+    current_version INT          NOT NULL DEFAULT 1,
+    is_published    BOOLEAN      NOT NULL DEFAULT false,
+    public_token    VARCHAR,
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_session_id   ON llmonl.artifact (session_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_user_id      ON llmonl.artifact (user_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_identifier   ON llmonl.artifact (identifier);
+CREATE INDEX IF NOT EXISTS idx_artifact_public_token ON llmonl.artifact (public_token);
+
+-- 버전별 불변 스냅샷
+CREATE TABLE IF NOT EXISTS llmonl.artifact_version (
+    id          BIGSERIAL    PRIMARY KEY,
+    artifact_id VARCHAR      NOT NULL,
+    version     INT          NOT NULL,
+    content     TEXT         NOT NULL,
+    message_id  BIGINT,
+    created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_artifact_id ON llmonl.artifact_version (artifact_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_message_id  ON llmonl.artifact_version (message_id);
+
+-- 인터랙티브 데이터 (사용자 입력, 버전 무관 1:1, 협업 가능)
+CREATE TABLE IF NOT EXISTS llmonl.artifact_data (
+    artifact_id VARCHAR   PRIMARY KEY,
+    data        TEXT      NOT NULL DEFAULT '{}',
+    updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ─────────────────────────────────────────────────────────────
+-- 회의록 (음성 업로드 → 전사/화자분리 → AI 회의록)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.meeting (
+    id                     VARCHAR      PRIMARY KEY,
+    user_id                INT          NOT NULL,
+    title                  VARCHAR      NOT NULL DEFAULT '',
+    status                 VARCHAR      NOT NULL DEFAULT 'UPLOADED',
+    audio_object_key       VARCHAR      NOT NULL,
+    audio_filename         VARCHAR      NOT NULL DEFAULT '',
+    audio_duration_sec     INT,
+    language               VARCHAR      NOT NULL DEFAULT 'ko-KR',
+    transcription_provider VARCHAR,
+    artifact_id            VARCHAR,
+    public_token           VARCHAR,
+    error_message          VARCHAR,
+    created_at             TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_user_id      ON llmonl.meeting (user_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_status       ON llmonl.meeting (status);
+CREATE INDEX IF NOT EXISTS idx_meeting_artifact_id  ON llmonl.meeting (artifact_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_public_token ON llmonl.meeting (public_token);
+
+-- 전사 세그먼트 (화자별 발화)
+CREATE TABLE IF NOT EXISTS llmonl.meeting_segment (
+    id            BIGSERIAL PRIMARY KEY,
+    meeting_id    VARCHAR   NOT NULL,
+    seq           INT       NOT NULL,
+    speaker_label VARCHAR   NOT NULL DEFAULT 'Speaker 1',
+    speaker_name  VARCHAR,
+    start_ms      INT       NOT NULL DEFAULT 0,
+    end_ms        INT       NOT NULL DEFAULT 0,
+    text          TEXT      NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_segment_meeting_id ON llmonl.meeting_segment (meeting_id);
+
+-- 생성된 구조화 회의록 (재생성 시 버전 증가)
+CREATE TABLE IF NOT EXISTS llmonl.meeting_minutes (
+    id           BIGSERIAL PRIMARY KEY,
+    meeting_id   VARCHAR   NOT NULL,
+    summary      TEXT      NOT NULL DEFAULT '',
+    content_json TEXT      NOT NULL DEFAULT '{}',
+    model_used   VARCHAR   NOT NULL DEFAULT '',
+    version      INT       NOT NULL DEFAULT 1,
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting_id ON llmonl.meeting_minutes (meeting_id);
 
 -- ─────────────────────────────────────────────────────────────
 -- LangGraph PostgreSQL 체크포인터 테이블

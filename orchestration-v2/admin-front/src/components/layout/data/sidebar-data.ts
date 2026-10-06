@@ -6,6 +6,7 @@ import {
   Search,
   Settings,
   FileText,
+  Mic,
   Zap,
   // AudioWaveform,
   Command,
@@ -14,6 +15,7 @@ import {
   BrainCog,
   Sparkles,
   Database,
+  Shapes,
   // GalleryVerticalEnd,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -59,6 +61,11 @@ export const sidebarData: SidebarData = {
               icon: MessagesSquare,
             },
             {
+              title: 'Artifacts',
+              url: '/artifacts',
+              icon: Shapes,
+            },
+            {
               title: 'Agents',
               url: '/agents',
               icon: BrainCog,
@@ -98,6 +105,11 @@ export const sidebarData: SidebarData = {
               title: 'AI Overview Data',
               url: '/ai-overview-data',
               icon: Database,
+            },
+            {
+              title: 'Meeting',
+              url: '/meeting-minutes',
+              icon: Mic,
             },
           ]
         },

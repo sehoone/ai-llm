@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message(session_i
 
 CREATE TABLE chat_attachment (
     id SERIAL PRIMARY KEY,
-    message_id INTEGER NOT NULL REFERENCES chat_message(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL,
     session_id TEXT NOT NULL,
     filename TEXT NOT NULL,
     content_type TEXT NOT NULL,
@@ -129,6 +129,94 @@ CREATE TABLE chat_attachment (
 
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_message_id ON chat_attachment(message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_session_id ON chat_attachment(session_id);
+
+-- Artifact: a logical artifact (stable identity across versions)
+CREATE TABLE IF NOT EXISTS artifact (
+    id              TEXT         PRIMARY KEY,
+    session_id      TEXT         NOT NULL,
+    user_id         INTEGER      NOT NULL,
+    identifier      TEXT         NOT NULL,
+    artifact_type   TEXT         NOT NULL,
+    title           TEXT         NOT NULL DEFAULT '',
+    current_version INTEGER      NOT NULL DEFAULT 1,
+    is_published    BOOLEAN      NOT NULL DEFAULT false,
+    public_token    TEXT,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_session_id   ON artifact(session_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_user_id      ON artifact(user_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_identifier   ON artifact(identifier);
+CREATE INDEX IF NOT EXISTS idx_artifact_public_token ON artifact(public_token);
+
+-- ArtifactVersion: immutable content snapshot per version
+CREATE TABLE IF NOT EXISTS artifact_version (
+    id          SERIAL       PRIMARY KEY,
+    artifact_id TEXT         NOT NULL,
+    version     INTEGER      NOT NULL,
+    content     TEXT         NOT NULL,
+    message_id  INTEGER,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_artifact_id ON artifact_version(artifact_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_message_id  ON artifact_version(message_id);
+
+-- ArtifactData: mutable interactive state (user input), 1:1 with artifact
+CREATE TABLE IF NOT EXISTS artifact_data (
+    artifact_id TEXT      PRIMARY KEY,
+    data        TEXT      NOT NULL DEFAULT '{}',
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Meeting: a recorded meeting and its processing lifecycle
+CREATE TABLE IF NOT EXISTS meeting (
+    id                     TEXT         PRIMARY KEY,
+    user_id                INTEGER      NOT NULL,
+    title                  TEXT         NOT NULL DEFAULT '',
+    status                 TEXT         NOT NULL DEFAULT 'UPLOADED',
+    audio_object_key       TEXT         NOT NULL,
+    audio_filename         TEXT         NOT NULL DEFAULT '',
+    audio_duration_sec     INTEGER,
+    language               TEXT         NOT NULL DEFAULT 'ko-KR',
+    transcription_provider TEXT,
+    artifact_id            TEXT,
+    public_token           TEXT,
+    error_message          TEXT,
+    created_at             TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at             TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_meeting_user_id      ON meeting(user_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_status       ON meeting(status);
+CREATE INDEX IF NOT EXISTS idx_meeting_artifact_id  ON meeting(artifact_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_public_token ON meeting(public_token);
+
+-- MeetingSegment: a diarized transcript segment (one utterance by one speaker)
+CREATE TABLE IF NOT EXISTS meeting_segment (
+    id           SERIAL   PRIMARY KEY,
+    meeting_id   TEXT     NOT NULL,
+    seq          INTEGER  NOT NULL,
+    speaker_label TEXT    NOT NULL DEFAULT 'Speaker 1',
+    speaker_name TEXT,
+    start_ms     INTEGER  NOT NULL DEFAULT 0,
+    end_ms       INTEGER  NOT NULL DEFAULT 0,
+    text         TEXT     NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_meeting_segment_meeting_id ON meeting_segment(meeting_id);
+
+-- MeetingMinutes: generated structured minutes (versioned on regeneration)
+CREATE TABLE IF NOT EXISTS meeting_minutes (
+    id           SERIAL    PRIMARY KEY,
+    meeting_id   TEXT      NOT NULL,
+    summary      TEXT      NOT NULL DEFAULT '',
+    content_json TEXT      NOT NULL DEFAULT '{}',
+    model_used   TEXT      NOT NULL DEFAULT '',
+    version      INTEGER   NOT NULL DEFAULT 1,
+    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting_id ON meeting_minutes(meeting_id);
 
 CREATE TABLE gpt_chat_message (
     id SERIAL PRIMARY KEY,
@@ -217,7 +305,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_user_id ON agent(user_id);
 
 CREATE TABLE IF NOT EXISTS agent_session (
     id          TEXT PRIMARY KEY,
-    agent_id    TEXT NOT NULL REFERENCES agent(id) ON DELETE CASCADE,
+    agent_id    TEXT NOT NULL,
     user_id     INTEGER NOT NULL,
     name        TEXT NOT NULL DEFAULT '',
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

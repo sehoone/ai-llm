@@ -84,6 +84,7 @@ src/
 ├── rag/                    # Multi-bot RAG system (upload, chunking, embeddings, search)
 ├── user/                   # User management
 ├── voice_evaluation/       # Azure Speech STT/TTS + proficiency evaluation
+├── meeting_minutes/        # 음성 회의록: 업로드→전사(화자분리)→AI 요약→artifact 발행
 └── workflow/               # Low-code DAG workflow engine (scheduling, webhooks, SSE)
 ```
 
@@ -163,6 +164,17 @@ Low-code DAG runner with:
 
 **Adding a node type:** implement the executor class and register it in `src/workflow/services/executor/registry.py`.
 
+### Meeting Minutes (`src/meeting_minutes/`)
+
+Audio upload → transcription (diarization) → AI minutes, processed asynchronously.
+
+- **Flow:** `POST /meetings` saves audio + creates `Meeting(UPLOADED)` then runs `process_meeting` as a FastAPI `BackgroundTask`; frontend polls `GET /meetings/{id}`. States: `UPLOADED → TRANSCRIBING → TRANSCRIBED → SUMMARIZING → COMPLETED`, plus `SAVED` (transcription produced nothing — audio stored, no minutes) and `FAILED` (exception).
+- **Transcription** (`transcription_service.py`): Azure **Fast Transcription** REST (diarization + word timestamps, accepts the file directly) primary; OpenAI **Whisper** fallback (single `Speaker 1`) when Azure unconfigured/fails.
+- **Summarization** (`minutes_service.py`): `llm_service` with a JSON-forcing prompt → structured minutes. Long transcripts use **map-reduce** (`MEETING_MAP_REDUCE_CHAR_THRESHOLD`): per-chunk summaries in parallel, then a reduce call. Also renders minutes to Markdown for publishing.
+- **Storage** (`storage_service.py`): **MinIO/S3 via boto3** when `MEETING_S3_ENDPOINT` is set (persistent `minio-data` volume, shared across replicas; bucket auto-created), else local filesystem fallback (`MEETING_AUDIO_DIR`, single-node dev). Audio served via `GET /meetings/{id}/audio` — S3 backend proxies the object forwarding the `Range` header (206, seek); local backend uses `FileResponse`. `?download=true` → attachment. Transcription needs a local path, so the S3 backend materializes a temp file (`download_to_temp`) and removes it after. `boto3` is a project dependency — adding deps requires regenerating `uv.lock` (Dockerfile uses `uv sync --frozen`).
+- **Publish**: renders Markdown and reuses `database_service.upsert_artifact_version` + `publish_artifact`. ⚠️ `artifact.session_id` has a FK to `session`, so `publish_to_artifact` **get-or-creates a backing `session` row** (`meeting:{id}`) first.
+- **DB:** `meeting`, `meeting_segment`, `meeting_minutes` — module holds its own repo methods via `database_service.engine` + `managed_session` (not a DatabaseService mixin).
+
 ### Long-term Memory
 
 mem0ai with pgvector backend. User-scoped semantic memory. Retrieved before graph invocation (`_get_relevant_memory()`), injected into system prompt, updated async after each turn (`_update_long_term_memory()`). Images filtered before storing.
@@ -184,7 +196,7 @@ mem0ai with pgvector backend. User-scoped semantic memory. Retrieved before grap
 - Valid environments: `development`, `staging`, `production`, `test`
 - Config accessed via `from src.common.config import settings`
 
-Key settings groups: OpenAI (API key, models, TTS/STT), PostgreSQL (`POSTGRES_SCHEMA=llmonl`, pool 20/overflow 10), JWT (10 min access, 7 day refresh, HS256), rate limits, Langfuse, Azure Speech, mem0ai (model: gpt-4o-mini, embedder: text-embedding-3-small).
+Key settings groups: OpenAI (API key, models, TTS/STT), PostgreSQL (`POSTGRES_SCHEMA=llmonl`, pool 20/overflow 10), JWT (10 min access, 7 day refresh, HS256), rate limits, Langfuse, Azure Speech, mem0ai (model: gpt-4o-mini, embedder: text-embedding-3-small), Meeting (`MEETING_S3_ENDPOINT`/`_ACCESS_KEY`/`_SECRET_KEY`/`_BUCKET`/`_REGION` for MinIO storage, `MEETING_AUDIO_DIR` local fallback, `MEETING_MAX_AUDIO_MB`, `MEETING_DEFAULT_LOCALE`, `MEETING_SUMMARY_MODEL`, `MEETING_MAX_SPEAKERS`, `MEETING_MAP_REDUCE_CHAR_THRESHOLD`, `MEETING_CHUNK_CHAR_SIZE`).
 
 ## Database
 
@@ -196,7 +208,9 @@ PostgreSQL with pgvector. `POSTGRES_SCHEMA=llmonl`. Tables auto-created by SQLMo
 
 Connection pool: `QueuePool`, `pool_pre_ping=True`, `pool_recycle=1800`.
 
-Key tables: `users`, `session`, `agent`, `agent_session`, `gpt_session`, `gpt_chat_message`, `document`, `rag_embedding`, `rag_key_config`, `rag_group_config`, `workflow`, `workflow_execution`, `workflow_node_execution`, `workflow_schedule`, `workflow_endpoint`, `api_key`, `llm_resource`.
+Key tables: `users`, `session`, `agent`, `agent_session`, `gpt_session`, `gpt_chat_message`, `document`, `rag_embedding`, `rag_key_config`, `rag_group_config`, `workflow`, `workflow_execution`, `workflow_node_execution`, `workflow_schedule`, `workflow_endpoint`, `api_key`, `llm_resource`, `meeting`, `meeting_segment`, `meeting_minutes`.
+
+> **No `create_all` at startup**: orchestrator tables are NOT auto-created by SQLModel. New tables must be added to DDL (`schema.sql` reference + **`deploy/postgres/init.sql`** for Docker deploys) and applied to the DB manually. `meeting*` tables follow this pattern.
 
 ## Samples
 

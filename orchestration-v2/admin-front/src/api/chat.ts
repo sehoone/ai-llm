@@ -2,6 +2,7 @@
 import { createSSEProgressHandler } from '@/lib/sse-stream'
 import api from './axios'
 import type {
+  ArtifactStreamEvent,
   AttachmentMeta,
   ChatHistoryListResponse,
   ChatHistoryResponse,
@@ -10,6 +11,7 @@ import type {
   ChatSession,
   CreateSessionResponse,
   Message,
+  StreamResponse,
 } from '@/types/chat-api'
 
 // const AUTH_BASE = '/api/v1/auth'
@@ -107,7 +109,8 @@ export const chatService = {
     onError: (error: any) => void,
     isDeepThinking?: boolean,
     ragGroup?: string,
-    llmResourceId?: number
+    llmResourceId?: number,
+    onArtifact?: (event: ArtifactStreamEvent) => void
   ) => {
     const request: ChatRequest = {
       session_id: sessionId,
@@ -118,15 +121,37 @@ export const chatService = {
     }
 
     try {
-      const handler = createSSEProgressHandler<{ content: string; done: boolean; type?: string; title?: string }>(
-        (data) => {
-          if (data.type === 'title' && data.title) {
-            onChunk('', false, data.title)
-          } else {
+      const handler = createSSEProgressHandler<StreamResponse>((data) => {
+        switch (data.type) {
+          case 'title':
+            if (data.title) onChunk('', false, data.title)
+            break
+          case 'artifact_start':
+            onArtifact?.({
+              kind: 'start',
+              identifier: data.artifact_id ?? 'artifact',
+              type: data.artifact_type ?? 'text/markdown',
+              title: data.artifact_title ?? '',
+            })
+            break
+          case 'artifact_delta':
+            onArtifact?.({
+              kind: 'delta',
+              identifier: data.artifact_id ?? 'artifact',
+              text: data.content,
+            })
+            break
+          case 'artifact_end':
+            onArtifact?.({
+              kind: 'end',
+              identifier: data.artifact_id ?? 'artifact',
+              version: data.version,
+            })
+            break
+          default:
             onChunk(data.content, data.done)
-          }
         }
-      )
+      })
       await api.post(`${CHATBOT_BASE}/chat/stream`, request, { onDownloadProgress: handler.onDownloadProgress })
       handler.flush()
     } catch (e) {

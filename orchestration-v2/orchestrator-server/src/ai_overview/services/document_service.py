@@ -99,6 +99,9 @@ class AiOverviewDocumentService:
             doc = session.get(AiOverviewDocument, doc_id)
             if not doc:
                 return False
+            # ai_overview_keyword references the document without ON DELETE
+            # CASCADE, so its keywords must be removed explicitly first.
+            session.exec(delete(AiOverviewKeyword).where(AiOverviewKeyword.document_id == doc_id))
             session.delete(doc)
             session.commit()
             logger.info("ai_overview_document_deleted", doc_id=doc_id)
@@ -107,6 +110,7 @@ class AiOverviewDocumentService:
     async def delete_all_documents(self) -> int:
         with self._session() as session:
             count = session.exec(select(func.count(AiOverviewDocument.id))).one()
+            session.exec(delete(AiOverviewKeyword))
             session.exec(delete(AiOverviewDocument))
             session.commit()
             logger.info("ai_overview_all_deleted", count=count)
@@ -118,6 +122,9 @@ class AiOverviewDocumentService:
             for doc_id in ids:
                 doc = session.get(AiOverviewDocument, doc_id)
                 if doc:
+                    session.exec(
+                        delete(AiOverviewKeyword).where(AiOverviewKeyword.document_id == doc_id)
+                    )
                     session.delete(doc)
                     count += 1
             session.commit()

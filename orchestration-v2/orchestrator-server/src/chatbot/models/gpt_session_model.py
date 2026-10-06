@@ -20,5 +20,5 @@ class GPTSession(BaseModel, table=True):
 
     id: str = Field(primary_key=True)
     user_id: int = Field(index=True)
-    custom_gpt_id: str = Field(index=True, foreign_key="custom_gpt.id")
+    custom_gpt_id: str = Field(index=True)
     name: str = Field(default="")

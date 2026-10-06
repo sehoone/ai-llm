@@ -147,12 +147,32 @@ class ChatResponse(BaseModel):
 class StreamResponse(BaseModel):
     """Response model for streaming chat endpoint.
 
+    Carries both plain chat content and artifact lifecycle events. The ``type``
+    field discriminates the event; artifact fields are populated only on the
+    corresponding ``artifact_*`` events.
+
     Attributes:
-        content: The content of the current chunk.
+        content: The content of the current chunk (chat text or artifact body).
         done: Whether the stream is complete.
+        type: The kind of event this frame represents.
+        title: The session title (only for ``title`` events).
+        artifact_id: The artifact identifier (LLM-provided, unique within a session).
+        artifact_type: The artifact MIME/type, e.g. ``text/html`` (``artifact_start``).
+        artifact_title: The artifact display title (``artifact_start``).
+        version: The persisted version number (``artifact_end``).
     """
 
     content: str = Field(default="", description="The content of the current chunk")
     done: bool = Field(default=False, description="Whether the stream is complete")
-    type: Literal["content", "title"] = Field(default="content", description="The type of the stream event")
+    type: Literal[
+        "content",
+        "title",
+        "artifact_start",
+        "artifact_delta",
+        "artifact_end",
+    ] = Field(default="content", description="The type of the stream event")
     title: Optional[str] = Field(default=None, description="The session title (only for title events)")
+    artifact_id: Optional[str] = Field(default=None, description="Artifact identifier (artifact_* events)")
+    artifact_type: Optional[str] = Field(default=None, description="Artifact type, e.g. text/html (artifact_start)")
+    artifact_title: Optional[str] = Field(default=None, description="Artifact display title (artifact_start)")
+    version: Optional[int] = Field(default=None, description="Persisted artifact version (artifact_end)")

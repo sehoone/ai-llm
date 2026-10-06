@@ -5,7 +5,7 @@ streaming chat, message history management, and chat history clearing.
 """
 
 import json
-from typing import List, Optional
+from typing import AsyncIterator, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -41,6 +41,7 @@ from src.chatbot.schemas.chat_schema import (
     StreamResponse,
 )
 from src.chatbot.services.summary_service import chat_summary_service
+from src.chatbot.services.artifact_stream_parser import ArtifactStreamParser, EventType
 
 router = APIRouter()
 agent = LangGraphAgent()
@@ -245,6 +246,83 @@ async def chat_stream(
             """
             try:
                 full_response = ""
+                parser = ArtifactStreamParser()
+                current_artifact: Optional[dict] = None
+                created_version_rows: List[int] = []
+
+                def _emit(resp: StreamResponse) -> str:
+                    return f"data: {json.dumps(resp.model_dump(), ensure_ascii=False)}\n\n"
+
+                async def _handle(event) -> AsyncIterator[str]:
+                    """Turn one parser event into SSE frames, persisting finished artifacts.
+
+                    Chat content accumulates into ``full_response``; each artifact is
+                    replaced there by a short reference placeholder so the saved message
+                    stays small while the full content lives in the artifact tables.
+                    """
+                    nonlocal full_response, current_artifact
+                    if event.type == EventType.CONTENT:
+                        full_response += event.text
+                        yield _emit(StreamResponse(content=event.text, done=False))
+                    elif event.type == EventType.ARTIFACT_START:
+                        current_artifact = {
+                            "identifier": event.identifier,
+                            "type": event.artifact_type,
+                            "title": event.title,
+                            "content": "",
+                        }
+                        label = event.title or event.identifier or "artifact"
+                        ident_ref = event.identifier or "artifact"
+                        # Markdown link with an artifact: scheme — the chat UI turns this
+                        # into a clickable chip that reopens the artifact from history.
+                        placeholder = f"\n\n[📎 {label}](artifact:{ident_ref})\n\n"
+                        full_response += placeholder
+                        # Also stream the chip as chat content so the assistant bubble is
+                        # never empty when the whole reply is an artifact — and stays
+                        # clickable to (re)open the canvas (e.g. on narrow screens).
+                        yield _emit(StreamResponse(content=placeholder, done=False))
+                        yield _emit(StreamResponse(
+                            type="artifact_start",
+                            done=False,
+                            artifact_id=event.identifier,
+                            artifact_type=event.artifact_type,
+                            artifact_title=event.title,
+                        ))
+                    elif event.type == EventType.ARTIFACT_DELTA:
+                        if current_artifact is not None:
+                            current_artifact["content"] += event.text
+                        yield _emit(StreamResponse(
+                            type="artifact_delta",
+                            done=False,
+                            content=event.text,
+                            artifact_id=current_artifact["identifier"] if current_artifact else None,
+                        ))
+                    elif event.type == EventType.ARTIFACT_END:
+                        version = None
+                        ident = None
+                        if current_artifact is not None:
+                            ident = current_artifact["identifier"]
+                            try:
+                                result = await database_service.upsert_artifact_version(
+                                    session_id=session.id,
+                                    user_id=session.user_id,
+                                    identifier=current_artifact["identifier"] or "artifact",
+                                    artifact_type=current_artifact["type"] or "text/markdown",
+                                    title=current_artifact["title"] or "",
+                                    content=current_artifact["content"],
+                                )
+                                created_version_rows.append(result["version_row_id"])
+                                version = result["version"]
+                            except Exception as e:
+                                logger.error("artifact_persist_failed", session_id=session.id, error=str(e))
+                        current_artifact = None
+                        yield _emit(StreamResponse(
+                            type="artifact_end",
+                            done=False,
+                            artifact_id=ident,
+                            version=version,
+                        ))
+
                 with llm_stream_duration_seconds.labels(model=agent.llm_service.get_llm().get_name()).time():
                     async for chunk in agent.get_stream_response(
                         chat_request.messages,
@@ -254,9 +332,12 @@ async def chat_stream(
                         rag_group=chat_request.rag_group,
                         model_name=model_name,
                     ):
-                        full_response += chunk
-                        response = StreamResponse(content=chunk, done=False)
-                        yield f"data: {json.dumps(response.model_dump(), ensure_ascii=False)}\n\n"
+                        for event in parser.feed(chunk):
+                            async for frame in _handle(event):
+                                yield frame
+                    for event in parser.flush():
+                        async for frame in _handle(event):
+                            yield frame
 
                 if chat_request.messages:
                     last_user_msg = chat_request.messages[-1]
@@ -270,6 +351,15 @@ async def chat_stream(
                             full_response,
                             is_deep_thinking=chat_request.is_deep_thinking,
                         )
+
+                        # Link artifacts created during this turn to the saved message.
+                        if created_version_rows:
+                            try:
+                                await database_service.set_versions_message_id(
+                                    created_version_rows, saved_msg.id
+                                )
+                            except Exception as e:
+                                logger.error("artifact_link_failed", session_id=session.id, error=str(e))
 
                         # Persist file attachments linked to the saved message
                         if last_user_msg.files:
@@ -388,6 +478,7 @@ async def clear_chat_history(
         session = await get_owned_chat_session(session_id, user)
         await agent.clear_chat_history(session.id)
         await database_service.delete_chat_messages(session.id)
+        await database_service.delete_session_artifacts(session.id)
         return {"message": "Chat history cleared successfully"}
     except HTTPException:
         raise

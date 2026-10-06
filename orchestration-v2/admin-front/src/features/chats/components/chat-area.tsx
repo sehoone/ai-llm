@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { chatService } from '@/api/chat'
@@ -75,6 +75,7 @@ const formatBytes = (bytes: number) => {
 interface ChatAreaProps {
   messages: Message[]
   isLoading: boolean
+  onOpenArtifact?: (identifier: string) => void
 }
 
 const DeepThinkingAccordion = ({ thoughts, isThinking }: { thoughts: { title: string; content: string }[]; isThinking: boolean }) => {
@@ -140,7 +141,40 @@ const DeepThinkingAccordion = ({ thoughts, isThinking }: { thoughts: { title: st
   );
 };
 
-const AssistantMessage = ({ content }: { content: string }) => {
+const AssistantMessage = ({
+  content,
+  onOpenArtifact,
+}: {
+  content: string
+  onOpenArtifact?: (identifier: string) => void
+}) => {
+  // Preserve the custom `artifact:` scheme — react-markdown's default URL
+  // sanitiser strips unknown schemes, which would disable the chip on reload.
+  const urlTransform = (url: string) =>
+    url.startsWith('artifact:') ? url : defaultUrlTransform(url)
+
+  // Reuse the shared markdown renderer but turn `artifact:<id>` links into
+  // clickable chips that reopen the artifact in the canvas.
+  const components = {
+    ...markdownComponents,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    a: ({ href, children, ...props }: any) => {
+      if (typeof href === 'string' && href.startsWith('artifact:')) {
+        const id = href.slice('artifact:'.length)
+        return (
+          <button
+            type='button'
+            onClick={() => onOpenArtifact?.(id)}
+            className='my-1 inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-1 text-sm font-medium text-foreground transition-colors hover:bg-muted'
+          >
+            {children}
+          </button>
+        )
+      }
+      return markdownComponents.a({ href, children, ...props })
+    },
+  }
+
     // Regex iteration approach for robustness
     const thoughts: { title: string; content: string }[] = [];
     let answer = '';
@@ -192,7 +226,7 @@ const AssistantMessage = ({ content }: { content: string }) => {
 
     // Fallback: If no thoughts and no answer logic triggered, just show content
     if (thoughts.length === 0 && !hasAnswerTag) {
-         return <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{content}</ReactMarkdown>;
+         return <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={urlTransform} components={components}>{content}</ReactMarkdown>;
     }
 
     return (
@@ -205,14 +239,14 @@ const AssistantMessage = ({ content }: { content: string }) => {
             )}
             {(answer || hasAnswerTag) && (
                 <div className='animate-in fade-in duration-700 delay-150'>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{answer}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={urlTransform} components={components}>{answer}</ReactMarkdown>
                 </div>
             )}
         </div>
     );
 }
 
-export const ChatArea = memo(function ChatArea({ messages, isLoading }: ChatAreaProps) {
+export const ChatArea = memo(function ChatArea({ messages, isLoading, onOpenArtifact }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -311,7 +345,7 @@ export const ChatArea = memo(function ChatArea({ messages, isLoading }: ChatArea
                     )}
                   </div>
                 ) : (
-                  <AssistantMessage content={message.content} />
+                  <AssistantMessage content={message.content} onOpenArtifact={onOpenArtifact} />
                 )}
               </div>
               {message.role === 'assistant' && (

@@ -16,7 +16,7 @@ class ChatAttachment(SQLModel, table=True):
     __tablename__ = "chat_attachment"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    message_id: int = Field(foreign_key="chat_message.id", index=True, nullable=False)
+    message_id: int = Field(index=True, nullable=False)
     session_id: str = Field(index=True, nullable=False)
     filename: str = Field(nullable=False)
     content_type: str = Field(nullable=False)

@@ -9,6 +9,7 @@ from src.common.logging import logger
 from src.common.services.db_session import managed_session
 from src.chatbot.models.session_model import Session as ChatSession
 from src.chatbot.models.message_model import ChatMessage
+from src.chatbot.models.attachment_model import ChatAttachment
 from src.user.models.user_model import User
 
 
@@ -70,7 +71,13 @@ class SessionRepositoryMixin:
         return await asyncio.to_thread(_sync)
 
     async def delete_session(self, session_id: str) -> bool:
-        """Delete a chat session and its cascade-deleted messages.
+        """Delete a chat session along with its messages and attachments.
+
+        ``chat_message`` (and its ``chat_attachment`` children) reference
+        ``session`` without ``ON DELETE CASCADE``, so they must be removed
+        explicitly before the session row — otherwise PostgreSQL raises a
+        foreign-key violation. ``artifact`` rows cascade automatically.
+        All deletes run in a single transaction for atomicity.
 
         Args:
             session_id: The session identifier.
@@ -83,6 +90,16 @@ class SessionRepositoryMixin:
                 chat_session = db.get(ChatSession, session_id)
                 if not chat_session:
                     return False
+                attachments = db.exec(
+                    select(ChatAttachment).where(ChatAttachment.session_id == session_id)
+                ).all()
+                for attachment in attachments:
+                    db.delete(attachment)
+                messages = db.exec(
+                    select(ChatMessage).where(ChatMessage.session_id == session_id)
+                ).all()
+                for message in messages:
+                    db.delete(message)
                 db.delete(chat_session)
                 db.commit()
                 logger.info("session_deleted", session_id=session_id)
@@ -151,9 +168,19 @@ class SessionRepositoryMixin:
         return await asyncio.to_thread(_sync)
 
     async def delete_chat_messages(self, session_id: str) -> None:
-        """Delete all chat messages for a session."""
+        """Delete all chat messages (and their attachments) for a session.
+
+        ``chat_attachment`` references ``chat_message`` without
+        ``ON DELETE CASCADE``, so attachments are removed first to avoid
+        orphaned rows.
+        """
         def _sync():
             with managed_session(self.engine) as db:
+                attachments = db.exec(
+                    select(ChatAttachment).where(ChatAttachment.session_id == session_id)
+                ).all()
+                for attachment in attachments:
+                    db.delete(attachment)
                 messages = db.exec(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
                 for msg in messages:
                     db.delete(msg)

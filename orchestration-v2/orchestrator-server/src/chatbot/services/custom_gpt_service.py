@@ -5,6 +5,8 @@ from uuid import uuid4
 from sqlmodel import select, Session
 
 from src.chatbot.models.custom_gpt_model import CustomGPT
+from src.chatbot.models.gpt_session_model import GPTSession
+from src.chatbot.models.gpt_message_model import GPTChatMessage
 from src.chatbot.schemas.custom_gpt_schema import CustomGPTCreate, CustomGPTUpdate
 from src.common.services.database import database_service
 
@@ -109,6 +111,22 @@ class CustomGPTService:
             gpt = result.first()
             if not gpt:
                 return False
+
+            # gpt_session / gpt_chat_message reference custom_gpt without
+            # ON DELETE CASCADE, so child sessions and their messages must be
+            # removed explicitly before the Custom GPT itself.
+            gpt_sessions = session.exec(
+                select(GPTSession).where(GPTSession.custom_gpt_id == gpt_id)
+            ).all()
+            session_ids = [s.id for s in gpt_sessions]
+            if session_ids:
+                messages = session.exec(
+                    select(GPTChatMessage).where(GPTChatMessage.session_id.in_(session_ids))
+                ).all()
+                for msg in messages:
+                    session.delete(msg)
+                for s in gpt_sessions:
+                    session.delete(s)
 
             session.delete(gpt)
             session.commit()

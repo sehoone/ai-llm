@@ -110,6 +110,13 @@ class GPTRepositoryMixin:
                 gpt_session = db.get(GPTSession, session_id)
                 if not gpt_session:
                     return False
+                # gpt_chat_message references gpt_session without ON DELETE CASCADE,
+                # so its messages must be removed explicitly before the session.
+                messages = db.exec(
+                    select(GPTChatMessage).where(GPTChatMessage.session_id == session_id)
+                ).all()
+                for msg in messages:
+                    db.delete(msg)
                 db.delete(gpt_session)
                 db.commit()
                 logger.info("gpt_session_deleted", session_id=session_id)
