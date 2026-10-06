@@ -64,6 +64,8 @@ Active features:
 - `rag-documents/` — Upload and manage documents for RAG knowledge base; includes groups/keys tab for organizing document namespaces
 - `natural-search/` — Natural language search over data sources
 - `evaluation/` — AI voice interview evaluation (Korean-language UI); uses WebSocket + Azure Speech SDK for STT/TTS
+- `meeting-minutes/` — 음성 회의록: 녹음 또는 파일 업로드 → TanStack Query 폴링으로 처리 상태 표시 → 상세 2분할(전사 타임라인 ‖ 회의록 패널, 인라인 편집) + 녹음 재생/다운로드(`audio-player`) + 화자 매핑 + artifact 발행. 목록/상세 라우트: `/meeting-minutes`, `/meeting-minutes/[id]`. API: `src/api/meetings.ts`
+  - **전역 녹음**: 녹음 상태는 모듈 싱글톤 Zustand 스토어 `src/stores/recorder-store.ts`에 보관되어 **라우트 이동/다이얼로그 닫힘에도 녹음 유지**. `authenticated-layout`에 상시 마운트된 `RecordingBar`(플로팅 제어 바)와 `SaveRecordingDialog`(어느 페이지서든 저장)로 제어. 녹음 중 `beforeunload` 경고, 청크를 IndexedDB(`src/lib/recorder-idb.ts`)에 저장해 새로고침/크래시 시 `recover()`로 복구.
 - `llm-resources/` — Configure LLM provider endpoints (failover/fallback)
 - `api-keys/` — Manage authentication keys
 - `users/` — User management table with CRUD

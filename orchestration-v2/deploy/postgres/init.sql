@@ -423,6 +423,55 @@ CREATE TABLE IF NOT EXISTS llmonl.artifact_data (
 );
 
 -- ─────────────────────────────────────────────────────────────
+-- 회의록 (음성 업로드 → 전사/화자분리 → AI 회의록)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.meeting (
+    id                     VARCHAR      PRIMARY KEY,
+    user_id                INT          NOT NULL,
+    title                  VARCHAR      NOT NULL DEFAULT '',
+    status                 VARCHAR      NOT NULL DEFAULT 'UPLOADED',
+    audio_object_key       VARCHAR      NOT NULL,
+    audio_filename         VARCHAR      NOT NULL DEFAULT '',
+    audio_duration_sec     INT,
+    language               VARCHAR      NOT NULL DEFAULT 'ko-KR',
+    transcription_provider VARCHAR,
+    artifact_id            VARCHAR,
+    public_token           VARCHAR,
+    error_message          VARCHAR,
+    created_at             TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_user_id      ON llmonl.meeting (user_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_status       ON llmonl.meeting (status);
+CREATE INDEX IF NOT EXISTS idx_meeting_artifact_id  ON llmonl.meeting (artifact_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_public_token ON llmonl.meeting (public_token);
+
+-- 전사 세그먼트 (화자별 발화)
+CREATE TABLE IF NOT EXISTS llmonl.meeting_segment (
+    id            BIGSERIAL PRIMARY KEY,
+    meeting_id    VARCHAR   NOT NULL,
+    seq           INT       NOT NULL,
+    speaker_label VARCHAR   NOT NULL DEFAULT 'Speaker 1',
+    speaker_name  VARCHAR,
+    start_ms      INT       NOT NULL DEFAULT 0,
+    end_ms        INT       NOT NULL DEFAULT 0,
+    text          TEXT      NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_segment_meeting_id ON llmonl.meeting_segment (meeting_id);
+
+-- 생성된 구조화 회의록 (재생성 시 버전 증가)
+CREATE TABLE IF NOT EXISTS llmonl.meeting_minutes (
+    id           BIGSERIAL PRIMARY KEY,
+    meeting_id   VARCHAR   NOT NULL,
+    summary      TEXT      NOT NULL DEFAULT '',
+    content_json TEXT      NOT NULL DEFAULT '{}',
+    model_used   VARCHAR   NOT NULL DEFAULT '',
+    version      INT       NOT NULL DEFAULT 1,
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting_id ON llmonl.meeting_minutes (meeting_id);
+
+-- ─────────────────────────────────────────────────────────────
 -- LangGraph PostgreSQL 체크포인터 테이블
 -- (AsyncPostgresSaver가 search_path=llmonl,public으로 연결하므로
 --  setup() 없이 사용하려면 여기서 미리 생성해야 함)

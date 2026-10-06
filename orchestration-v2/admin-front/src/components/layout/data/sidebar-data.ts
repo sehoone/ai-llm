@@ -6,6 +6,7 @@ import {
   Search,
   Settings,
   FileText,
+  Mic,
   Zap,
   // AudioWaveform,
   Command,
@@ -104,6 +105,11 @@ export const sidebarData: SidebarData = {
               title: 'AI Overview Data',
               url: '/ai-overview-data',
               icon: Database,
+            },
+            {
+              title: 'Meeting',
+              url: '/meeting-minutes',
+              icon: Mic,
             },
           ]
         },

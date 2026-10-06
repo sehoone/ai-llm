@@ -31,6 +31,7 @@ from src.common.middleware import (
     RequestIDMiddleware,
 )
 from src.common.services.database import database_service
+from src.meeting_minutes.services.meeting_service import meeting_service
 from src.workflow.services.scheduler import workflow_scheduler
 
 # Suppress LiteLLM internal debug/verbose output
@@ -58,6 +59,13 @@ async def lifespan(app: FastAPI):
         logger.error("startup_aborted_db_unreachable")
         raise RuntimeError("Database is not reachable at startup")
     await agent.create_graph()
+    # Recover meetings orphaned by a restart mid-processing (BackgroundTask lost).
+    try:
+        stuck = await meeting_service.fail_stuck_meetings()
+        if stuck:
+            logger.warning("meeting_stuck_recovered", count=stuck)
+    except Exception as e:
+        logger.error("meeting_stuck_recovery_failed", error=str(e))
     workflow_scheduler.start()
     yield
     try:

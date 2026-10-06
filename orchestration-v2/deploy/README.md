@@ -35,7 +35,7 @@ orchestration/
 | nginx | nginx:alpine | `8060` | 프론트엔드 / API 단일 진입점 |
 | llm-admin | (빌드) | - | Next.js 프론트엔드 (`admin-front/`) |
 | platform | (빌드) | - | Spring Boot 백엔드 — 인증·사용자·API 키·LLM 리소스 (`platform-server/`) |
-| app | (빌드) | - | FastAPI 백엔드 — 채팅·RAG·워크플로우 (`orchestrator-server/`) |
+| app | (빌드) | - | FastAPI 백엔드 — 채팅·RAG·워크플로우·음성 회의록 (`orchestrator-server/`) |
 | db | pgvector/pgvector:pg16 | `8066` | PostgreSQL + pgvector |
 | langfuse | langfuse/langfuse:3 | `8067` | LLM 추적/관찰 UI |
 | langfuse-worker | langfuse/langfuse-worker:3 | - | Langfuse trace 처리 워커 (Redis → ClickHouse) |
@@ -203,7 +203,10 @@ docker exec minio mc alias set local http://localhost:9000 minio miniosecret
 docker exec minio mc mb local/langfuse-events
 docker exec minio mc mb local/langfuse-media
 docker exec minio mc mb local/langfuse-exports
+docker exec minio mc mb local/meeting-recordings   # 회의록 오디오 (app이 자동 생성하므로 선택)
 ```
+
+> 회의록 오디오는 `app` 서비스가 MinIO(`meeting-recordings` 버킷)에 저장합니다(docker-compose의 `MEETING_S3_*` env). 버킷은 app이 자동 생성하므로 위 명령은 선택 사항입니다.
 
 > 재배포(코드 변경) 시에는 볼륨이 유지되므로 이 단계를 건너뜁니다.
 
@@ -350,6 +353,42 @@ EOF
 ```bash
 docker compose restart app
 ```
+
+### 회의록 기능 테이블 없음 (`relation "meeting" does not exist`)
+
+`deploy/postgres/init.sql`에 회의록 테이블(`meeting`, `meeting_segment`, `meeting_minutes`)이 포함되어 있습니다.
+DB 볼륨이 해당 DDL 추가 이전에 생성된 경우 테이블이 없으므로 수동 생성합니다.
+
+```bash
+docker exec -i db psql -U postgres -d mydb << 'EOF'
+CREATE TABLE IF NOT EXISTS llmonl.meeting (
+    id VARCHAR PRIMARY KEY, user_id INT NOT NULL, title VARCHAR NOT NULL DEFAULT '',
+    status VARCHAR NOT NULL DEFAULT 'UPLOADED', audio_object_key VARCHAR NOT NULL,
+    audio_filename VARCHAR NOT NULL DEFAULT '', audio_duration_sec INT,
+    language VARCHAR NOT NULL DEFAULT 'ko-KR', transcription_provider VARCHAR,
+    artifact_id VARCHAR, public_token VARCHAR, error_message VARCHAR,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_user_id ON llmonl.meeting (user_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_status ON llmonl.meeting (status);
+CREATE TABLE IF NOT EXISTS llmonl.meeting_segment (
+    id BIGSERIAL PRIMARY KEY, meeting_id VARCHAR NOT NULL, seq INT NOT NULL,
+    speaker_label VARCHAR NOT NULL DEFAULT 'Speaker 1', speaker_name VARCHAR,
+    start_ms INT NOT NULL DEFAULT 0, end_ms INT NOT NULL DEFAULT 0, text TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_segment_meeting_id ON llmonl.meeting_segment (meeting_id);
+CREATE TABLE IF NOT EXISTS llmonl.meeting_minutes (
+    id BIGSERIAL PRIMARY KEY, meeting_id VARCHAR NOT NULL, summary TEXT NOT NULL DEFAULT '',
+    content_json TEXT NOT NULL DEFAULT '{}', model_used VARCHAR NOT NULL DEFAULT '',
+    version INT NOT NULL DEFAULT 1, created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting_id ON llmonl.meeting_minutes (meeting_id);
+EOF
+```
+
+> 회의록은 `업로드→전사→요약`이 자동 진행되며, 상태가 `COMPLETED`가 되어야 UI 상세 우측에 회의록이 표시됩니다.
+> 전사용 `OPENAI_API_KEY`(Whisper)가 유효하지 않으면 오디오 저장은 되지만 상태가 `SAVED`에서 멈춥니다.
+> 화자분리는 `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION` 설정 시 활성화(미설정 시 Whisper 단일 화자).
 
 ### DB 연결 실패
 

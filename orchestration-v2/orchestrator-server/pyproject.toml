@@ -47,6 +47,7 @@ dependencies = [
     "croniter>=2.0.0",
     "litellm>=1.56.0",
     "httpx>=0.28.1",
+    "boto3>=1.43.108",
 ]
 
 [project.optional-dependencies]

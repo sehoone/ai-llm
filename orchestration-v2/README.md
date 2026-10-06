@@ -1,12 +1,12 @@
 # LLM Orchestration Platform
 
-LangGraph 기반 LLM 오케스트레이션 플랫폼. RAG, AI 에이전트, 워크플로우 엔진, 음성 평가를 하나의 스택으로 제공합니다.
+LangGraph 기반 LLM 오케스트레이션 플랫폼. RAG, AI 에이전트, 워크플로우 엔진, 음성 평가, 음성 회의록(녹음→전사→AI 요약)을 하나의 스택으로 제공합니다.
 
 ## 서비스 구성
 
 | 서비스 | 스택 | 역할 |
 |--------|------|------|
-| `orchestrator-server/` | Python 3.13, FastAPI, LangGraph | LLM 채팅·RAG·워크플로우·음성 평가 |
+| `orchestrator-server/` | Python 3.13, FastAPI, LangGraph | LLM 채팅·RAG·워크플로우·음성 평가·음성 회의록 |
 | `platform-server/` | Java 21, Spring Boot 3.4 | 인증·사용자·API 키·LLM 리소스 관리 |
 | `admin-front/` | Next.js 16, TypeScript, pnpm | 관리자 대시보드 |
 | `deploy/` | Docker Compose, Nginx | 프로덕션 배포 |
@@ -33,7 +33,8 @@ Browser / API Client
         │                                    ├── /api/v1/agents      AI 에이전트
         │                                    ├── /api/v1/rag         RAG 파이프라인
         │                                    ├── /api/v1/workflows   DAG 워크플로우
-        │                                    └── /api/v1/voice-evaluation 음성 평가
+        │                                    ├── /api/v1/voice-evaluation 음성 평가
+        │                                    └── /api/v1/meetings    음성 회의록 (업로드→전사→AI 요약)
         │
         └── /*                          → admin-front:3000 (Next.js)
 
@@ -43,7 +44,8 @@ JWT 흐름
 
 PostgreSQL + pgvector  (schema: llmonl)
   ├── platform-server: users, api_key, refresh_token, llm_resource
-  └── orchestrator-server: session, gpt_chat_message, rag_embedding, workflow, ...  (SQLModel 자동 생성)
+  └── orchestrator-server: session, gpt_chat_message, rag_embedding, workflow,
+                           meeting, meeting_segment, meeting_minutes, ...  (deploy/postgres/init.sql DDL)
 
 Observability
   ├── Prometheus  :8063  ← FastAPI /metrics + cAdvisor
@@ -185,6 +187,7 @@ docker exec minio mc alias set local http://localhost:9000 minio miniosecret
 docker exec minio mc mb local/langfuse-events
 docker exec minio mc mb local/langfuse-media
 docker exec minio mc mb local/langfuse-exports
+docker exec minio mc mb local/meeting-recordings   # 회의록 오디오 (app이 없으면 자동 생성)
 ```
 
 ### 4단계 — Langfuse 초기 설정
@@ -251,6 +254,50 @@ cd deploy && docker compose ps
 | WebSocket 연결 실패 | `NEXT_PUBLIC_WS_URL` 포트가 Nginx 포트(8060)와 일치해야 함 |
 | Langfuse 시작 안 됨 | ClickHouse·Redis·MinIO가 모두 healthy인지 확인 → MinIO 버킷 초기화 필요할 수 있음 |
 | Next.js 빌드 실패 | `admin-front/.env.production` 파일이 빌드 전 존재해야 함 |
+| 회의록이 `SAVED(저장됨)`에서 멈춤 | STT(전사)가 결과를 못 냄 — `OPENAI_API_KEY`(Whisper용) 유효 여부 확인. 오디오 저장은 성공한 상태 |
+| 회의록(요약)이 안 보임 | 상태가 `COMPLETED`일 때만 상세 우측 패널에 표시됨. 전사 성공이 선행되어야 함 |
+| 화자분리가 단일 화자(Speaker 1) | `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION` 미설정 시 Whisper로 폴백(화자분리 없음) |
+
+---
+
+## 음성 회의록 (Meeting Minutes)
+
+회의 녹음을 업로드하면 전사(화자분리) → AI 요약을 거쳐 구조화된 회의록을 생성합니다. UI는 관리자 대시보드의 **DataSource → Meeting** 메뉴(`/meeting-minutes`).
+
+**처리 흐름** (업로드 후 백그라운드 처리, 프론트는 상태 폴링):
+```
+업로드 → UPLOADED → TRANSCRIBING → TRANSCRIBED → SUMMARIZING → COMPLETED
+                                                              ↘ SAVED  (전사 불가 시: 오디오 저장은 성공)
+                                                              ↘ FAILED (예외)
+```
+
+- **입력**: 브라우저 녹음(MediaRecorder) 또는 오디오 파일 업로드(mp3/m4a/wav/webm/ogg…). 녹음은 보안 컨텍스트(HTTPS 또는 `localhost`)에서만 가능.
+- **전사/화자분리**: Azure Fast Transcription(화자분리+타임스탬프) 우선, 미설정/실패 시 OpenAI Whisper 폴백(단일 화자).
+- **요약**: LLM으로 구조화 회의록(참석자·안건·논의·결정사항·액션아이템·요약·다음단계) 생성. 긴 전사는 **map-reduce**로 분할 요약 후 통합.
+- **상세 화면**: 좌측 전사 타임라인 ‖ 우측 회의록 패널(**편집** 가능). 상단에 **녹음 재생/다운로드** 플레이어. **공유** 시 artifact로 발행되어 공개 링크 제공.
+
+**주요 엔드포인트** (`/api/v1/meetings`): `POST` 업로드 · `GET` 목록/상세 · `GET /{id}/transcript` · `GET /{id}/audio`(재생·`?download=true` 다운로드) · `PATCH /{id}/speakers`(화자 매핑) · `PATCH /{id}/minutes`(편집) · `POST /{id}/regenerate` · `POST /{id}/publish` · `DELETE /{id}`.
+
+**설정** (`orchestrator-server/.env.*`):
+```env
+# 화자분리를 쓰려면 Azure 설정 (없으면 Whisper 폴백)
+AZURE_SPEECH_KEY=
+AZURE_SPEECH_REGION=
+# 오디오 저장: MinIO/S3 (배포 시 docker-compose의 app 서비스에 기본 주입됨)
+#   MEETING_S3_ENDPOINT=http://minio:9000 / ACCESS_KEY=minio / SECRET_KEY=miniosecret
+#   MEETING_S3_BUCKET=meeting-recordings / REGION=us-east-1
+#   → 미설정 시 로컬 파일시스템(MEETING_AUDIO_DIR, 단일 노드 개발용) 폴백
+# 선택 (기본값 존재)
+MEETING_AUDIO_DIR=uploads/meetings          # S3 미설정 시 로컬 폴백 경로
+MEETING_MAX_AUDIO_MB=500
+MEETING_DEFAULT_LOCALE=ko-KR
+MEETING_SUMMARY_MODEL=gpt-5-mini
+MEETING_MAX_SPEAKERS=10
+MEETING_MAP_REDUCE_CHAR_THRESHOLD=12000     # 초과 시 map-reduce 요약
+MEETING_CHUNK_CHAR_SIZE=8000
+```
+
+> 테이블(`meeting`, `meeting_segment`, `meeting_minutes`)은 `deploy/postgres/init.sql`에 정의되어 있으며 Postgres 볼륨 최초 생성 시 생성됩니다. 이미 떠 있는 DB에는 해당 DDL을 수동 적용해야 합니다.
 
 ---
 

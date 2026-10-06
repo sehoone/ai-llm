@@ -161,6 +161,24 @@ class Settings:
         self.AZURE_SPEECH_KEY: str = os.getenv("AZURE_SPEECH_KEY", "")
         self.AZURE_SPEECH_REGION: str = os.getenv("AZURE_SPEECH_REGION", "")
 
+        # Meeting minutes
+        # Audio storage: MinIO/S3 when MEETING_S3_ENDPOINT is set, else local filesystem.
+        self.MEETING_S3_ENDPOINT: str = os.getenv("MEETING_S3_ENDPOINT", "")  # e.g. http://minio:9000
+        self.MEETING_S3_ACCESS_KEY: str = os.getenv("MEETING_S3_ACCESS_KEY", "")
+        self.MEETING_S3_SECRET_KEY: str = os.getenv("MEETING_S3_SECRET_KEY", "")
+        self.MEETING_S3_BUCKET: str = os.getenv("MEETING_S3_BUCKET", "meeting-recordings")
+        self.MEETING_S3_REGION: str = os.getenv("MEETING_S3_REGION", "us-east-1")
+        self.MEETING_AUDIO_DIR: str = os.getenv("MEETING_AUDIO_DIR", "uploads/meetings")
+        self.MEETING_MAX_AUDIO_MB: int = int(os.getenv("MEETING_MAX_AUDIO_MB", "500"))
+        self.MEETING_DEFAULT_LOCALE: str = os.getenv("MEETING_DEFAULT_LOCALE", "ko-KR")
+        self.MEETING_SUMMARY_MODEL: str = os.getenv("MEETING_SUMMARY_MODEL", "gpt-5-mini")
+        self.MEETING_MAX_SPEAKERS: int = int(os.getenv("MEETING_MAX_SPEAKERS", "10"))
+        # map-reduce summarization for long transcripts (character-based heuristics)
+        self.MEETING_MAP_REDUCE_CHAR_THRESHOLD: int = int(
+            os.getenv("MEETING_MAP_REDUCE_CHAR_THRESHOLD", "12000")
+        )
+        self.MEETING_CHUNK_CHAR_SIZE: int = int(os.getenv("MEETING_CHUNK_CHAR_SIZE", "8000"))
+
         # Embedding
         self.DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "text-embedding-3-small")
 
