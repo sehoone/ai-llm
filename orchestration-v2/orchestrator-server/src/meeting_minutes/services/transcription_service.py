@@ -7,6 +7,7 @@ when Azure is not configured or fails. This mirrors the Azure-primary /
 Whisper-fallback philosophy already used by ``voice_evaluation.AudioService``.
 """
 
+import asyncio
 import io
 import json
 from typing import Dict, List, Optional
@@ -67,8 +68,13 @@ class TranscriptionService:
             "diarization": {"maxSpeakers": max(2, max_speakers), "enabled": True},
         }
 
-        with open(audio_path, "rb") as f:
-            audio_bytes = f.read()
+        def _read_bytes() -> bytes:
+            with open(audio_path, "rb") as f:
+                return f.read()
+
+        # Offload the blocking file read so the event loop is not stalled on
+        # large uploads (audio can be hundreds of MB).
+        audio_bytes = await asyncio.to_thread(_read_bytes)
 
         files = {
             "audio": (audio_path.rsplit("/", 1)[-1], audio_bytes, "application/octet-stream"),
@@ -124,19 +130,24 @@ class TranscriptionService:
             logger.error("whisper_unavailable_no_openai_key")
             return {"provider": "whisper", "segments": [], "duration_sec": None}
 
-        try:
+        # Whisper language codes are 2-letter (e.g. "ko"), not locales ("ko-KR").
+        lang2 = (language or "ko").split("-")[0]
+
+        def _call_whisper():
             with open(audio_path, "rb") as f:
-                audio_bytes = f.read()
-            buf = io.BytesIO(audio_bytes)
+                buf = io.BytesIO(f.read())
             buf.name = filename or "audio.webm"
-            # Whisper language codes are 2-letter (e.g. "ko"), not locales ("ko-KR").
-            lang2 = (language or "ko").split("-")[0]
-            transcript = self._openai.audio.transcriptions.create(
+            return self._openai.audio.transcriptions.create(
                 model=settings.OPENAI_STT_MODEL,
                 file=buf,
                 language=lang2,
                 response_format="verbose_json",
             )
+
+        try:
+            # The OpenAI SDK client is synchronous; offload the file read + API
+            # call so the blocking work does not stall the event loop.
+            transcript = await asyncio.to_thread(_call_whisper)
             text = (getattr(transcript, "text", "") or "").strip()
             duration = getattr(transcript, "duration", None)
             segments: List[Dict] = []
