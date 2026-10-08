@@ -3,8 +3,9 @@
 import asyncio
 from typing import Dict, List, Optional
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
+from src.common.services.db_session import managed_session
 from src.chatbot.models.attachment_model import ChatAttachment
 
 
@@ -24,7 +25,7 @@ class AttachmentRepositoryMixin:
         storage_path: str,
     ) -> ChatAttachment:
         def _sync() -> ChatAttachment:
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 attachment = ChatAttachment(
                     message_id=message_id,
                     session_id=session_id,
@@ -42,7 +43,7 @@ class AttachmentRepositoryMixin:
 
     async def get_attachment(self, attachment_id: int) -> Optional[ChatAttachment]:
         def _sync() -> Optional[ChatAttachment]:
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.get(ChatAttachment, attachment_id)
 
         return await asyncio.to_thread(_sync)
@@ -53,7 +54,7 @@ class AttachmentRepositoryMixin:
         Returns a dict keyed by message_id to avoid N+1 queries.
         """
         def _sync() -> Dict[int, List[ChatAttachment]]:
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 statement = (
                     select(ChatAttachment)
                     .where(ChatAttachment.message_id.in_(message_ids))
@@ -69,7 +70,7 @@ class AttachmentRepositoryMixin:
 
     async def delete_attachment(self, attachment_id: int) -> bool:
         def _sync() -> bool:
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 attachment = db.get(ChatAttachment, attachment_id)
                 if not attachment:
                     return False
