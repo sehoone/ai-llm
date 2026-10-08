@@ -3,9 +3,10 @@
 import asyncio
 from typing import List, Optional
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
 from src.common.logging import logger
+from src.common.services.db_session import managed_session
 from src.chatbot.models.gpt_session_model import GPTSession
 from src.chatbot.models.gpt_message_model import GPTChatMessage
 
@@ -30,7 +31,7 @@ class GPTRepositoryMixin:
             GPTSession: The newly created session record.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 gpt_session = GPTSession(id=session_id, user_id=user_id, custom_gpt_id=custom_gpt_id, name=name)
                 db.add(gpt_session)
                 db.commit()
@@ -49,7 +50,7 @@ class GPTRepositoryMixin:
             Optional[GPTSession]: The session record, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.get(GPTSession, session_id)
         return await asyncio.to_thread(_sync)
 
@@ -64,7 +65,7 @@ class GPTRepositoryMixin:
             List[GPTSession]: Sessions ordered by most recent first.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 statement = (
                     select(GPTSession)
                     .where(GPTSession.user_id == user_id, GPTSession.custom_gpt_id == custom_gpt_id)
@@ -84,7 +85,7 @@ class GPTRepositoryMixin:
             Optional[GPTSession]: The updated session, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 gpt_session = db.get(GPTSession, session_id)
                 if not gpt_session:
                     return None
@@ -106,7 +107,7 @@ class GPTRepositoryMixin:
             bool: True if deleted, False if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 gpt_session = db.get(GPTSession, session_id)
                 if not gpt_session:
                     return False
@@ -135,7 +136,7 @@ class GPTRepositoryMixin:
             GPTChatMessage: The saved message record.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 message = GPTChatMessage(session_id=session_id, question=question, answer=answer)
                 db.add(message)
                 db.commit()
@@ -153,7 +154,7 @@ class GPTRepositoryMixin:
             List[GPTChatMessage]: Messages ordered by creation time.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 statement = (
                     select(GPTChatMessage)
                     .where(GPTChatMessage.session_id == session_id)
@@ -169,7 +170,7 @@ class GPTRepositoryMixin:
             session_id: The GPT session identifier.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 messages = db.exec(select(GPTChatMessage).where(GPTChatMessage.session_id == session_id)).all()
                 for msg in messages:
                     db.delete(msg)

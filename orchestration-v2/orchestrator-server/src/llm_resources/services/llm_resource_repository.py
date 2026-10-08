@@ -3,8 +3,9 @@
 import asyncio
 from typing import List, Optional
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
+from src.common.services.db_session import managed_session
 from src.llm_resources.models.llm_resource_model import LLMResource
 from src.llm_resources.schemas.llm_resource_schemas import LLMResourceCreate, LLMResourceUpdate
 
@@ -23,7 +24,7 @@ class LLMResourceRepositoryMixin:
             List[LLMResource]: All resource configurations.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.exec(select(LLMResource).order_by(LLMResource.priority.desc())).all()
         return await asyncio.to_thread(_sync)
 
@@ -34,7 +35,7 @@ class LLMResourceRepositoryMixin:
             List[LLMResource]: Embedding resource configurations.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 stmt = (
                     select(LLMResource)
                     .where(LLMResource.resource_type == "embedding")
@@ -54,7 +55,7 @@ class LLMResourceRepositoryMixin:
             Optional[LLMResource]: The resource, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.get(LLMResource, id)
         return await asyncio.to_thread(_sync)
 
@@ -68,7 +69,7 @@ class LLMResourceRepositoryMixin:
             LLMResource: The newly created resource record.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 db_resource = LLMResource.model_validate(resource)
                 db.add(db_resource)
                 db.commit()
@@ -87,7 +88,7 @@ class LLMResourceRepositoryMixin:
             Optional[LLMResource]: The updated record, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 db_resource = db.get(LLMResource, id)
                 if not db_resource:
                     return None
@@ -108,7 +109,7 @@ class LLMResourceRepositoryMixin:
             bool: True if deleted, False if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 resource = db.get(LLMResource, id)
                 if not resource:
                     return False

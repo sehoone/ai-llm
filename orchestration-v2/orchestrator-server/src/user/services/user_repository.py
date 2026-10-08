@@ -3,9 +3,10 @@
 import asyncio
 from typing import List, Optional
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
 from src.common.logging import logger
+from src.common.services.db_session import managed_session
 from src.user.models.user_model import User
 
 
@@ -30,7 +31,7 @@ class UserRepositoryMixin:
             User: The newly created user record.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 user = User(email=email, hashed_password=password, username=username, role=role, status=status)
                 db.add(user)
                 db.commit()
@@ -49,7 +50,7 @@ class UserRepositoryMixin:
             Optional[User]: The user record, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.get(User, user_id)
         return await asyncio.to_thread(_sync)
 
@@ -63,7 +64,7 @@ class UserRepositoryMixin:
             Optional[User]: The matching user, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.exec(select(User).where(User.email == email)).first()
         return await asyncio.to_thread(_sync)
 
@@ -78,7 +79,7 @@ class UserRepositoryMixin:
             List[User]: Paginated user records.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 return db.exec(select(User).offset(skip).limit(limit)).all()
         return await asyncio.to_thread(_sync)
 
@@ -95,7 +96,7 @@ class UserRepositoryMixin:
             Optional[User]: The updated user record, or None if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 user = db.get(User, user_id)
                 if not user:
                     return None
@@ -118,7 +119,7 @@ class UserRepositoryMixin:
             bool: True if deleted, False if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 user = db.get(User, user_id)
                 if not user:
                     return False
@@ -137,7 +138,7 @@ class UserRepositoryMixin:
             bool: True if deleted, False if not found.
         """
         def _sync():
-            with Session(self.engine) as db:
+            with managed_session(self.engine) as db:
                 user = db.exec(select(User).where(User.email == email)).first()
                 if not user:
                     return False
