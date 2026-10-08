@@ -140,6 +140,18 @@ class ArtifactStreamParser:
 
         open_tag = self._buffer[: gt + 1]
         attrs = dict(_ATTR_RE.findall(open_tag))
+
+        # Guard against false positives. The model is instructed to always emit
+        # both an `identifier` and a `type`. A "<artifact…>" run carrying neither
+        # (the word "<artifacts>" in prose, or the model describing the artifact
+        # syntax itself) is NOT a real opening tag — emit it as plain content and
+        # keep scanning, rather than swallowing the rest of the reply as an
+        # unterminated artifact.
+        if not attrs.get("identifier") and not attrs.get("type"):
+            yield ParserEvent(EventType.CONTENT, text=open_tag)
+            self._buffer = self._buffer[gt + 1:]
+            return
+
         self._buffer = self._buffer[gt + 1:]
         self._state = _State.INSIDE
         yield ParserEvent(
