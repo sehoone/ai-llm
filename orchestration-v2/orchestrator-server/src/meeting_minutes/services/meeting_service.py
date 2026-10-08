@@ -386,7 +386,7 @@ class MeetingService:
             session_id=session_id,
             user_id=meeting.user_id,
             identifier=f"minutes-{meeting.id}",
-            artifact_type="markdown",
+            artifact_type="text/markdown",
             title=meeting.title or "회의록",
             content=markdown,
         )
