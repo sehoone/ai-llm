@@ -373,8 +373,10 @@ class MeetingService:
             content = {"summary": latest.summary}
 
         markdown = minutes_service.to_markdown(meeting.title, content)
-        # artifact.session_id has a FK to the session table — ensure a backing
-        # session row exists for this meeting before creating the artifact.
+        # Create a backing session row for this meeting so the published artifact
+        # is addressable through the normal session-scoped artifact APIs (list /
+        # library), consistent with chat-originated artifacts which always have a
+        # real session. No DB-level FK enforces this — it is kept for consistency.
         session_id = f"meeting:{meeting.id}"
         if await database_service.get_session(session_id) is None:
             await database_service.create_session(
