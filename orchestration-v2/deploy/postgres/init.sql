@@ -383,6 +383,10 @@ CREATE INDEX IF NOT EXISTS idx_ai_overview_keyword_trgm
 -- ─────────────────────────────────────────────────────────────
 -- 아티펙트 (세션별 버전 관리되는 샌드박스 산출물)
 -- ─────────────────────────────────────────────────────────────
+-- NOTE: artifact.session_id / artifact_version.artifact_id / artifact_data.artifact_id
+--       는 의도적으로 FK를 설정하지 않는다. 연쇄 삭제(고아 정리)는 애플리케이션이 담당:
+--       세션 삭제 → delete_session_artifacts(), 아티펙트 삭제 → delete_artifact()가
+--       version/data 자식 행을 명시적으로 지운다. (schema.sql과 동일)
 
 -- 논리 아티펙트 (버전 묶음의 안정 식별자)
 CREATE TABLE IF NOT EXISTS llmonl.artifact (
@@ -425,6 +429,9 @@ CREATE TABLE IF NOT EXISTS llmonl.artifact_data (
 -- ─────────────────────────────────────────────────────────────
 -- 회의록 (음성 업로드 → 전사/화자분리 → AI 회의록)
 -- ─────────────────────────────────────────────────────────────
+-- NOTE: meeting_segment.meeting_id / meeting_minutes.meeting_id 및 meeting.artifact_id
+--       역시 의도적으로 FK 미설정. 회의 삭제 시 MeetingService.delete_meeting()이
+--       segment/minutes 자식 행과 발행 아티팩트(delete_artifact)·백킹 세션을 직접 정리한다.
 CREATE TABLE IF NOT EXISTS llmonl.meeting (
     id                     VARCHAR      PRIMARY KEY,
     user_id                INT          NOT NULL,

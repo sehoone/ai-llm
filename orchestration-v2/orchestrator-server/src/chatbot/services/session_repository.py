@@ -76,8 +76,10 @@ class SessionRepositoryMixin:
         ``chat_message`` (and its ``chat_attachment`` children) reference
         ``session`` without ``ON DELETE CASCADE``, so they must be removed
         explicitly before the session row — otherwise PostgreSQL raises a
-        foreign-key violation. ``artifact`` rows cascade automatically.
-        All deletes run in a single transaction for atomicity.
+        foreign-key violation. All deletes run in a single transaction for
+        atomicity. Artifacts are NOT touched here (no FK / cascade exists on
+        ``artifact.session_id``); the caller must delete them separately via
+        ``delete_session_artifacts``.
 
         Args:
             session_id: The session identifier.

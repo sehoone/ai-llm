@@ -130,6 +130,12 @@ CREATE TABLE chat_attachment (
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_message_id ON chat_attachment(message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_session_id ON chat_attachment(session_id);
 
+-- NOTE: artifact.session_id / artifact_version.artifact_id / artifact_data.artifact_id
+--       carry NO foreign key by design. Cascade cleanup is application-managed:
+--       session delete → delete_session_artifacts(); artifact delete → delete_artifact()
+--       removes the version/data child rows explicitly. Keep this in sync with
+--       deploy/postgres/init.sql.
+
 -- Artifact: a logical artifact (stable identity across versions)
 CREATE TABLE IF NOT EXISTS artifact (
     id              TEXT         PRIMARY KEY,
@@ -167,6 +173,11 @@ CREATE TABLE IF NOT EXISTS artifact_data (
     data        TEXT      NOT NULL DEFAULT '{}',
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- NOTE: meeting_segment.meeting_id / meeting_minutes.meeting_id and meeting.artifact_id
+--       also carry NO foreign key by design. MeetingService.delete_meeting() removes the
+--       segment/minutes child rows and the published artifact (delete_artifact) + backing
+--       session explicitly.
 
 -- Meeting: a recorded meeting and its processing lifecycle
 CREATE TABLE IF NOT EXISTS meeting (
