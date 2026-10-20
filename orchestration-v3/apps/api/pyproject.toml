@@ -1,0 +1,69 @@
+[project]
+name = "orchestration-v3-api"
+version = "0.1.0"
+description = "V3 단일 Python 백엔드 (FastAPI) — LLM + 플랫폼 도메인"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+    "sqlmodel>=0.0.22",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "httpx>=0.27",
+    "pyjwt[crypto]>=2.9",       # 사내 IdP OIDC 토큰 검증 (JWKS)
+    "langchain>=0.3",
+    "langgraph>=0.2",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "pytest>=8.3",
+    "poethepoet>=0.30",
+    "import-linter>=2.1",       # 레이어 경계 강제 (ADR-0005)
+]
+
+[tool.poe.tasks]
+dev = "uvicorn src.main:app --reload --host 0.0.0.0 --port 8000"
+format = "ruff format ."
+test = "pytest"
+
+[tool.poe.tasks.lint]
+# ruff + 레이어 경계(import-linter) 순차 실행
+sequence = ["ruff check .", "lint-imports"]
+default_item_type = "cmd"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+# ── 레이어 경계 계약 (ADR-0005) — `lint-imports`로 검사 ──
+[tool.importlinter]
+root_package = "src"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "단방향 레이어: domains → engine → core"
+type = "layers"
+layers = [
+    "src.domains",
+    "src.engine",
+    "src.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "engine은 HTTP를 모른다 (FastAPI 비의존)"
+type = "forbidden"
+source_modules = ["src.engine"]
+forbidden_modules = ["fastapi", "starlette"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

@@ -1,0 +1,65 @@
+[project]
+name = "mcp-server-template"
+version = "0.1.0"
+description = "orchestration-v3 MCP 서버 템플릿 — 외부 시스템 연동 (복제형 스타터)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp==3.3.1",
+    "uvicorn[standard]>=0.32",
+    "httpx>=0.27",
+    "pydantic-settings>=2.6",
+    "pyjwt[crypto]>=2.9",          # 사내 IdP OIDC 토큰 검증 (JWKS) — ADR-0003
+    "sqlalchemy[asyncio]>=2.0.43",
+    "psycopg[binary]>=3.2",        # V3 공통 드라이버 (async 지원)
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "poethepoet>=0.30",
+    "import-linter>=2.1",          # 레이어 경계 강제
+]
+
+[tool.poe.tasks]
+dev = "uvicorn src.asgi:app --reload --host 0.0.0.0 --port 8000"
+format = "ruff format ."
+test = "pytest"
+
+[tool.poe.tasks.lint]
+# ruff + 레이어 경계(import-linter) 순차 실행
+sequence = ["ruff check .", "lint-imports"]
+default_item_type = "cmd"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+# ── 레이어 경계 계약 — `lint-imports`로 검사 ──
+# domains 는 core 를 쓰지만, core 는 domains 를 import 하면 안 된다(단방향).
+[tool.importlinter]
+root_package = "src"
+
+[[tool.importlinter.contracts]]
+name = "단방향 레이어: domains → core"
+type = "layers"
+layers = [
+    "src.domains",
+    "src.core",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
