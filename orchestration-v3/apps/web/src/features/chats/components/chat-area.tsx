@@ -1,0 +1,374 @@
+import { memo, useEffect, useRef, useState } from 'react'
+
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+
+import { chatService } from '@/api/chat'
+import { type FileAttachment, type Message } from '@/types/chat-api'
+import { cn } from '@/lib/utils'
+import { markdownComponents } from '@/components/markdown-components'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+
+import {
+  Bot,
+  BrainCircuit,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  User,
+} from 'lucide-react'
+
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false)
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={copy}
+      title='메시지 복사'
+      className='flex items-center gap-1 rounded p-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+    >
+      {copied ? (
+        <Check className='h-3.5 w-3.5 text-green-500' />
+      ) : (
+        <Copy className='h-3.5 w-3.5' />
+      )}
+    </button>
+  )
+}
+
+const downloadInline = (file: FileAttachment) => {
+  const byteCharacters = atob(file.data)
+  const byteArray = new Uint8Array(byteCharacters.length)
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteArray[i] = byteCharacters.charCodeAt(i)
+  }
+  const blob = new Blob([byteArray], { type: file.content_type })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+interface ChatAreaProps {
+  messages: Message[]
+  isLoading: boolean
+  onOpenArtifact?: (identifier: string) => void
+}
+
+const DeepThinkingAccordion = ({ thoughts, isThinking }: { thoughts: { title: string; content: string }[]; isThinking: boolean }) => {
+  const [isOpen, setIsOpen] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-collapse when thinking finishes (answer starts)
+  useEffect(() => {
+    if (!isThinking) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIsOpen(false);
+    } else {
+        setIsOpen(true);
+    }
+  }, [isThinking]);
+
+  // Auto-scroll to bottom while thinking
+  useEffect(() => {
+    if (isThinking && isOpen && scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [thoughts, isThinking, isOpen]);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full mb-2 group">
+        <CollapsibleTrigger className={cn(
+            "flex items-center gap-2 py-2 px-1 w-full rounded-md transition-colors",
+             isOpen ? "bg-muted/20" : "hover:bg-muted/10 text-muted-foreground"
+            )}>
+            <div className={cn("flex items-center justify-center w-5 h-5 rounded-full", isThinking ? "animate-pulse bg-blue-100 dark:bg-blue-900" : "")}>
+                {isThinking ? (
+                    <Loader2 className="h-3 w-3 text-blue-600 dark:text-blue-400 animate-spin" /> 
+                ) : (
+                     <BrainCircuit className="h-3.5 w-3.5" />
+                )}
+            </div>
+            
+            <span className={cn("text-sm font-medium", isThinking ? "text-foreground" : "text-muted-foreground")}>
+                {isThinking ? "Thinking..." : "Thought Process"}
+            </span>
+            
+            <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
+                 {!isThinking && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full">{thoughts.length} steps</span>}
+                 {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </span>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+            <div ref={scrollRef} className="pl-2 pr-2 py-2 space-y-3 border-l-2 border-muted ml-2.5 my-1 max-h-60 overflow-y-auto custom-scrollbar">
+                {thoughts.map((step, index) => (
+                    <div key={index} className="animate-in fade-in slide-in-from-top-1 duration-300">
+                        <div className="flex items-center gap-2 mb-1.5">
+                             <CheckCircle2 className="h-3 w-3 text-green-500" />
+                             <span className="text-xs font-semibold text-foreground/80 first-letter:uppercase">{step.title}</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground pl-5 whitespace-pre-wrap leading-relaxed opacity-90">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{step.content}</ReactMarkdown>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
+const AssistantMessage = ({
+  content,
+  onOpenArtifact,
+}: {
+  content: string
+  onOpenArtifact?: (identifier: string) => void
+}) => {
+  // Preserve the custom `artifact:` scheme — react-markdown's default URL
+  // sanitiser strips unknown schemes, which would disable the chip on reload.
+  const urlTransform = (url: string) =>
+    url.startsWith('artifact:') ? url : defaultUrlTransform(url)
+
+  // Reuse the shared markdown renderer but turn `artifact:<id>` links into
+  // clickable chips that reopen the artifact in the canvas.
+  const components = {
+    ...markdownComponents,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    a: ({ href, children, ...props }: any) => {
+      if (typeof href === 'string' && href.startsWith('artifact:')) {
+        const id = href.slice('artifact:'.length)
+        return (
+          <button
+            type='button'
+            onClick={() => onOpenArtifact?.(id)}
+            className='my-1 inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-1 text-sm font-medium text-foreground transition-colors hover:bg-muted'
+          >
+            {children}
+          </button>
+        )
+      }
+      return markdownComponents.a({ href, children, ...props })
+    },
+  }
+
+    // Regex iteration approach for robustness
+    const thoughts: { title: string; content: string }[] = [];
+    let answer = '';
+    
+    // Match tags like [Deep Thinking - Analysis]
+    const tagRegex = /\[Deep Thinking - ([^\]]+)\]/gi;
+    let match;
+    let lastIndex = 0;
+    let currentTitle = '';
+    
+    while ((match = tagRegex.exec(content)) !== null) {
+        // Content before the current tag
+        const segment = content.substring(lastIndex, match.index);
+        
+        if (segment) {
+             if (currentTitle === 'answer') {
+                answer += segment;
+            } else if (currentTitle) {
+                thoughts.push({ title: currentTitle, content: segment.trim() });
+            } else {
+                // Before any tag -> Answer (Preamble / Orphan text)
+                if (segment.trim()) {
+                    answer += segment;
+                }
+            }
+        }
+        
+        // Update title for the *next* segment
+        currentTitle = match[1].trim().toLowerCase();
+        lastIndex = tagRegex.lastIndex;
+    }
+    
+    // Remaining content after last tag
+    const remaining = content.substring(lastIndex);
+    if (remaining) {
+        if (currentTitle === 'answer') {
+            answer += remaining;
+        } else if (currentTitle) {
+            thoughts.push({ title: currentTitle, content: remaining.trim() });
+        } else {
+            if (remaining.trim()) {
+                answer += remaining;
+            }
+        }
+    }
+
+    const hasAnswerTag = /\[Deep Thinking - Answer\]/i.test(content);
+    const isThinking = thoughts.length > 0 && !hasAnswerTag;
+
+    // Fallback: If no thoughts and no answer logic triggered, just show content
+    if (thoughts.length === 0 && !hasAnswerTag) {
+         return <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={urlTransform} components={components}>{content}</ReactMarkdown>;
+    }
+
+    return (
+        <div className="space-y-2">
+            {thoughts.length > 0 && (
+                <DeepThinkingAccordion 
+                    thoughts={thoughts} 
+                    isThinking={isThinking}
+                />
+            )}
+            {(answer || hasAnswerTag) && (
+                <div className='animate-in fade-in duration-700 delay-150'>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={urlTransform} components={components}>{answer}</ReactMarkdown>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export const ChatArea = memo(function ChatArea({ messages, isLoading, onOpenArtifact }: ChatAreaProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages, isLoading])
+
+  return (
+    <div className='flex-1 overflow-y-auto p-4' ref={scrollRef}>
+      <div className='flex flex-col gap-4'>
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={cn(
+              'group flex w-full gap-4 rounded-lg p-4',
+              message.role === 'user' ? 'bg-muted/50' : 'bg-background'
+            )}
+          >
+            <div className='flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md border shadow'>
+              {message.role === 'user' ? (
+                <User className='h-4 w-4' />
+              ) : (
+                <Bot className='h-4 w-4' />
+              )}
+            </div>
+            <div className='flex-1 overflow-hidden'>
+              <p className='mb-1.5 text-xs font-medium text-muted-foreground'>
+                {message.role === 'user' ? '나' : 'AI'}
+              </p>
+              <div className='break-words text-sm'>
+                {message.role === 'user' ? (
+                  <div className='space-y-2'>
+                    <p className='leading-7 whitespace-pre-wrap'>{message.content}</p>
+
+                    {message.files && message.files.length > 0 && (
+                      <div className='mt-2 flex flex-wrap gap-2'>
+                        {message.files.map((file, i) => (
+                          <div
+                            key={i}
+                            className='flex w-fit max-w-full items-center gap-2 rounded-md border bg-background p-2 text-sm text-muted-foreground'
+                          >
+                            {file.content_type.startsWith('image/') ? (
+                              <ImageIcon className='h-4 w-4 shrink-0' />
+                            ) : (
+                              <FileText className='h-4 w-4 shrink-0' />
+                            )}
+                            <span className='max-w-[180px] truncate' title={file.filename}>
+                              {file.filename}
+                            </span>
+                            <button
+                              type='button'
+                              onClick={() => downloadInline(file)}
+                              className='ml-1 transition-colors hover:text-foreground'
+                              title='다운로드'
+                            >
+                              <Download className='h-3.5 w-3.5' />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className='mt-2 flex flex-wrap gap-2'>
+                        {message.attachments.map((att) => (
+                          <div
+                            key={att.id}
+                            className='flex w-fit max-w-full items-center gap-2 rounded-md border bg-background p-2 text-sm text-muted-foreground'
+                          >
+                            {att.content_type.startsWith('image/') ? (
+                              <ImageIcon className='h-4 w-4 shrink-0' />
+                            ) : (
+                              <FileText className='h-4 w-4 shrink-0' />
+                            )}
+                            <div className='flex min-w-0 flex-col'>
+                              <span
+                                className='max-w-[180px] truncate leading-tight'
+                                title={att.filename}
+                              >
+                                {att.filename}
+                              </span>
+                              <span className='text-xs opacity-60'>{formatBytes(att.file_size)}</span>
+                            </div>
+                            <button
+                              type='button'
+                              onClick={() => chatService.downloadAttachment(att)}
+                              className='ml-1 transition-colors hover:text-foreground'
+                              title='다운로드'
+                            >
+                              <Download className='h-3.5 w-3.5' />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <AssistantMessage content={message.content} onOpenArtifact={onOpenArtifact} />
+                )}
+              </div>
+              {message.role === 'assistant' && (
+                <div className='mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                  <CopyButton text={message.content} />
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+           <div className='flex w-full gap-4 p-4 rounded-lg bg-background'>
+            <div className='flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md border shadow'>
+                <Bot className='h-4 w-4' />
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/50 [animation-delay:-0.3s]' />
+              <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/50 [animation-delay:-0.15s]' />
+              <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/50' />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+})

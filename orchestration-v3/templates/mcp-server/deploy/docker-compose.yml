@@ -1,0 +1,36 @@
+# MCP 서버 템플릿 — 최소 배포 구성 (mcp + postgres)
+# 복제 후 서비스명·DB명·포트를 실제 서버에 맞게 교체한다.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mydb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-8066}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../scripts/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-mydb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file: .env
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

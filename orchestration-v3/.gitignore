@@ -1,0 +1,26 @@
+# --- Python (apps/api) ---
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.env
+.env.*
+!.env.example
+
+# --- Node (apps/web) ---
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# --- Generated contracts ---
+packages/contracts/openapi.json
+apps/web/src/types/api-schema.d.ts
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+*.log

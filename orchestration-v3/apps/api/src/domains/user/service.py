@@ -1,0 +1,52 @@
+from datetime import datetime
+
+from fastapi import HTTPException
+from sqlmodel import Session
+
+from src.domains.user.model import User
+from src.domains.user.repository import UserRepository
+from src.domains.user.schema import AdminUserUpdateRequest, UserUpdateRequest
+
+
+class UserService:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self.repo = UserRepository(session)
+
+    def get(self, user_id: int) -> User:
+        user = self.repo.get(user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    def list(self, limit: int = 20, offset: int = 0) -> list[User]:
+        return self.repo.list(limit=limit, offset=offset)
+
+    def update_me(self, user_id: int, req: UserUpdateRequest) -> User:
+        user = self.get(user_id)
+        self._apply_profile(user, req.username, req.email)
+        return self.repo.save(user)
+
+    def admin_update(self, user_id: int, req: AdminUserUpdateRequest) -> User:
+        user = self.get(user_id)
+        self._apply_profile(user, req.username, req.email)
+        if req.status is not None:
+            user.status = req.status
+        return self.repo.save(user)
+
+    def deactivate(self, user_id: int) -> None:
+        user = self.get(user_id)
+        user.status = "inactive"
+        user.updated_at = datetime.utcnow()
+        self.repo.save(user)
+
+    def _apply_profile(self, user: User, username: str | None, email: str | None) -> None:
+        if email is not None and email != user.email:
+            if self.repo.exists_email(email):
+                raise HTTPException(status_code=409, detail="Email already exists")
+            user.email = email
+        if username is not None and username != user.username:
+            if self.repo.exists_username(username):
+                raise HTTPException(status_code=409, detail="Username already exists")
+            user.username = username
+        user.updated_at = datetime.utcnow()

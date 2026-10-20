@@ -1,0 +1,43 @@
+# V3 루트 태스크 러너 (go-task). moon 대신 얇은 조율자 — ADR-0003.
+version: '3'
+
+tasks:
+  dev:
+    desc: api + web 개발 서버 동시 기동
+    deps: [dev-api, dev-web]
+
+  dev-api:
+    dir: apps/api
+    cmds: [uv run poe dev]
+
+  dev-web:
+    dir: apps/web
+    cmds: [pnpm dev]
+
+  lint:
+    cmds:
+      - task: lint-api
+      - task: lint-web
+
+  lint-api:
+    dir: apps/api
+    cmds: [uv run poe lint]
+
+  lint-web:
+    dir: apps/web
+    cmds: [pnpm lint]
+
+  test:
+    desc: api 테스트 (web 추가 시 확장)
+    dir: apps/api
+    cmds: [uv run poe test]
+
+  gen-types:
+    desc: api OpenAPI → web TS 타입 (단방향 계약 — ADR-0003)
+    cmds:
+      - uv run --project apps/api python tools/export_openapi.py
+      - task: gen-types-web
+
+  gen-types-web:
+    dir: apps/web
+    cmds: [pnpm gen:types]
