@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { beginLogin } from '@/lib/oidc'
 
 // 단일 백엔드(ADR-0003) — 모든 호출은 /api 로. next.config rewrite가 API_URL로 프록시.
 const api = axios.create({
@@ -13,13 +12,14 @@ const api = axios.create({
 
 let redirecting = false
 
-/** 토큰 만료/무효 → IdP로 재로그인. refresh 자작 없음(ADR-0003). */
+/** 토큰 만료/무효 → 로그인 페이지로 이동. refresh 자작 없음 — 재로그인. */
 function reauthenticate() {
   if (redirecting || typeof window === 'undefined') return
   redirecting = true
   useAuthStore.getState().auth.reset()
-  toast.error('인증이 만료되었습니다. 다시 로그인합니다.')
-  void beginLogin(window.location.href)
+  toast.error('인증이 만료되었습니다. 다시 로그인하세요.')
+  const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+  window.location.href = `/login?redirect=${redirect}`
 }
 
 // 요청: access token을 Bearer로 첨부

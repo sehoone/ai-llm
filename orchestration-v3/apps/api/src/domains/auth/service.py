@@ -1,19 +1,59 @@
-"""JIT(Just-In-Time) 프로비저닝 — IdP 토큰 클레임으로 로컬 user를 생성/동기화 (ADR-0003).
+"""인증 서비스 — ID/PW 자격 검증 + seed 관리자 보장.
 
-- 최초 토큰 확인 시 로컬 users 행을 생성(idp_subject로 매핑).
-- role은 IdP 클레임이 권위 → 이후 요청마다 로컬 레코드에 동기화.
-- username/email은 생성 시에만 클레임에서 채우고, 이후 로컬 편집을 보존.
+백엔드가 비밀번호를 직접 검증하고 JWT를 발급한다(ADR-0003 전환). 아래 OIDC JIT
+프로비저닝(`extract_role`·`provision_user`)은 보존된 비활성 코드 — IdP 복귀 시 재사용.
 """
 
 from __future__ import annotations
 
+import logging
+
 from sqlmodel import Session
 
 from src.core.config import settings
+from src.core.security import hash_password, verify_password
 from src.domains.user.model import User, UserRole
 from src.domains.user.repository import UserRepository
 
+logger = logging.getLogger(__name__)
+
 _VALID_ROLES = {r.value for r in UserRole}
+
+
+def authenticate(session: Session, username: str, password: str) -> User | None:
+    """username + 비밀번호로 사용자를 검증. 실패 시 None.
+
+    (타이밍 공격 완화를 위해 사용자 부재 시에도 해시 비교를 수행.)
+    """
+    user = UserRepository(session).get_by_username(username)
+    hashed = user.hashed_password if user and user.hashed_password else _DUMMY_HASH
+    ok = verify_password(password, hashed)
+    if not ok or user is None or not user.hashed_password:
+        return None
+    if user.status != "active":
+        return None
+    return user
+
+
+# 사용자 부재 시 비교용 더미 해시(타이밍 균일화). 모듈 로드 1회 계산.
+_DUMMY_HASH = hash_password("x")
+
+
+def ensure_seed_admin(session: Session) -> None:
+    """최초 로그인용 seed SUPERADMIN을 보장. 비밀번호 미설정 시 건너뜀."""
+    if not settings.seed_admin_password:
+        return
+    repo = UserRepository(session)
+    if repo.get_by_username(settings.seed_admin_username) is not None:
+        return
+    user = User(
+        username=settings.seed_admin_username,
+        email=settings.seed_admin_email,
+        hashed_password=hash_password(settings.seed_admin_password),
+        role=UserRole.SUPERADMIN,
+    )
+    repo.save(user)
+    logger.info("seed 관리자 생성: %s", settings.seed_admin_username)
 
 
 def extract_role(claims: dict) -> UserRole:

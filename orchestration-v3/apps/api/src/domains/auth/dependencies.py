@@ -1,9 +1,8 @@
-"""인증 의존성.
+"""인증 의존성 — 요청 보호용 FastAPI 의존성.
 
-로그인·토큰 발급은 사내 IdP가 소유(ADR-0003). 이 모듈은 요청 보호용 FastAPI 의존성만 제공.
 인증 우선순위:
   1. API 키 (sk- 접두사) — 프로그램 접근
-  2. OIDC Bearer 토큰 (IdP 발급, JWKS 검증)
+  2. 자체 발급 Bearer 토큰 (ID/PW 로그인 → HS256 JWT, subject = 로컬 user id)
 """
 
 from __future__ import annotations
@@ -14,13 +13,18 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import Session
 
 from src.core.db import get_session
-from src.core.security import verify_token
+from src.core.security import decode_access_token
 from src.domains.api_key.repository import ApiKeyRepository
-from src.domains.auth.service import provision_user
 from src.domains.user.model import User, UserRole
 from src.domains.user.repository import UserRepository
 
 _bearer = HTTPBearer()
+
+_INVALID_CREDS = HTTPException(
+    status_code=401,
+    detail="Invalid authentication credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
 
 def get_current_user(
@@ -39,16 +43,17 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="User for API key not found")
         return user
 
-    # 2) OIDC Bearer 토큰 → JIT 프로비저닝
+    # 2) 자체 발급 JWT → 로컬 user 조회
     try:
-        claims = verify_token(token)
-    except jwt.PyJWTError as e:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from e
-    return provision_user(session, claims)
+        claims = decode_access_token(token)
+        user_id = int(claims["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError) as e:
+        raise _INVALID_CREDS from e
+
+    user = UserRepository(session).get(user_id)
+    if user is None or user.status != "active":
+        raise _INVALID_CREDS
+    return user
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
