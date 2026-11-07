@@ -48,6 +48,22 @@ class ChatMessage(SQLModel, table=True):
     created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
 
 
+class ChatAttachment(SQLModel, table=True):
+    """chat 메시지 첨부 메타 (ADR-0014). 파일 바이트는 로컬 볼륨(storage_path)."""
+
+    __tablename__ = "chat_attachment"
+    __table_args__ = {"schema": "llmonl"}
+
+    id: int | None = Field(default=None, primary_key=True)
+    message_id: int = Field(index=True)
+    session_id: int = Field(index=True)
+    filename: str
+    content_type: str
+    file_size: int
+    storage_path: str
+    created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
+
+
 class ChatApproval(SQLModel, table=True):
     __tablename__ = "chat_approval"
     __table_args__ = {"schema": "llmonl"}

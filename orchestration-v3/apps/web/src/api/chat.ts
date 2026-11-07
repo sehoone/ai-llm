@@ -10,6 +10,7 @@ import type {
   ChatSession,
   ChatStreamCallbacks,
   CreateSessionResponse,
+  FileAttachment,
   Message,
 } from '@/types/chat-api'
 
@@ -74,11 +75,12 @@ export const chatService = {
     content: string,
     callbacks: ChatStreamCallbacks,
     llmResourceId?: number,
-    ragGroup?: string
+    ragGroup?: string,
+    files?: FileAttachment[]
   ): Promise<void> => {
     await runSSE(
       `${CHAT_BASE}/sessions/${sessionId}/messages`,
-      { content, llm_resource_id: llmResourceId, rag_group: ragGroup },
+      { content, llm_resource_id: llmResourceId, rag_group: ragGroup, files },
       callbacks
     )
   },
@@ -113,7 +115,7 @@ export const chatService = {
   },
 
   downloadAttachment: async (attachment: AttachmentMeta): Promise<void> => {
-    const response = await api.get(`v1/chatbot/attachments/${attachment.id}`, {
+    const response = await api.get(`${CHAT_BASE}/attachments/${attachment.id}`, {
       responseType: 'blob',
     })
     const url = URL.createObjectURL(response.data)

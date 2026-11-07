@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlmodel import Session
 
 from src.core.db import get_session
@@ -75,8 +75,10 @@ def get_messages(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ApiResponse[list[MessageResponse]]:
-    rows = ChatService(session).messages(session_id, user)
-    return ApiResponse.ok([MessageResponse.from_model(m) for m in rows])
+    svc = ChatService(session)
+    rows = svc.messages(session_id, user)
+    att_map = svc.attachments_for([m.id for m in rows])
+    return ApiResponse.ok([MessageResponse.from_model(m, att_map.get(m.id)) for m in rows])
 
 
 @router.post("/sessions/{session_id}/messages")
@@ -88,9 +90,20 @@ def send_message(
 ) -> StreamingResponse:
     """메시지 전송. CONFIRM 도구를 만나면 `event: approval_required`를 내고 스트림을 닫는다."""
     stream = ChatService(session).stream_message(
-        session_id, user, req.content, req.llm_resource_id, req.rag_group
+        session_id, user, req.content, req.llm_resource_id, req.rag_group, req.files
     )
     return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@router.get("/attachments/{attachment_id}")
+def download_attachment(
+    attachment_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    """첨부 다운로드 — 소유자 또는 관리자 (ADR-0014 §4)."""
+    path, filename, content_type = ChatService(session).download_attachment(user, attachment_id)
+    return FileResponse(path=str(path), filename=filename, media_type=content_type)
 
 
 @router.post("/sessions/{session_id}/approvals")

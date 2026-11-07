@@ -162,12 +162,14 @@ Phase 1 완료 시점에 **"실제로 답하는 챗"**이 됨(현재 데모 승�
 #### Phase 3d — 인터랙티브 데이터 / 공개 링크 (선택·후속)
 - `artifact_data` 저장(`window.artifactData` 호스트 API)·공개 샌드박스 렌더 보안. publish/public 백엔드는 구현됨(3a).
 
-### Phase 4 — 첨부/멀티모달
-**목표**: 이미지(비전)·텍스트·PDF 첨부 채팅.
-- 스토리지: V2 로컬 `UPLOAD_DIR` 대신 **스택의 MinIO 사용 검토**(이미 기동 중).
-- `domains/chat`(또는 `domains/attachment`): attachment 모델·업로드·다운로드(인가).
-- engine/llm: 멀티모달 메시지(비전) 처리.
-- **신규 ADR-0014**: 첨부 저장(MinIO) + 멀티모달 파이프라인.
+### Phase 4 — 첨부/멀티모달 — ✅ 구현됨 (2026-11-07) → [ADR-0014](adr/0014-attachments-multimodal.md)
+**목표**: 이미지(비전)·텍스트 첨부 채팅. (PDF는 placeholder — V2 동일)
+- 저장: **로컬 볼륨**(`UPLOAD_DIR`, V2 계승; MinIO/S3는 어댑터 후속). `core/storage.FileStorage`.
+- DDL: `chat_attachment`(init.sql+라이브), compose api에 `api-uploads` 볼륨.
+- `domains/chat`: `MessageRequest.files`(base64), 첨부 영속, **멀티모달 그래프 입력**(이미지=`image_url`
+  data URI, 텍스트=추출), 메시지 응답에 `attachments`, `GET /chat/attachments/{id}` 다운로드(인가).
+- web: `handleSendMessage` 파일 base64 복원 + `streamMessage(…, files)`, `downloadAttachment` v3 경로.
+- 검증: 텍스트 추출(BANANA-42) + 비전(생성 PNG→"Blue") + 메타 조회 + 다운로드 확인.
 
 ### Phase 5 — 장기 메모리(mem0)
 **목표**: 사용자별 장기 메모리 주입·삭제.

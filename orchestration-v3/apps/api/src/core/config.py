@@ -53,6 +53,9 @@ class Settings(BaseSettings):
         """실 LLM 사용 가능 여부 — 키 존재 또는 로컬 ollama (ADR-0010 §3)."""
         return bool(self.llm_api_key) or self.llm_provider == "ollama"
 
+    # 첨부 파일 저장 루트 (ADR-0014). 컨테이너는 볼륨(/data/uploads), 로컬은 상대경로.
+    upload_dir: str = "uploads"
+
     # Langfuse (LLM 관측 — ADR-0007). self-host 또는 cloud. 키 없으면 비활성.
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
