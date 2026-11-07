@@ -15,6 +15,7 @@ dependencies = [
     "bcrypt>=4.2",             # 비밀번호 해싱 (자체 ID/PW 인증)
     "langchain>=0.3",
     "langgraph>=0.2",
+    "langchain-litellm>=0.2",  # provider 통합(azure/openai/anthropic/google/ollama) — engine/llm (ADR-0010)
     "langfuse>=3",             # LLM 관측 — 트레이스/토큰/비용 (ADR-0007)
 ]
 

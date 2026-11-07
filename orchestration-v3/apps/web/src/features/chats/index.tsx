@@ -35,7 +35,13 @@ import { chatService } from '@/api/chat'
 import { artifactService } from '@/api/artifacts'
 import { ragGroupApi, type RagGroup } from '@/api/rag-groups'
 import { getChatModels, type ChatModel } from '@/api/llm-resources'
-import { type ChatSession, type Message, type FileAttachment } from '@/types/chat-api'
+import {
+  type ChatSession,
+  type Message,
+  type ApprovalRequiredEvent,
+  type ApprovalDecision,
+  type ChatStreamCallbacks,
+} from '@/types/chat-api'
 import { useArtifactStore } from '@/stores/artifact-store'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
@@ -54,6 +60,10 @@ export function Chats() {
   const [selectedRagGroup, setSelectedRagGroup] = useState<string | null>(null)
   const [chatModels, setChatModels] = useState<ChatModel[]>([])
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
+  const [pendingApproval, setPendingApproval] = useState<{
+    ev: ApprovalRequiredEvent
+    sessionId: string
+  } | null>(null)
 
   const isArtifactOpen = useArtifactStore((s) => s.isOpen)
 
@@ -82,22 +92,6 @@ export function Chats() {
       setMessages([])
     }
   }, [selectedSessionId])
-
-  // Resolve server ids (for versioning/publish) onto artifacts created while streaming.
-  const syncArtifactServerIds = useCallback(async (sessionId: string) => {
-    try {
-      const summaries = await artifactService.list(sessionId)
-      const store = useArtifactStore.getState()
-      for (const s of summaries) {
-        const existing = store.artifacts[s.identifier]
-        if (existing) {
-          store.upsertArtifact({ ...existing, serverId: s.id, version: s.current_version })
-        }
-      }
-    } catch (error) {
-      logger.error('Failed to sync artifact server ids', error)
-    }
-  }, [])
 
   // Open an artifact referenced from a chat message, loading it if not cached.
   const handleOpenArtifact = useCallback(
@@ -144,6 +138,7 @@ export function Chats() {
     }
   }
 
+  // RAG 그룹 로드 (ADR-0012 Phase 2b). 실패는 비치명적(토스트 없음) — chat은 RAG 없이도 동작.
   const loadRagGroups = async () => {
     try {
       const data = await ragGroupApi.listGroups()
@@ -205,112 +200,116 @@ export function Chats() {
     }
   }
 
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.readAsDataURL(file)
-      reader.onload = () => {
-        const result = reader.result as string
-        resolve(result.split(',')[1])
+  // v3 chat SSE 콜백 (ADR-0008). assistant message는 마지막 placeholder에 이어붙이고,
+  // CONFIRM 티어 tool call을 만나면 승인 다이얼로그를 띄운다.
+  const appendToAssistant = (text: string) => {
+    if (!text) return
+    setMessages((prev) => {
+      const next = [...prev]
+      const last = next[next.length - 1]
+      if (last && last.role === 'assistant') {
+        next[next.length - 1] = { ...last, content: (last.content || '') + text }
+      } else {
+        next.push({ role: 'assistant', content: text })
       }
-      reader.onerror = error => reject(error)
+      return next
     })
   }
 
-  const handleSendMessage = useCallback(async (inputMessage: string, selectedFiles: File[], isDeepThinking: boolean) => {
-    if ((!inputMessage.trim() && selectedFiles.length === 0) || !selectedSessionId || isSending) return
-
-    const fileAttachments: FileAttachment[] = []
-    if (selectedFiles.length > 0) {
-      try {
-        for (const file of selectedFiles) {
-          const base64 = await convertFileToBase64(file)
-          fileAttachments.push({ filename: file.name, content_type: file.type, data: base64 })
+  const makeStreamCallbacks = useCallback(
+    (sessionId: string): ChatStreamCallbacks => ({
+      // 토큰 스트리밍 — assistant 버블에 이어붙임 (ADR-0011).
+      onContent: (delta) => appendToAssistant(delta),
+      // 비스트리밍 완결 메시지(tool 결과는 표시 안 함; assistant 폴백만 반영).
+      onMessage: (msg) => {
+        if (msg.role === 'assistant' && msg.content) appendToAssistant(msg.content)
+      },
+      // 아티팩트 스트리밍 — 캔버스 스토어 구동 (ADR-0013).
+      onArtifact: (event) => {
+        const store = useArtifactStore.getState()
+        if (event.kind === 'start') {
+          store.startArtifact({ identifier: event.identifier, type: event.type, title: event.title })
+        } else if (event.kind === 'delta') {
+          store.appendDelta(event.identifier, event.text)
+        } else if (event.kind === 'end') {
+          store.endArtifact(event.identifier, event.version)
         }
-      } catch (error) {
-        logger.error('Failed to process files', error)
-        toast.error('Failed to process files')
-        return
-      }
-    }
+      },
+      onApprovalRequired: (ev) => {
+        setPendingApproval({ ev, sessionId })
+        setIsSending(false)
+      },
+      // 첫 대화 자동 제목 — 세션 목록 이름 갱신.
+      onTitle: (title) => {
+        if (!title) return
+        setSessions((prev) =>
+          prev.map((s) => (s.session_id === sessionId ? { ...s, name: title } : s))
+        )
+      },
+      onDone: () => setIsSending(false),
+      onError: (error) => {
+        logger.error('Chat stream error', error)
+        toast.error('Failed to send message')
+        setIsSending(false)
+      },
+    }),
+    []
+  )
 
-    const contentToSend = inputMessage.trim() || (fileAttachments.length > 0 ? "Attached file(s)" : "")
-    const userMessage: Message = {
-      role: 'user',
-      content: contentToSend,
-      files: fileAttachments.length > 0 ? fileAttachments : undefined
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    setIsSending(true)
-
-    // Optimistic update for assistant message
-    const assistantMessageIndex = messages.length + 1
-    // We'll append a placeholder message for streaming
-    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
-
-    let currentResponse = ''
-
+  // 스트리밍 중 생성된 아티팩트에 서버 id/버전을 해소(버전관리·공개용) — ADR-0013.
+  const syncArtifactServerIds = useCallback(async (sessionId: string) => {
     try {
-      const messagesToSend = [userMessage]
+      const summaries = await artifactService.list(sessionId)
+      const store = useArtifactStore.getState()
+      for (const s of summaries) {
+        const existing = store.artifacts[s.identifier]
+        if (existing) {
+          store.upsertArtifact({ ...existing, serverId: s.id, version: s.current_version })
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to sync artifact server ids', error)
+    }
+  }, [])
+
+  // NOTE: v3 chat은 파일 첨부·deep thinking은 아직 미지원 — 해당 인자는 무시.
+  const handleSendMessage = useCallback(
+    async (inputMessage: string, _selectedFiles: File[], _isDeepThinking: boolean) => {
+      const content = inputMessage.trim()
+      if (!content || !selectedSessionId || isSending) return
+
+      const userMessage: Message = { role: 'user', content }
+      setMessages((prev) => [...prev, userMessage, { role: 'assistant', content: '' }])
+      setIsSending(true)
+
       await chatService.streamMessage(
         selectedSessionId,
-        messagesToSend,
-        (chunk, _done, title) => {
-           if (title) {
-             setSessions((prev) =>
-               prev.map(session =>
-                 session.session_id === selectedSessionId
-                   ? { ...session, name: title }
-                   : session
-               )
-             );
-           }
-           currentResponse += chunk
-           setMessages((prev) => {
-             const newMessages = [...prev]
-             // Update the last message (assistant placeholder)
-             if (newMessages.length > assistantMessageIndex) {
-                 // Ensure we are updating the assistant message we just added
-                 // Note: strict mode or rapid updates might cause issues with index relying on closure state without updater function
-                 // But using functional update (prev) helps.
-                 // We find the last message, which should be the assistant one
-                 newMessages[newMessages.length - 1] = {
-                    ...newMessages[newMessages.length - 1],
-                    content: currentResponse
-                 }
-             }
-             return newMessages
-           })
-        },
-        (error) => {
-            logger.error(error)
-            toast.error('Failed to send message')
-        },
-        isDeepThinking,
-        selectedRagGroup ?? undefined,
+        content,
+        makeStreamCallbacks(selectedSessionId),
         selectedModelId ?? undefined,
-        (event) => {
-          const store = useArtifactStore.getState()
-          if (event.kind === 'start') {
-            store.startArtifact({ identifier: event.identifier, type: event.type, title: event.title })
-          } else if (event.kind === 'delta') {
-            store.appendDelta(event.identifier, event.text)
-          } else if (event.kind === 'end') {
-            store.endArtifact(event.identifier, event.version)
-          }
-        }
+        selectedRagGroup ?? undefined
       )
-      // Artifacts streamed this turn lack server ids until persisted — resolve them.
+      // 스트림 종료 — 이번 턴 아티팩트의 서버 id/버전 해소.
       await syncArtifactServerIds(selectedSessionId)
-    } catch (error) {
-      logger.error('Failed to send message', error)
-      toast.error('Failed to send message')
-    } finally {
-      setIsSending(false)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSessionId, isSending, selectedRagGroup, selectedModelId])
+    },
+    [selectedSessionId, isSending, makeStreamCallbacks, selectedModelId, selectedRagGroup, syncArtifactServerIds]
+  )
+
+  // 승인/거부 → 그래프 재개 (ADR-0008 §4). 현재 UI는 그룹 단위 일괄 결정.
+  const handleApprovalDecision = useCallback(
+    async (approved: boolean) => {
+      if (!pendingApproval) return
+      const { ev, sessionId } = pendingApproval
+      const decisions: ApprovalDecision[] = ev.requests.map((r) => ({
+        tool_call_id: r.tool_call_id,
+        approved,
+      }))
+      setPendingApproval(null)
+      setIsSending(true)
+      await chatService.submitApprovals(sessionId, ev.group_key, decisions, makeStreamCallbacks(sessionId))
+    },
+    [pendingApproval, makeStreamCallbacks]
+  )
 
   const filteredSessions = sessions.filter((s) =>
     (s.name || 'New Chat').toLowerCase().includes(search.trim().toLowerCase())
@@ -518,6 +517,38 @@ export function Chats() {
                     <Button variant="destructive" onClick={handleDeleteSession}>Delete</Button>
                 </DialogFooter>
             </DialogContent>
+        </Dialog>
+
+        {/* Approval (HITL) Dialog — ADR-0008 */}
+        <Dialog
+          open={!!pendingApproval}
+          onOpenChange={(open) => { if (!open) setPendingApproval(null) }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>도구 실행 승인</DialogTitle>
+              <DialogDescription>
+                아래 작업 실행에 사용자 승인이 필요합니다.
+              </DialogDescription>
+            </DialogHeader>
+            <div className='space-y-3'>
+              {pendingApproval?.ev.requests.map((r) => (
+                <div key={r.tool_call_id} className='rounded-md border p-3 text-sm'>
+                  <div className='font-medium'>{r.name}</div>
+                  {r.reason && (
+                    <div className='text-xs text-muted-foreground'>{r.reason}</div>
+                  )}
+                  <pre className='mt-2 overflow-x-auto rounded bg-muted p-2 text-xs'>
+                    {JSON.stringify(r.args, null, 2)}
+                  </pre>
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant='outline' onClick={() => handleApprovalDecision(false)}>거부</Button>
+              <Button onClick={() => handleApprovalDecision(true)}>승인</Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
 
       </Main>

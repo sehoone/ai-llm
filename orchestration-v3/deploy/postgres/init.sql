@@ -109,3 +109,98 @@ CREATE TABLE IF NOT EXISTS llmonl.chat_approval (
 );
 CREATE INDEX IF NOT EXISTS idx_chat_approval_session_id ON llmonl.chat_approval (session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_approval_group_key ON llmonl.chat_approval (group_key);
+
+-- rag 도메인 (ADR-0012): pgvector 임베딩 기반 검색 증강. 임베딩 차원 1536 고정.
+CREATE TABLE IF NOT EXISTS llmonl.rag_group_config (
+    id          TEXT         PRIMARY KEY,
+    user_id     BIGINT       NOT NULL,
+    name        TEXT         NOT NULL,
+    description TEXT,
+    color       TEXT         NOT NULL DEFAULT '#6366f1',
+    created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP,
+    CONSTRAINT uq_rag_group_user_name UNIQUE (user_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_rag_group_config_user_id ON llmonl.rag_group_config (user_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.rag_key_config (
+    id          TEXT         PRIMARY KEY,
+    user_id     BIGINT       NOT NULL,
+    rag_key     TEXT         NOT NULL,
+    rag_group   TEXT         NOT NULL,
+    description TEXT,
+    rag_type    TEXT         NOT NULL DEFAULT 'chatbot_shared',
+    created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP,
+    CONSTRAINT uq_rag_key_user UNIQUE (user_id, rag_key)
+);
+CREATE INDEX IF NOT EXISTS idx_rag_key_config_user_id ON llmonl.rag_key_config (user_id);
+CREATE INDEX IF NOT EXISTS idx_rag_key_config_rag_group ON llmonl.rag_key_config (rag_group);
+
+CREATE TABLE IF NOT EXISTS llmonl.document (
+    id           BIGSERIAL   PRIMARY KEY,
+    user_id      BIGINT,                 -- NULL = chatbot_shared
+    rag_key      TEXT        NOT NULL,
+    rag_group    TEXT        NOT NULL,
+    rag_type     TEXT        NOT NULL,
+    filename     TEXT        NOT NULL,
+    content      TEXT        NOT NULL,
+    doc_metadata TEXT,
+    created_at   TIMESTAMP   NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_document_rag_key ON llmonl.document (rag_key);
+CREATE INDEX IF NOT EXISTS idx_document_rag_group ON llmonl.document (rag_group);
+CREATE INDEX IF NOT EXISTS idx_document_user_id ON llmonl.document (user_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.rag_embedding (
+    id          BIGSERIAL    PRIMARY KEY,
+    doc_id      BIGINT       NOT NULL,
+    rag_key     TEXT         NOT NULL,
+    rag_group   TEXT         NOT NULL,
+    rag_type    TEXT         NOT NULL,
+    chunk_index INTEGER      NOT NULL,
+    content     TEXT         NOT NULL,
+    embedding   vector(1536),
+    created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_rag_embedding_doc_id ON llmonl.rag_embedding (doc_id);
+CREATE INDEX IF NOT EXISTS idx_rag_embedding_rag_group ON llmonl.rag_embedding (rag_group);
+CREATE INDEX IF NOT EXISTS idx_rag_embedding_rag_key ON llmonl.rag_embedding (rag_key);
+
+-- artifact 도메인 (ADR-0013): 스트리밍 산출물 + 버전관리 + 공개 링크.
+-- FK 없음 — 연쇄 정리는 앱(세션 삭제 → delete_session_artifacts; 아티팩트 삭제 → version/data 정리).
+CREATE TABLE IF NOT EXISTS llmonl.artifact (
+    id              TEXT         PRIMARY KEY,           -- uuid
+    session_id      BIGINT       NOT NULL,              -- chat_session.id
+    user_id         BIGINT       NOT NULL,
+    identifier      TEXT         NOT NULL,              -- LLM이 준 식별자(세션 내 고유)
+    artifact_type   TEXT         NOT NULL,
+    title           TEXT         NOT NULL DEFAULT '',
+    current_version INT          NOT NULL DEFAULT 1,
+    is_published    BOOLEAN      NOT NULL DEFAULT false,
+    public_token    TEXT,
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_session_id   ON llmonl.artifact (session_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_user_id      ON llmonl.artifact (user_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_identifier   ON llmonl.artifact (identifier);
+CREATE INDEX IF NOT EXISTS idx_artifact_public_token ON llmonl.artifact (public_token);
+
+CREATE TABLE IF NOT EXISTS llmonl.artifact_version (
+    id          BIGSERIAL    PRIMARY KEY,
+    artifact_id TEXT         NOT NULL,
+    version     INT          NOT NULL,
+    content     TEXT         NOT NULL,
+    message_id  BIGINT,                                 -- chat_message.id
+    created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_artifact_id ON llmonl.artifact_version (artifact_id);
+CREATE INDEX IF NOT EXISTS idx_artifact_version_message_id  ON llmonl.artifact_version (message_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.artifact_data (
+    artifact_id TEXT      PRIMARY KEY,
+    data        TEXT      NOT NULL DEFAULT '{}',
+    updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);

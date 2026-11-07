@@ -104,6 +104,46 @@ export interface ChatSession {
   created_at?: string
 }
 
+/** One tool call awaiting user approval (ADR-0008 HITL). */
+export interface ApprovalRequestItem {
+  tool_call_id: string
+  name: string
+  args: Record<string, unknown>
+  tier: string
+  allow_edit: boolean
+  reason?: string | null
+}
+
+/** `event: approval_required` payload — graph paused on CONFIRM-tier tool calls. */
+export interface ApprovalRequiredEvent {
+  type: string
+  group_key: string
+  requests: ApprovalRequestItem[]
+}
+
+/** A single approve/reject decision submitted back to resume the graph. */
+export interface ApprovalDecision {
+  tool_call_id: string
+  approved: boolean
+  args?: Record<string, unknown>
+}
+
+/** Callbacks for a chat SSE run (send message or resume after approval). */
+export interface ChatStreamCallbacks {
+  /** Streamed assistant token delta — append to the current assistant bubble (ADR-0011). */
+  onContent: (delta: string) => void
+  /** Complete non-streamed message (tool result, or assistant fallback for non-streaming models). */
+  onMessage: (msg: { role: string; content: string; tool_calls?: unknown[] }) => void
+  /** Artifact lifecycle events — drive the canvas store (ADR-0013). */
+  onArtifact: (event: ArtifactStreamEvent) => void
+  onApprovalRequired: (ev: ApprovalRequiredEvent) => void
+  /** Session title auto-generated on the first exchange. */
+  onTitle: (title: string) => void
+  onDone: () => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onError: (error: any) => void
+}
+
 export interface CreateSessionResponse {
   session_id: string
   name: string | null

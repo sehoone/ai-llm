@@ -38,6 +38,21 @@ class Settings(BaseSettings):
     chat_approval_ttl_seconds: int = 900  # 승인 대기 만료 (15분)
     chat_checkpointer: str = "memory"     # "memory"(인프로세스) | "postgres"(후속)
 
+    # engine/llm — 실 LLM 호출 (ADR-0010). LiteLLM provider 통합.
+    # 키가 없으면(그리고 ollama가 아니면) chat은 FakeToolCallingModel로 폴백.
+    llm_provider: str = "openai"   # openai | azure | anthropic | google | ollama
+    llm_model: str = "gpt-4o-mini"
+    llm_api_key: str = ""
+    llm_api_base: str = ""         # azure/ollama 등 커스텀 엔드포인트
+    llm_api_version: str = ""      # azure
+    llm_temperature: float = 0.7
+    llm_max_tokens: int = 0        # 0 = provider 기본값
+
+    @property
+    def llm_is_configured(self) -> bool:
+        """실 LLM 사용 가능 여부 — 키 존재 또는 로컬 ollama (ADR-0010 §3)."""
+        return bool(self.llm_api_key) or self.llm_provider == "ollama"
+
     # Langfuse (LLM 관측 — ADR-0007). self-host 또는 cloud. 키 없으면 비활성.
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

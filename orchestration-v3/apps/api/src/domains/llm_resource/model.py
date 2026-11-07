@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
 
 
@@ -20,5 +21,5 @@ class LlmResource(SQLModel, table=True):
     priority: int = Field(default=0)
     weight: int = Field(default=1)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime | None = Field(default=None)
+    created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
+    updated_at: NaiveDatetime | None = Field(default=None)

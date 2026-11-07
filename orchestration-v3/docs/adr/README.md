@@ -24,7 +24,13 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0007](0007-llm-observability-langfuse.md) | LLM 관측(Observability)을 Langfuse에 위임 | Accepted |
 | [0008](0008-chat-human-approval.md) | 챗 사용자 승인(Human-in-the-Loop) | Accepted |
 | [0009](0009-self-id-password-auth.md) | 자체 ID/PW 인증 (IdP 위임에서 전환) | Accepted |
+| [0010](0010-engine-llm-provider.md) | engine/llm — provider 추상화 + 모델 해석·주입 경계 | Accepted |
+| [0011](0011-chat-streaming-contract.md) | chat 스트리밍 계약 (토큰·HITL·제목 통합 event-SSE) | Accepted |
+| [0012](0012-engine-rag.md) | RAG — 검색 증강 (engine/rag + rag 도메인, pgvector) | Accepted |
+| [0013](0013-artifacts.md) | 아티팩트 (스트림 파서 + artifact 도메인 + 버저닝) | Accepted |
 
 ## 관련 문서
+
+- [`../v2-chat-migration-roadmap.md`](../v2-chat-migration-roadmap.md) — V2 chat 기능 이식 단계별 로드맵(ADR-0010~0015 매핑).
 
 - [`../structure-and-references.md`](../structure-and-references.md) — 위 결정들이 업계 표준·사실상 표준과 어떻게 정렬되는지 검증·참조 소스 모음 (ADR이 아닌 레퍼런스).
