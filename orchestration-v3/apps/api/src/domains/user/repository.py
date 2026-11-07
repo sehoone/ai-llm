@@ -15,6 +15,9 @@ class UserRepository:
             select(User).where(User.idp_subject == idp_subject)
         ).first()
 
+    def get_by_username(self, username: str) -> User | None:
+        return self.session.exec(select(User).where(User.username == username)).first()
+
     def list(self, limit: int = 20, offset: int = 0) -> list[User]:
         return list(
             self.session.exec(select(User).order_by(User.id).offset(offset).limit(limit)).all()

@@ -17,10 +17,13 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 |-----|------|------|
 | [0001](0001-monorepo-structure.md) | 모노레포 구조와 태스크 오케스트레이션(moon) | Superseded by 0003 |
 | [0002](0002-polyglot-and-auth-boundary.md) | 폴리글랏 3서비스 유지와 인증 경계 | Superseded by 0003 |
-| [0003](0003-single-python-backend.md) | 단일 Python 백엔드 + 사내 IdP 인증 위임 | Accepted (구조 섹션은 0004가 개정) |
+| [0003](0003-single-python-backend.md) | 단일 Python 백엔드 + 사내 IdP 인증 위임 | Accepted (구조는 0004 개정, 인증은 0009 대체) |
 | [0004](0004-apps-packages-monorepo-layout.md) | apps/* + packages/* 모노레포 레이아웃 채택 | Accepted |
 | [0005](0005-ai-engine-layer.md) | AI 엔진 레이어 분리 (domains ↔ engine) | Accepted |
-| [0006](0006-web-structure-and-oidc.md) | 프론트 구조(shadcn-admin) 및 OIDC 리다이렉트 인증 | Accepted |
+| [0006](0006-web-structure-and-oidc.md) | 프론트 구조(shadcn-admin) 및 OIDC 리다이렉트 인증 | Accepted (인증 흐름은 0009 대체) |
+| [0007](0007-llm-observability-langfuse.md) | LLM 관측(Observability)을 Langfuse에 위임 | Accepted |
+| [0008](0008-chat-human-approval.md) | 챗 사용자 승인(Human-in-the-Loop) | Accepted |
+| [0009](0009-self-id-password-auth.md) | 자체 ID/PW 인증 (IdP 위임에서 전환) | Accepted |
 
 ## 관련 문서
 

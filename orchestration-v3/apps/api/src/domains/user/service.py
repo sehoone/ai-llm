@@ -3,15 +3,33 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from src.core.security import hash_password
 from src.domains.user.model import User
 from src.domains.user.repository import UserRepository
-from src.domains.user.schema import AdminUserUpdateRequest, UserUpdateRequest
+from src.domains.user.schema import (
+    AdminUserUpdateRequest,
+    UserCreateRequest,
+    UserUpdateRequest,
+)
 
 
 class UserService:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.repo = UserRepository(session)
+
+    def create(self, req: UserCreateRequest) -> User:
+        if self.repo.exists_username(req.username):
+            raise HTTPException(status_code=409, detail="Username already exists")
+        if self.repo.exists_email(req.email):
+            raise HTTPException(status_code=409, detail="Email already exists")
+        user = User(
+            username=req.username,
+            email=req.email,
+            hashed_password=hash_password(req.password),
+            role=req.role,
+        )
+        return self.repo.save(user)
 
     def get(self, user_id: int) -> User:
         user = self.repo.get(user_id)

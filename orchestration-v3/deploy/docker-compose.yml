@@ -1,3 +1,8 @@
+# 프로젝트 이름을 명시해 orchestration-v2/deploy(동일 디렉터리명 "deploy")와의
+# compose 프로젝트/볼륨 충돌을 방지한다. 미지정 시 둘 다 "deploy"로 묶여
+# postgres-data 볼륨을 공유 → v3 init.sql이 실행되지 않고 v2 스키마를 물려받는다.
+name: orchestration-v3
+
 services:
   # ─────────────────────────────────────────────
   # Nginx 리버스 프록시 (단일 진입점)
@@ -35,7 +40,9 @@ services:
 
   # ─────────────────────────────────────────────
   # api (FastAPI — 플랫폼 + LLM 도메인 통합)
-  # 인증은 사내 IdP(OIDC)에 위임 — OIDC_* env로 JWKS 검증만 (ADR-0003)
+  # 인증: 자체 ID/PW → HS256 JWT 발급 (ADR-0009).
+  #   env_file(.env.${APP_ENV})에 JWT_SECRET_KEY·SEED_ADMIN_* 필요(없으면 로그인 불가).
+  #   (OIDC_*는 보존·비활성 — IdP 복귀용)
   # ─────────────────────────────────────────────
   api:
     build:
@@ -76,6 +83,8 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # Langfuse 전용 DB 생성 (ADR-0007) — 볼륨 최초 init 시 1회
+      - ./postgres/langfuse-db.sql:/docker-entrypoint-initdb.d/langfuse-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-mydb}"]
       interval: 10s
@@ -123,6 +132,160 @@ services:
     networks: [app-network]
     restart: always
 
+  # ─────────────────────────────────────────────
+  # LLM 관측 — Langfuse 스택 (ADR-0007). V2에서 이식.
+  #   langfuse-web :8067  → Langfuse UI (프로젝트 생성 후 키 발급)
+  #   전용 Postgres DB `langfuse`(db 컨테이너 공유) + ClickHouse + Redis + MinIO
+  # ─────────────────────────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1
+    container_name: v3-clickhouse
+    hostname: clickhouse
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-clickhouse}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks: [app-network]
+    restart: always
+    healthcheck:
+      # HTTP(8123) + native TCP(9000) 모두 준비돼야 Langfuse 마이그레이션 성공
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8123/ping && clickhouse-client --query 'SELECT 1'"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  minio:
+    image: minio/minio
+    container_name: v3-minio
+    # Langfuse v3가 쓰는 버킷을 기동 시 생성(디렉터리 = 버킷). 없으면 트레이스 업로드가 500.
+    entrypoint: sh -c 'mkdir -p /data/langfuse-events /data/langfuse-media /data/langfuse-exports && exec minio server /data --console-address ":9001"'
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minio}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-miniosecret}
+    ports:
+      - "8068:9001"   # Web Console (S3 API 9000은 내부 전용)
+    volumes:
+      - minio-data:/data
+    networks: [app-network]
+    restart: always
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: v3-redis
+    networks: [app-network]
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-web:
+    image: langfuse/langfuse:3
+    container_name: v3-langfuse-web
+    ports:
+      - "8067:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/langfuse
+      - CLICKHOUSE_URL=http://default:${CLICKHOUSE_PASSWORD:-clickhouse}@clickhouse:8123
+      - CLICKHOUSE_MIGRATION_URL=clickhouse://default:${CLICKHOUSE_PASSWORD:-clickhouse}@clickhouse:9000
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-clickhouse}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NEXTAUTH_URL=${LANGFUSE_NEXTAUTH_URL:-http://localhost:8067}
+      - NEXTAUTH_SECRET=${LANGFUSE_NEXTAUTH_SECRET:-changeme-nextauth-secret}
+      - SALT=${LANGFUSE_SALT:-changeme-salt}
+      - ENCRYPTION_KEY=${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      - TELEMETRY_ENABLED=false
+      - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=false
+      - LANGFUSE_S3_EVENT_UPLOAD_BUCKET=langfuse-events
+      - LANGFUSE_S3_EVENT_UPLOAD_REGION=auto
+      - LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT=http://minio:9000
+      - LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minio}
+      - LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-miniosecret}
+      - LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE=true
+      - LANGFUSE_S3_MEDIA_UPLOAD_BUCKET=langfuse-media
+      - LANGFUSE_S3_MEDIA_UPLOAD_REGION=auto
+      - LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT=http://minio:9000
+      - LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minio}
+      - LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-miniosecret}
+      - LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE=true
+      - LANGFUSE_S3_BATCH_EXPORT_BUCKET=langfuse-exports
+      - LANGFUSE_S3_BATCH_EXPORT_REGION=auto
+      - LANGFUSE_S3_BATCH_EXPORT_ENDPOINT=http://minio:9000
+      - LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minio}
+      - LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-miniosecret}
+      - LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE=true
+    depends_on:
+      db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [app-network]
+    restart: always
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: v3-langfuse-worker
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/langfuse
+      - CLICKHOUSE_URL=http://default:${CLICKHOUSE_PASSWORD:-clickhouse}@clickhouse:8123
+      - CLICKHOUSE_MIGRATION_URL=clickhouse://default:${CLICKHOUSE_PASSWORD:-clickhouse}@clickhouse:9000
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-clickhouse}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SALT=${LANGFUSE_SALT:-changeme-salt}
+      - ENCRYPTION_KEY=${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      - TELEMETRY_ENABLED=false
+      - LANGFUSE_S3_EVENT_UPLOAD_BUCKET=langfuse-events
+      - LANGFUSE_S3_EVENT_UPLOAD_REGION=auto
+      - LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT=http://minio:9000
+      - LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minio}
+      - LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-miniosecret}
+      - LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE=true
+      - LANGFUSE_S3_MEDIA_UPLOAD_BUCKET=langfuse-media
+      - LANGFUSE_S3_MEDIA_UPLOAD_REGION=auto
+      - LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT=http://minio:9000
+      - LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minio}
+      - LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-miniosecret}
+      - LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE=true
+      - LANGFUSE_S3_BATCH_EXPORT_BUCKET=langfuse-exports
+      - LANGFUSE_S3_BATCH_EXPORT_REGION=auto
+      - LANGFUSE_S3_BATCH_EXPORT_ENDPOINT=http://minio:9000
+      - LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minio}
+      - LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-miniosecret}
+      - LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE=true
+    depends_on:
+      db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [app-network]
+    restart: always
+
 networks:
   app-network:
     driver: bridge
@@ -130,3 +293,5 @@ networks:
 volumes:
   postgres-data:
   grafana-data:
+  clickhouse-data:
+  minio-data:

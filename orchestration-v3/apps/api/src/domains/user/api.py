@@ -5,10 +5,25 @@ from src.core.db import get_session
 from src.core.response import ApiResponse
 from src.domains.auth.dependencies import get_current_user, require_admin, require_superadmin
 from src.domains.user.model import User
-from src.domains.user.schema import AdminUserUpdateRequest, UserResponse, UserUpdateRequest
+from src.domains.user.schema import (
+    AdminUserUpdateRequest,
+    UserCreateRequest,
+    UserResponse,
+    UserUpdateRequest,
+)
 from src.domains.user.service import UserService
 
 router = APIRouter()
+
+
+@router.post("", response_model=ApiResponse[UserResponse], status_code=201)
+def create_user(
+    req: UserCreateRequest,
+    _: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+) -> ApiResponse[UserResponse]:
+    user = UserService(session).create(req)
+    return ApiResponse.ok(UserResponse.model_validate(user), message="사용자가 생성되었습니다.")
 
 
 @router.get("/me", response_model=ApiResponse[UserResponse])
