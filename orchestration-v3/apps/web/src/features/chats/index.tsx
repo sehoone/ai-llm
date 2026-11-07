@@ -41,6 +41,7 @@ import {
   type ApprovalRequiredEvent,
   type ApprovalDecision,
   type ChatStreamCallbacks,
+  type FileAttachment,
 } from '@/types/chat-api'
 import { useArtifactStore } from '@/stores/artifact-store'
 import { toast } from 'sonner'
@@ -272,22 +273,49 @@ export function Chats() {
     }
   }, [])
 
-  // NOTE: v3 chat은 파일 첨부·deep thinking은 아직 미지원 — 해당 인자는 무시.
-  const handleSendMessage = useCallback(
-    async (inputMessage: string, _selectedFiles: File[], _isDeepThinking: boolean) => {
-      const content = inputMessage.trim()
-      if (!content || !selectedSessionId || isSending) return
+  const convertFileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string).split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
 
-      const userMessage: Message = { role: 'user', content }
+  // NOTE: deep thinking은 아직 미지원 — 해당 인자는 무시. 첨부는 ADR-0014(이미지 비전·텍스트).
+  const handleSendMessage = useCallback(
+    async (inputMessage: string, selectedFiles: File[], _isDeepThinking: boolean) => {
+      const content = inputMessage.trim()
+      if ((!content && selectedFiles.length === 0) || !selectedSessionId || isSending) return
+
+      let files: FileAttachment[] | undefined
+      if (selectedFiles.length > 0) {
+        try {
+          files = await Promise.all(
+            selectedFiles.map(async (f) => ({
+              filename: f.name,
+              content_type: f.type,
+              data: await convertFileToBase64(f),
+            }))
+          )
+        } catch (error) {
+          logger.error('Failed to process files', error)
+          toast.error('Failed to process files')
+          return
+        }
+      }
+
+      const text = content || (files ? 'Attached file(s)' : '')
+      const userMessage: Message = { role: 'user', content: text, files }
       setMessages((prev) => [...prev, userMessage, { role: 'assistant', content: '' }])
       setIsSending(true)
 
       await chatService.streamMessage(
         selectedSessionId,
-        content,
+        text,
         makeStreamCallbacks(selectedSessionId),
         selectedModelId ?? undefined,
-        selectedRagGroup ?? undefined
+        selectedRagGroup ?? undefined,
+        files
       )
       // 스트림 종료 — 이번 턴 아티팩트의 서버 id/버전 해소.
       await syncArtifactServerIds(selectedSessionId)

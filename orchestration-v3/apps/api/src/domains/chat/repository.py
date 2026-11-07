@@ -7,7 +7,13 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from src.domains.chat.model import ApprovalStatus, ChatApproval, ChatMessage, ChatSession
+from src.domains.chat.model import (
+    ApprovalStatus,
+    ChatApproval,
+    ChatAttachment,
+    ChatMessage,
+    ChatSession,
+)
 
 
 class ChatRepository:
@@ -43,7 +49,7 @@ class ChatRepository:
         return session
 
     def delete_session(self, session: ChatSession) -> None:
-        """세션 + 종속 메시지·승인 이력을 함께 제거(FK 없이 명시 정리)."""
+        """세션 + 종속 메시지·승인·첨부 메타를 함께 제거(FK 없이 명시 정리). 파일 삭제는 service."""
         for m in self.list_messages(session.id):
             self.session.delete(m)
         approvals = self.session.exec(
@@ -51,8 +57,55 @@ class ChatRepository:
         ).all()
         for a in approvals:
             self.session.delete(a)
+        for att in self.list_session_attachments(session.id):
+            self.session.delete(att)
         self.session.delete(session)
         self.session.commit()
+
+    # ── 첨부 (ADR-0014) ──
+    def add_attachment(
+        self,
+        *,
+        message_id: int,
+        session_id: int,
+        filename: str,
+        content_type: str,
+        file_size: int,
+        storage_path: str,
+    ) -> ChatAttachment:
+        a = ChatAttachment(
+            message_id=message_id,
+            session_id=session_id,
+            filename=filename,
+            content_type=content_type,
+            file_size=file_size,
+            storage_path=storage_path,
+        )
+        self.session.add(a)
+        self.session.commit()
+        self.session.refresh(a)
+        return a
+
+    def get_attachment(self, attachment_id: int) -> ChatAttachment | None:
+        return self.session.get(ChatAttachment, attachment_id)
+
+    def attachments_by_message_ids(self, message_ids: list[int]) -> dict[int, list[ChatAttachment]]:
+        if not message_ids:
+            return {}
+        rows = self.session.exec(
+            select(ChatAttachment).where(ChatAttachment.message_id.in_(message_ids))
+        ).all()
+        out: dict[int, list[ChatAttachment]] = {}
+        for a in rows:
+            out.setdefault(a.message_id, []).append(a)
+        return out
+
+    def list_session_attachments(self, session_id: int) -> list[ChatAttachment]:
+        return list(
+            self.session.exec(
+                select(ChatAttachment).where(ChatAttachment.session_id == session_id)
+            ).all()
+        )
 
     # ── 메시지 ──
     def add_message(

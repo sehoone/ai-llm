@@ -204,3 +204,17 @@ CREATE TABLE IF NOT EXISTS llmonl.artifact_data (
     data        TEXT      NOT NULL DEFAULT '{}',
     updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- chat 첨부 (ADR-0014): 파일 바이트는 로컬 볼륨, 메타만 DB. FK 없음 — 앱이 정리.
+CREATE TABLE IF NOT EXISTS llmonl.chat_attachment (
+    id           BIGSERIAL  PRIMARY KEY,
+    message_id   BIGINT     NOT NULL,
+    session_id   BIGINT     NOT NULL,
+    filename     TEXT       NOT NULL,
+    content_type TEXT       NOT NULL,
+    file_size    BIGINT     NOT NULL,
+    storage_path TEXT       NOT NULL,
+    created_at   TIMESTAMP  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_attachment_message_id ON llmonl.chat_attachment (message_id);
+CREATE INDEX IF NOT EXISTS idx_chat_attachment_session_id ON llmonl.chat_attachment (session_id);

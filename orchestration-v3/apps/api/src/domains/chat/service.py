@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import uuid
@@ -20,9 +21,17 @@ from langgraph.types import Command
 from sqlmodel import Session
 
 from src.core.config import settings
+from src.core.storage import FileStorage
 from src.domains.chat.model import ApprovalStatus, ChatSession
 from src.domains.chat.repository import ChatRepository
-from src.domains.chat.schema import ApprovalDecision
+from src.domains.chat.schema import (
+    ALL_SUPPORTED_TYPES,
+    MAX_FILE_SIZE,
+    SUPPORTED_IMAGE_TYPES,
+    SUPPORTED_TEXT_TYPES,
+    ApprovalDecision,
+    FileAttachment,
+)
 from src.domains.artifact.repository import ArtifactRepository
 from src.domains.llm_resource.model import LlmResource
 from src.domains.llm_resource.repository import LlmResourceRepository
@@ -149,6 +158,31 @@ def _auto_approve_for(role: UserRole) -> frozenset[str]:
     return frozenset()
 
 
+def _build_graph_content(text: str, files: list[FileAttachment] | None) -> Any:
+    """파일이 있으면 멀티모달 블록 리스트, 없으면 텍스트 (ADR-0014 §3)."""
+    if not files:
+        return text
+    parts: list[dict[str, Any]] = [{"type": "text", "text": text}]
+    for f in files:
+        if f.content_type in SUPPORTED_IMAGE_TYPES:
+            parts.append(
+                {"type": "image_url", "image_url": {"url": f"data:{f.content_type};base64,{f.data}"}}
+            )
+        elif f.content_type in SUPPORTED_TEXT_TYPES:
+            try:
+                decoded = base64.b64decode(f.data).decode("utf-8", errors="replace")
+            except Exception:
+                decoded = ""
+            parts.append(
+                {"type": "text", "text": f"\n\n--- {f.filename} ---\n{decoded}\n--- end of {f.filename} ---"}
+            )
+        else:  # PDF 등 — 추출 미구현(placeholder, V2 동일)
+            parts.append(
+                {"type": "text", "text": f"\n\n[PDF attached: {f.filename}. Content extraction not implemented.]"}
+            )
+    return parts
+
+
 class ChatService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -167,6 +201,9 @@ class ChatService:
 
     def delete_session(self, session_id: int, user: User) -> None:
         s = self.get_session_owned(session_id, user)
+        storage = FileStorage()
+        for att in self.repo.list_session_attachments(s.id):
+            storage.delete(att.storage_path)  # 파일 정리 (메타는 repo가 삭제)
         self.repo.delete_session(s)
 
     def get_session_owned(self, session_id: int, user: User) -> ChatSession:
@@ -181,6 +218,24 @@ class ChatService:
         self.get_session_owned(session_id, user)
         return self.repo.list_messages(session_id)
 
+    def attachments_for(self, message_ids: list[int]) -> dict:
+        """메시지 id별 첨부 메타 (배치 조회) — ADR-0014."""
+        return self.repo.attachments_by_message_ids(message_ids)
+
+    def download_attachment(self, user: User, attachment_id: int) -> tuple:
+        """다운로드용 (절대경로, filename, content_type). 소유자 또는 관리자만 (ADR-0014 §4)."""
+        att = self.repo.get_attachment(attachment_id)
+        if att is None:
+            raise HTTPException(status_code=404, detail="Attachment not found")
+        if user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
+            session = self.repo.get_session(att.session_id)
+            if session is None or session.user_id != user.id:
+                raise HTTPException(status_code=403, detail="Access denied")
+        path = FileStorage().absolute_path(att.storage_path)
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="File not found on server")
+        return path, att.filename, att.content_type
+
     # ── 메시지 전송 (SSE) ──
     def stream_message(
         self,
@@ -189,18 +244,46 @@ class ChatService:
         content: str,
         llm_resource_id: int | None = None,
         rag_group: str | None = None,
+        files: list[FileAttachment] | None = None,
     ) -> Iterator[str]:
         session = self.get_session_owned(session_id, user)
         # 첫 왕복(이 턴 전 메시지 0건)이면 종료 후 제목 자동생성 (ADR-0011 §3).
         is_first = len(self.repo.list_messages(session.id)) == 0
-        # 원문(clean)만 영속 — 사전 주입 컨텍스트는 그래프 입력에만 실린다.
-        self.repo.add_message(session.id, "user", content)
+        # 원문(clean)만 영속 — 사전 주입 컨텍스트·첨부 바이트는 그래프 입력/스토리지에만.
+        user_msg = self.repo.add_message(session.id, "user", content)
+        self._persist_attachments(session, user_msg.id, files)
         llm_config = self._resolve_llm_config(llm_resource_id)
-        graph_content = self._augment_with_rag(user, content, rag_group)
+        text = self._augment_with_rag(user, content, rag_group)
+        graph_content = _build_graph_content(text, files)  # 파일 있으면 멀티모달 (ADR-0014)
         graph_input: Any = {"messages": [HumanMessage(content=graph_content)]}
         yield from self._run(
             session, user, graph_input, user_content=content, is_first=is_first, llm_config=llm_config
         )
+
+    def _persist_attachments(
+        self, session: ChatSession, message_id: int, files: list[FileAttachment] | None
+    ) -> None:
+        """첨부 검증·저장·메타 영속 (ADR-0014)."""
+        if not files:
+            return
+        storage = FileStorage()
+        for f in files:
+            if f.content_type not in ALL_SUPPORTED_TYPES:
+                raise HTTPException(status_code=400, detail=f"Unsupported file type: {f.content_type}")
+            storage_path, size = storage.save_base64(f.data, session.id, f.filename)
+            if size > MAX_FILE_SIZE:
+                storage.delete(storage_path)
+                raise HTTPException(
+                    status_code=400, detail=f"File {f.filename} exceeds {MAX_FILE_SIZE // (1024 * 1024)}MB"
+                )
+            self.repo.add_attachment(
+                message_id=message_id,
+                session_id=session.id,
+                filename=f.filename,
+                content_type=f.content_type,
+                file_size=size,
+                storage_path=storage_path,
+            )
 
     def _augment_with_rag(self, user: User, content: str, rag_group: str | None) -> str:
         """rag_group이 있으면 검색 컨텍스트를 사전 주입 (ADR-0012 §1). 결과 없으면 원문 그대로."""

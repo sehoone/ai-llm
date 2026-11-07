@@ -56,6 +56,9 @@ services:
       - APP_ENV=${APP_ENV:-production}
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
+      - UPLOAD_DIR=/data/uploads
+    volumes:
+      - api-uploads:/data/uploads   # chat 첨부 파일 (ADR-0014)
     depends_on:
       db:
         condition: service_healthy
@@ -295,3 +298,4 @@ volumes:
   grafana-data:
   clickhouse-data:
   minio-data:
+  api-uploads:
