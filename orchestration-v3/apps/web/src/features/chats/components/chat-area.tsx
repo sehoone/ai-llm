@@ -4,7 +4,7 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { chatService } from '@/api/chat'
-import { type FileAttachment, type Message } from '@/types/chat-api'
+import { type FileAttachment, type Message, type StreamPhase } from '@/types/chat-api'
 import { cn } from '@/lib/utils'
 import { markdownComponents } from '@/components/markdown-components'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -75,8 +75,35 @@ const formatBytes = (bytes: number) => {
 interface ChatAreaProps {
   messages: Message[]
   isLoading: boolean
+  /** 첫 토큰 이전 서버 진행 단계 (ADR-0011 §5). null이면 표시 안 함. */
+  streamPhase?: { phase: StreamPhase; filename?: string | null } | null
   onOpenArtifact?: (identifier: string) => void
 }
+
+/** 진행 단계 → 사용자 라벨 (ADR-0011 §5). */
+function phaseLabel(phase: StreamPhase, filename?: string | null): string {
+  switch (phase) {
+    case 'uploading':
+      return '파일 업로드 중…'
+    case 'extracting':
+      return filename ? `문서 분석 중… (${filename})` : '문서 분석 중…'
+    case 'thinking':
+    default:
+      return '답변 생성 중…'
+  }
+}
+
+/** 단계 라벨 + 바운싱 점 인디케이터. */
+const PhaseIndicator = ({ label }: { label: string }) => (
+  <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+    <span className='flex items-center gap-1'>
+      <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/50 [animation-delay:-0.3s]' />
+      <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/50 [animation-delay:-0.15s]' />
+      <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/50' />
+    </span>
+    <span>{label}</span>
+  </div>
+)
 
 const DeepThinkingAccordion = ({ thoughts, isThinking }: { thoughts: { title: string; content: string }[]; isThinking: boolean }) => {
   const [isOpen, setIsOpen] = useState(true);
@@ -246,7 +273,7 @@ const AssistantMessage = ({
     );
 }
 
-export const ChatArea = memo(function ChatArea({ messages, isLoading, onOpenArtifact }: ChatAreaProps) {
+export const ChatArea = memo(function ChatArea({ messages, isLoading, streamPhase, onOpenArtifact }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -344,6 +371,9 @@ export const ChatArea = memo(function ChatArea({ messages, isLoading, onOpenArti
                       </div>
                     )}
                   </div>
+                ) : !message.content && streamPhase && index === messages.length - 1 ? (
+                  // 빈 assistant 버블(첫 토큰 대기) — 진행 단계 표시 (ADR-0011 §5).
+                  <PhaseIndicator label={phaseLabel(streamPhase.phase, streamPhase.filename)} />
                 ) : (
                   <AssistantMessage content={message.content} onOpenArtifact={onOpenArtifact} />
                 )}

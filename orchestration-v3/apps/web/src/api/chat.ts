@@ -134,6 +134,9 @@ async function runSSE(url: string, body: unknown, callbacks: ChatStreamCallbacks
   try {
     const handler = createEventSSEHandler((event, data) => {
       switch (event) {
+        case 'status':
+          callbacks.onStatus?.(data?.phase, data?.filename ?? null)
+          break
         case 'content':
           callbacks.onContent(data?.delta ?? '')
           break

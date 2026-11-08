@@ -42,6 +42,7 @@ import {
   type ApprovalDecision,
   type ChatStreamCallbacks,
   type FileAttachment,
+  type StreamPhase,
 } from '@/types/chat-api'
 import { useArtifactStore } from '@/stores/artifact-store'
 import { toast } from 'sonner'
@@ -55,6 +56,8 @@ export function Chats() {
   const [messages, setMessages] = useState<Message[]>([])
   const [, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  // 첫 토큰 이전 서버 진행 단계 (ADR-0011 §5). null이면 표시 안 함.
+  const [streamPhase, setStreamPhase] = useState<{ phase: StreamPhase; filename?: string | null } | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
   const [ragGroups, setRagGroups] = useState<RagGroup[]>([])
@@ -219,14 +222,21 @@ export function Chats() {
 
   const makeStreamCallbacks = useCallback(
     (sessionId: string): ChatStreamCallbacks => ({
-      // 토큰 스트리밍 — assistant 버블에 이어붙임 (ADR-0011).
-      onContent: (delta) => appendToAssistant(delta),
+      // 진행 단계 신호 (ADR-0011 §5) — 첫 토큰 이전 업로드/추출/생성 단계 표시.
+      onStatus: (phase, filename) => setStreamPhase({ phase, filename }),
+      // 토큰 스트리밍 — assistant 버블에 이어붙임 (ADR-0011). 첫 토큰에 진행 표시 해제.
+      onContent: (delta) => {
+        setStreamPhase(null)
+        appendToAssistant(delta)
+      },
       // 비스트리밍 완결 메시지(tool 결과는 표시 안 함; assistant 폴백만 반영).
       onMessage: (msg) => {
+        setStreamPhase(null)
         if (msg.role === 'assistant' && msg.content) appendToAssistant(msg.content)
       },
       // 아티팩트 스트리밍 — 캔버스 스토어 구동 (ADR-0013).
       onArtifact: (event) => {
+        if (event.kind === 'start') setStreamPhase(null)
         const store = useArtifactStore.getState()
         if (event.kind === 'start') {
           store.startArtifact({ identifier: event.identifier, type: event.type, title: event.title })
@@ -237,6 +247,7 @@ export function Chats() {
         }
       },
       onApprovalRequired: (ev) => {
+        setStreamPhase(null)
         setPendingApproval({ ev, sessionId })
         setIsSending(false)
       },
@@ -247,8 +258,12 @@ export function Chats() {
           prev.map((s) => (s.session_id === sessionId ? { ...s, name: title } : s))
         )
       },
-      onDone: () => setIsSending(false),
+      onDone: () => {
+        setStreamPhase(null)
+        setIsSending(false)
+      },
       onError: (error) => {
+        setStreamPhase(null)
         logger.error('Chat stream error', error)
         toast.error('Failed to send message')
         setIsSending(false)
@@ -308,6 +323,8 @@ export function Chats() {
       const userMessage: Message = { role: 'user', content: text, files }
       setMessages((prev) => [...prev, userMessage, { role: 'assistant', content: '' }])
       setIsSending(true)
+      // 낙관적 진행 표시 — 서버 status 이벤트 도착 전까지의 공백 제거 (ADR-0011 §5).
+      setStreamPhase({ phase: files && files.length > 0 ? 'uploading' : 'thinking' })
 
       await chatService.streamMessage(
         selectedSessionId,
@@ -485,6 +502,7 @@ export function Chats() {
                   <ChatArea
                     messages={messages}
                     isLoading={isSending && messages.length > 0 && messages[messages.length-1].role !== 'assistant'}
+                    streamPhase={streamPhase}
                     onOpenArtifact={handleOpenArtifact}
                   />
                   <ChatInput

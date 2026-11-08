@@ -128,8 +128,13 @@ export interface ApprovalDecision {
   args?: Record<string, unknown>
 }
 
+/** Server progress phase before the first assistant token (ADR-0011 §5). */
+export type StreamPhase = 'uploading' | 'extracting' | 'thinking'
+
 /** Callbacks for a chat SSE run (send message or resume after approval). */
 export interface ChatStreamCallbacks {
+  /** Progress phase before the first token (attachment upload/extraction/thinking) — ADR-0011 §5. */
+  onStatus?: (phase: StreamPhase, filename?: string | null) => void
   /** Streamed assistant token delta — append to the current assistant bubble (ADR-0011). */
   onContent: (delta: string) => void
   /** Complete non-streamed message (tool result, or assistant fallback for non-streaming models). */

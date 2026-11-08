@@ -53,8 +53,18 @@ class Settings(BaseSettings):
         """실 LLM 사용 가능 여부 — 키 존재 또는 로컬 ollama (ADR-0010 §3)."""
         return bool(self.llm_api_key) or self.llm_provider == "ollama"
 
-    # 첨부 파일 저장 루트 (ADR-0014). 컨테이너는 볼륨(/data/uploads), 로컬은 상대경로.
-    upload_dir: str = "uploads"
+    # 첨부 저장 (ADR-0017) — MinIO(S3 호환, 기본) 또는 로컬 디스크 폴백.
+    # bare 로컬 개발(docker 없이)은 storage_backend=local로 두면 upload_dir에 저장.
+    storage_backend: str = "minio"            # "minio" | "local"
+    upload_dir: str = "uploads"               # local 폴백 저장 루트
+    minio_endpoint: str = "minio:9000"        # 내부망 S3 엔드포인트 (host:port)
+    minio_access_key: str = ""
+    minio_secret_key: str = ""
+    minio_bucket: str = "chat-attachments"    # Langfuse 버킷과 분리
+    minio_secure: bool = False                # 내부 http
+
+    # 문서 본문 추출 (ADR-0016) — 추출 텍스트 상한(컨텍스트 폭주 방지). 초과 시 truncate.
+    max_extract_chars: int = 50_000
 
     # 장기 메모리 (ADR-0015) — mem0 + pgvector. opt-in(추출 LLM 호출 비용·지연).
     memory_enabled: bool = False
