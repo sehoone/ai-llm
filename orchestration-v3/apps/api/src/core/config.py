@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     # 첨부 파일 저장 루트 (ADR-0014). 컨테이너는 볼륨(/data/uploads), 로컬은 상대경로.
     upload_dir: str = "uploads"
 
+    # 장기 메모리 (ADR-0015) — mem0 + pgvector. opt-in(추출 LLM 호출 비용·지연).
+    memory_enabled: bool = False
+    memory_llm_model: str = "gpt-4o-mini"
+    memory_embedder_model: str = "text-embedding-3-small"
+    memory_collection: str = "longterm_memory"
+    memory_max_count: int = 100
+    postgres_schema: str = "llmonl"
+
     # Langfuse (LLM 관측 — ADR-0007). self-host 또는 cloud. 키 없으면 비활성.
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

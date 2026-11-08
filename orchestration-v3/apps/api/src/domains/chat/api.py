@@ -95,6 +95,16 @@ def send_message(
     return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
+@router.delete("/memory", response_model=ApiResponse[None])
+def delete_memory(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> ApiResponse[None]:
+    """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015)."""
+    ChatService(session).delete_memory(user)
+    return ApiResponse.ok(None)
+
+
 @router.get("/attachments/{attachment_id}")
 def download_attachment(
     attachment_id: int,

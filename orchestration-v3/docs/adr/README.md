@@ -29,6 +29,7 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0012](0012-engine-rag.md) | RAG — 검색 증강 (engine/rag + rag 도메인, pgvector) | Accepted |
 | [0013](0013-artifacts.md) | 아티팩트 (스트림 파서 + artifact 도메인 + 버저닝) | Accepted |
 | [0014](0014-attachments-multimodal.md) | 첨부/멀티모달 (이미지 비전 + 텍스트, 로컬 저장) | Accepted |
+| [0015](0015-long-term-memory.md) | 장기 메모리 (engine/memory — mem0 + pgvector) | Accepted |
 
 ## 관련 문서
 
