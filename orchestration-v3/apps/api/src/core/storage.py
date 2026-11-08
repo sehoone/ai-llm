@@ -27,12 +27,16 @@ def _sanitize_filename(filename: str) -> str:
     return name or "file"
 
 
-def _object_key(session_id: int, original_filename: str) -> str:
-    """세션별 네임스페이스 + uuid 프리픽스 (경로/키 주입 방지)."""
-    return f"{session_id}/{uuid.uuid4().hex}_{_sanitize_filename(original_filename)}"
+def _object_key(namespace: int | str, original_filename: str) -> str:
+    """네임스페이스(세션 id 또는 문자열 프리픽스) + uuid 프리픽스 (경로/키 주입 방지)."""
+    return f"{namespace}/{uuid.uuid4().hex}_{_sanitize_filename(original_filename)}"
 
 
 class FileStorage(Protocol):
+    def save_bytes(self, data: bytes, namespace: int | str, original_filename: str) -> tuple[str, int]:
+        """원본 바이트 저장. (storage_path/key, 바이트크기) 반환."""
+        ...
+
     def save_base64(self, data_base64: str, session_id: int, original_filename: str) -> tuple[str, int]:
         """base64 디코드 후 저장. (storage_path/key, 바이트크기) 반환."""
         ...
@@ -52,13 +56,15 @@ class LocalFileStorage:
     def __init__(self, base_dir: str | None = None) -> None:
         self.base_dir = Path(base_dir or settings.upload_dir)
 
-    def save_base64(self, data_base64: str, session_id: int, original_filename: str) -> tuple[str, int]:
-        key = _object_key(session_id, original_filename)
-        raw = base64.b64decode(data_base64)
+    def save_bytes(self, data: bytes, namespace: int | str, original_filename: str) -> tuple[str, int]:
+        key = _object_key(namespace, original_filename)
         path = self.base_dir / key
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(raw)
-        return key, len(raw)
+        path.write_bytes(data)
+        return key, len(data)
+
+    def save_base64(self, data_base64: str, session_id: int, original_filename: str) -> tuple[str, int]:
+        return self.save_bytes(base64.b64decode(data_base64), session_id, original_filename)
 
     def exists(self, key: str) -> bool:
         return (self.base_dir / key).exists()
@@ -75,9 +81,13 @@ class LocalFileStorage:
 
 
 class MinioFileStorage:
-    """MinIO(S3 호환) 객체 스토리지. 기동 시 버킷 보장(ADR-0017 §3)."""
+    """MinIO(S3 호환) 객체 스토리지. 최초 사용 시 버킷 보장(ADR-0017 §3).
 
-    def __init__(self) -> None:
+    `bucket`을 지정하면 그 버킷을 쓴다(없으면 `settings.minio_bucket` 기본 — 첨부용). meeting 녹음은
+    전용 버킷(`settings.meeting_audio_bucket`)을 주입해 첨부와 분리 저장한다.
+    """
+
+    def __init__(self, bucket: str | None = None) -> None:
         from minio import Minio
 
         self._client = Minio(
@@ -86,15 +96,17 @@ class MinioFileStorage:
             secret_key=settings.minio_secret_key,
             secure=settings.minio_secure,
         )
-        self._bucket = settings.minio_bucket
+        self._bucket = bucket or settings.minio_bucket
         if not self._client.bucket_exists(self._bucket):
             self._client.make_bucket(self._bucket)
 
+    def save_bytes(self, data: bytes, namespace: int | str, original_filename: str) -> tuple[str, int]:
+        key = _object_key(namespace, original_filename)
+        self._client.put_object(self._bucket, key, io.BytesIO(data), length=len(data))
+        return key, len(data)
+
     def save_base64(self, data_base64: str, session_id: int, original_filename: str) -> tuple[str, int]:
-        raw = base64.b64decode(data_base64)
-        key = _object_key(session_id, original_filename)
-        self._client.put_object(self._bucket, key, io.BytesIO(raw), length=len(raw))
-        return key, len(raw)
+        return self.save_bytes(base64.b64decode(data_base64), session_id, original_filename)
 
     def exists(self, key: str) -> bool:
         from minio.error import S3Error
@@ -117,12 +129,18 @@ class MinioFileStorage:
         self._client.remove_object(self._bucket, key)
 
 
-_storage: FileStorage | None = None
+_storage_cache: dict[str | None, FileStorage] = {}
 
 
-def get_storage() -> FileStorage:
-    """설정에 따른 스토리지 어댑터(프로세스 싱글턴). 클라이언트는 최초 호출 시 지연 생성."""
-    global _storage
-    if _storage is None:
-        _storage = MinioFileStorage() if settings.storage_backend == "minio" else LocalFileStorage()
-    return _storage
+def get_storage(bucket: str | None = None) -> FileStorage:
+    """설정에 따른 스토리지 어댑터(버킷별 프로세스 싱글턴). 클라이언트는 최초 호출 시 지연 생성.
+
+    `bucket=None`이면 기본 첨부 버킷(`settings.minio_bucket`). meeting 녹음 등은 전용 버킷을 넘긴다.
+    local 백엔드는 버킷 개념이 없어 동일 디스크 루트를 쓴다(오브젝트 키 프리픽스로 분리).
+    """
+    if bucket not in _storage_cache:
+        if settings.storage_backend == "minio":
+            _storage_cache[bucket] = MinioFileStorage(bucket=bucket)
+        else:
+            _storage_cache[bucket] = LocalFileStorage()
+    return _storage_cache[bucket]

@@ -252,3 +252,49 @@ CREATE TABLE IF NOT EXISTS llmonl.chat_attachment (
 );
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_message_id ON llmonl.chat_attachment (message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_attachment_session_id ON llmonl.chat_attachment (session_id);
+
+-- meeting 도메인: 음성 회의록(업로드·전사·요약). 오디오 바이트는 객체 스토리지(core/storage),
+-- 메타·전사·회의록만 DB. FK CASCADE 없음 — 회의 삭제 시 앱이 세그먼트·회의록·아티팩트를 정리.
+CREATE TABLE IF NOT EXISTS llmonl.meeting (
+    id                      TEXT         PRIMARY KEY,           -- uuid(hex)
+    user_id                 BIGINT       NOT NULL,
+    title                   TEXT         NOT NULL DEFAULT '',
+    status                  VARCHAR(20)  NOT NULL DEFAULT 'UPLOADED',  -- UPLOADED|TRANSCRIBING|TRANSCRIBED|SUMMARIZING|COMPLETED|SAVED|FAILED
+    audio_object_key        TEXT         NOT NULL,
+    audio_filename          TEXT         NOT NULL DEFAULT '',
+    audio_duration_sec      INTEGER,
+    language                VARCHAR(20)  NOT NULL DEFAULT 'ko-KR',
+    transcription_provider  VARCHAR(20),                        -- azure|whisper
+    artifact_id             TEXT,
+    public_token            TEXT,
+    error_message           TEXT,
+    created_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_user_id      ON llmonl.meeting (user_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_status       ON llmonl.meeting (status);
+CREATE INDEX IF NOT EXISTS idx_meeting_artifact_id  ON llmonl.meeting (artifact_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_public_token ON llmonl.meeting (public_token);
+
+CREATE TABLE IF NOT EXISTS llmonl.meeting_segment (
+    id            BIGSERIAL    PRIMARY KEY,
+    meeting_id    TEXT         NOT NULL,
+    seq           INTEGER      NOT NULL,
+    speaker_label VARCHAR(50)  NOT NULL DEFAULT 'Speaker 1',  -- 공급자 할당 라벨
+    speaker_name  VARCHAR(255),                               -- 사용자 매핑 실명
+    start_ms      INTEGER      NOT NULL DEFAULT 0,
+    end_ms        INTEGER      NOT NULL DEFAULT 0,
+    text          TEXT         NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_segment_meeting_id ON llmonl.meeting_segment (meeting_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.meeting_minutes (
+    id           BIGSERIAL   PRIMARY KEY,
+    meeting_id   TEXT        NOT NULL,
+    summary      TEXT        NOT NULL DEFAULT '',
+    content_json TEXT        NOT NULL DEFAULT '{}',   -- 구조화 회의록(JSON 인코딩)
+    model_used   VARCHAR(255) NOT NULL DEFAULT '',
+    version      INT         NOT NULL DEFAULT 1,
+    created_at   TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting_id ON llmonl.meeting_minutes (meeting_id);

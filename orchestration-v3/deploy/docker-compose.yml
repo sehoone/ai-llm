@@ -56,6 +56,8 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       - MINIO_BUCKET=chat-attachments
       - MINIO_SECURE=false
+      # 회의 녹음은 전용 버킷에 분리 저장 (chat 첨부와 격리). 최초 업로드 시 자동 생성.
+      - MEETING_AUDIO_BUCKET=meeting-recordings
       - UPLOAD_DIR=/data/uploads   # local 폴백용 (storage_backend=local일 때만)
       # 네트워크 좌표는 compose가 서비스 DNS로 override. api.env의 localhost 값은 bare-metal 전용.
       - LANGFUSE_HOST=http://langfuse-web:3000

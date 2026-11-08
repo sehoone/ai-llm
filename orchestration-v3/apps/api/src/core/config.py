@@ -63,6 +63,22 @@ class Settings(BaseSettings):
     # 문서 본문 추출 (ADR-0016) — 추출 텍스트 상한(컨텍스트 폭주 방지). 초과 시 truncate.
     max_extract_chars: int = 50_000
 
+    # 회의록 (meeting-minutes) — 음성 업로드·전사·요약. 오디오는 core/storage(MinIO/local)에
+    # "meetings/" 네임스페이스로 저장. 요약 LLM은 llm_resource 기본 chat 리소스 사용(env 미참조).
+    meeting_max_audio_mb: int = 200
+    meeting_default_locale: str = "ko-KR"
+    meeting_max_speakers: int = 10
+    meeting_audio_bucket: str = "meeting-recordings"  # 녹음 전용 MinIO 버킷(첨부와 분리). local 백엔드면 무시.
+    meeting_map_reduce_char_threshold: int = 12_000  # 초과 시 map-reduce 요약
+    meeting_chunk_char_size: int = 8_000             # map 단계 청크 크기
+
+    # 전사(STT) 외부 서비스 좌표 — llm_resource가 아님(별도 음성 서비스). Azure Fast Transcription
+    # (주, 화자 분리) → OpenAI Whisper 폴백(화자 분리 없음). 둘 다 비면 전사 없이 오디오만 저장(SAVED).
+    azure_speech_key: str = ""
+    azure_speech_region: str = ""
+    openai_api_key: str = ""           # Whisper STT 폴백용
+    openai_stt_model: str = "whisper-1"
+
     # 장기 메모리 (ADR-0015) — mem0 + pgvector. opt-in(추출 LLM 호출 비용·지연).
     # 추출 LLM·임베더 모델은 `llm_resource` 테이블에서 해석(env 미참조) — 도메인이 주입.
     memory_enabled: bool = False

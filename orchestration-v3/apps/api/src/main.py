@@ -13,6 +13,8 @@ from src.domains.auth.api import router as auth_router
 from src.domains.auth.service import ensure_seed_admin
 from src.domains.chat.api import router as chat_router
 from src.domains.llm_resource.api import router as llm_resource_router
+from src.domains.meeting.api import router as meeting_router
+from src.domains.meeting.service import fail_stuck_meetings
 from src.domains.rag.api import router as rag_router
 from src.domains.user.api import router as user_router
 from src.engine.observability import shutdown as observability_shutdown
@@ -23,6 +25,8 @@ async def lifespan(app: FastAPI):
     # 기동 시 seed 관리자 보장 (최초 로그인용 — SEED_ADMIN_PASSWORD 설정 시).
     with Session(engine) as session:
         ensure_seed_admin(session)
+    # 인프로세스 BackgroundTask로 처리되는 회의는 재시작 시 고아가 된다 → 비종료 상태를 FAILED로 정리.
+    fail_stuck_meetings()
     yield
     # 종료 시 버퍼된 Langfuse 트레이스 flush (ADR-0007). 비활성이면 no-op.
     observability_shutdown()
@@ -57,3 +61,6 @@ app.include_router(artifact_public_router, prefix="/api/v1/public/artifacts", ta
 
 # ai_overview: 사내 문서 + LLM 키워드/동의어 + 하이브리드(trgm+pgvector) 검색 (V2 포팅)
 app.include_router(ai_overview_router, prefix="/api/v1/ai-overview", tags=["ai-overview"])
+
+# meeting: 음성 회의록 — 업로드·전사(STT)·요약·화자매핑·발행 (V2 포팅)
+app.include_router(meeting_router, prefix="/api/v1/meetings", tags=["meetings"])
