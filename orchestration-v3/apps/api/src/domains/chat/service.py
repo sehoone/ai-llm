@@ -50,6 +50,7 @@ from src.engine.graph.fake_model import FakeToolCallingModel
 from src.engine import memory
 from src.engine.llm import build_model_for, generate_title
 from src.engine.llm.config import LlmConfig
+from src.engine.observability import TraceContext, build_run_config
 from src.engine.prompts import load_system_prompt
 
 logger = logging.getLogger(__name__)
@@ -463,7 +464,12 @@ class ChatService:
         }
         if llm_config is not None:
             configurable["llm_config"] = llm_config  # 리졸버가 해석 (ADR-0011 §4)
-        config = {"configurable": configurable}
+        # 관측(ADR-0007): Langfuse 콜백 핸들러·metadata를 run config에 병합. 도메인이 컨텍스트
+        # 값(user·session·tags)을 주입하고, 비활성 시 build_run_config는 {}를 반환(분기 불필요).
+        run_cfg = build_run_config(
+            TraceContext(user_id=user.id, session_id=str(session.id), tags=("chat",))
+        )
+        config = {"configurable": configurable, **run_cfg}
 
         # 아티팩트 파서(ADR-0013): assistant 토큰을 chat 본문과 아티팩트 이벤트로 가른다.
         parser = ArtifactStreamParser()
@@ -605,7 +611,13 @@ class ChatService:
     def _maybe_generate_title(
         self, session: ChatSession, user_content: str, answer: str, llm_config: LlmConfig | None
     ) -> str | None:
-        """첫 대화 제목 생성 + 세션에 반영. LLM 설정(DB) 없거나 실패 시 None."""
+        """첫 대화 제목 생성 + 세션에 반영. LLM 설정(DB) 없거나 실패 시 None.
+
+        NOTE(관측): 제목 LLM 호출은 **의도적으로 관측(Langfuse 콜백)에서 제외**한다. 같은 요청
+        컨텍스트에서 콜백으로 추적하면 langfuse 5.x가 이 호출을 챗 그래프 트레이스에 병합하고
+        루트 input/output·name을 덮어써 null로 만들어(= UI 상세 공백) 챗 트레이스를 망친다.
+        제목은 보조 호출이라 챗 트레이스 가시성이 우선. (독립 트레이스 분리는 후속 과제.)
+        """
         if llm_config is None:
             return None
         title = generate_title(user_content, answer, config=llm_config)
