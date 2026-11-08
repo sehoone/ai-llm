@@ -15,9 +15,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# 빌드 시 사용할 환경 변수 파일을 .env.production으로 복사
-ARG ENV_FILE=.env
-COPY ${ENV_FILE} .env.production
+# 브라우저는 동일 출처 /api를 사용하고, 서버 rewrite는 내부 API를 사용한다.
+ARG API_URL=http://api:8000
+ENV API_URL=$API_URL
 
 RUN corepack enable pnpm && pnpm run build
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -100,3 +101,24 @@ class ApprovalDecision(BaseModel):
 class ApprovalResumeRequest(BaseModel):
     group_key: str
     decisions: list[ApprovalDecision] = Field(min_length=1)
+
+
+class ChatHistoryItem(BaseModel):
+    """관리자 대화 이력 한 줄 — user 메시지(질문)와 뒤이은 assistant 메시지(답변)를 짝지은 뷰.
+
+    `id`는 user 메시지 id(첨부가 매달리는 행 — ADR-0014). 상세 조회·첨부 매핑의 키.
+    """
+
+    id: int
+    session_id: int
+    user_email: str
+    question: str
+    answer: str
+    created_at: datetime
+    session_name: str | None = None
+    attachments: list[AttachmentMeta] = Field(default_factory=list)
+
+
+class ChatHistoryListResponse(BaseModel):
+    items: list[ChatHistoryItem]
+    total: int

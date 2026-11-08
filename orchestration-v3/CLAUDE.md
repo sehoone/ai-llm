@@ -23,6 +23,7 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 | [0007](docs/adr/0007-llm-observability-langfuse.md) | LLM 관측은 Langfuse(self-host)에 위임 — 계측은 `engine/observability`, 컨텍스트는 도메인이 값 주입 |
 | [0008](docs/adr/0008-chat-human-approval.md) | 챗 사용자 승인(HITL) — tool call 3-티어 정책(engine) + LangGraph interrupt/재개, 인가·영속은 domain |
 | [0009](docs/adr/0009-self-id-password-auth.md) | **자체 ID/PW 인증** — 백엔드가 자격 검증 후 HS256 JWT 발급(0003 IdP 위임 대체). OIDC 코드는 보존(비활성) |
+| [0018](docs/adr/0018-env-config-layout.md) | **env 단일 소스** — `deploy/environments/<env>/{compose.env, api.env}`. api.env는 bare-metal 기준(localhost), docker는 compose가 네트워크 좌표 override. app-level `.env*` 제거 |
 
 ## 구조
 
@@ -65,15 +66,17 @@ task lint / test
 task gen-types      # api OpenAPI → packages/contracts → web TS 재생성 (단방향)
 
 # api (FastAPI, uv)
+# env는 deploy/environments/local/api.env 단일 소스(ADR-0018). poe dev가 ENV_FILE로 주입.
+# localhost 좌표를 쓰므로 로컬 스택(task deploy ENV=local)이 떠 있어야 DB·관측에 붙는다.
 cd apps/api && uv sync --group dev && uv run poe dev     # :8000
 uv run poe lint            # ruff check + lint-imports(레이어 경계)
 uv run poe format
 uv run poe test            # pytest (tests/ — health + HITL 정책)
 uv run pytest tests/path/test_x.py::test_y   # 단일 테스트
 
-# web (Next.js, pnpm)
+# web (Next.js, pnpm) — 로컬은 env 불필요. NEXT_PUBLIC_API_URL 비면 `/api` 상대경로
+# → next.config rewrite가 localhost:8000으로 프록시. docker는 API_URL build arg 사용.
 cd apps/web && pnpm install
-cp .env.example .env       # NEXT_PUBLIC_API_URL + NEXT_PUBLIC_OIDC_* 필수
 pnpm dev                   # :3000
 pnpm lint                  # eslint .  (web 테스트 스위트 없음)
 pnpm build && pnpm start
@@ -84,6 +87,7 @@ pnpm build && pnpm start
 ## 규칙
 
 - DB 스키마: `llmonl`. pgvector 사용.
+- **env 단일 소스(ADR-0018)**: 환경 설정은 `deploy/environments/<env>/{compose.env, api.env}`에만 둔다. app-level `.env*`·`deploy/.env` 추가 금지. 새 api 설정은 `api.env.example`에 추가(bare-metal localhost 기준) + 네트워크 좌표면 `docker-compose.yml` api `environment:` override 추가. 실파일은 커밋 금지.
 - 새 도메인은 `apps/api/src/domains/<name>/`에 수직 슬라이스로 추가 후 `main.py`에 라우터 등록.
 - **AI 연산은 `engine/`에 위임** (ADR-0005). 도메인은 HTTP 경계+관계형 영속화만. `engine`은 `domains`·FastAPI를 import 금지(단방향 `domains→engine→core`).
 - 계약 변경 시 `task gen-types`로 web 타입 재생성(단방향).

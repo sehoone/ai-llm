@@ -7,63 +7,32 @@
   2. seed 관리자 자격으로 POST /api/v1/auth/login → 200 + access_token 이면 성공.
   3. 401(자격 불일치)·토큰 없음은 즉시 실패(대기해도 안 고쳐짐).
 
-자격·URL 우선순위: 환경변수 > apps/api/.env.production > .env.development > .env.example > 기본값.
+SMOKE_BASE_URL, SMOKE_USERNAME, SMOKE_PASSWORD 환경변수를 명시해야 한다.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import sys
 import time
 import urllib.error
 import urllib.request
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-ENV_CANDIDATES = [
-    ROOT / "apps" / "api" / ".env.production",
-    ROOT / "apps" / "api" / ".env.development",
-    ROOT / "apps" / "api" / ".env.example",
-]
-
-DEFAULTS = {
-    "SMOKE_BASE_URL": "http://localhost:8060",  # nginx 진입점 → /api/* 는 api로 프록시
-    "SEED_ADMIN_USERNAME": "admin",
-    "SEED_ADMIN_PASSWORD": "admin1234",
-}
-
 RETRY_SECONDS = 180  # api 콜드 스타트(빌드 직후) 여유
 RETRY_INTERVAL = 3
 
 
-def _load_env_file(path: Path) -> dict[str, str]:
-    if not path.exists():
-        return {}
-    out: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        out[key.strip()] = val.strip().strip('"').strip("'")
-    return out
+def missing_config() -> list[str]:
+    return [key for key in ("SMOKE_BASE_URL", "SMOKE_USERNAME", "SMOKE_PASSWORD") if not os.environ.get(key)]
 
 
-def resolve(key: str) -> str:
-    if os.environ.get(key):
-        return os.environ[key]
-    for path in ENV_CANDIDATES:
-        vals = _load_env_file(path)
-        if vals.get(key):
-            return vals[key]
-    return DEFAULTS[key]
-
-
-def main() -> int:
-    base = resolve("SMOKE_BASE_URL").rstrip("/")
-    username = resolve("SEED_ADMIN_USERNAME")
-    password = resolve("SEED_ADMIN_PASSWORD")
+def main(expected_env: str | None = None) -> int:
+    missing = missing_config()
+    if missing:
+        print(f"[smoke] 필수 환경변수 누락: {', '.join(missing)}")
+        return 1
+    base = os.environ["SMOKE_BASE_URL"].rstrip("/")
+    username = os.environ["SMOKE_USERNAME"]
+    password = os.environ["SMOKE_PASSWORD"]
     url = f"{base}/api/v1/auth/login"
     body = json.dumps({"username": username, "password": password}).encode("utf-8")
 
@@ -72,10 +41,16 @@ def main() -> int:
     last_err = "(no attempt)"
 
     while time.time() < deadline:
-        req = urllib.request.Request(
-            url, data=body, headers={"Content-Type": "application/json"}, method="POST"
-        )
         try:
+            if expected_env:
+                with urllib.request.urlopen(f"{base}/health", timeout=10) as res:
+                    health = json.loads(res.read().decode("utf-8"))
+                if health.get("env") != expected_env:
+                    print(f"[smoke] 실패 — 배포 환경 불일치: 예상={expected_env}, 실제={health.get('env')}")
+                    return 1
+            req = urllib.request.Request(
+                url, data=body, headers={"Content-Type": "application/json"}, method="POST"
+            )
             with urllib.request.urlopen(req, timeout=10) as res:
                 payload = json.loads(res.read().decode("utf-8"))
             token = (payload.get("data") or {}).get("access_token")
@@ -88,12 +63,15 @@ def main() -> int:
             if e.code == 401:
                 print(
                     "[smoke] 실패 — 401. seed 관리자 자격 불일치 또는 미생성. "
-                    "apps/api/.env.production의 SEED_ADMIN_* 와 DB 상태를 확인하세요."
+                    "선택한 환경의 테스트 계정과 DB 상태를 확인하세요."
                 )
                 return 1
             last_err = f"HTTP {e.code}"  # 502/503 등 — 기동 중일 수 있어 재시도
         except urllib.error.URLError as e:
             last_err = f"연결 실패({e.reason})"  # api 아직 안 뜸 — 재시도
+        except (json.JSONDecodeError, UnicodeDecodeError, AttributeError) as e:
+            print(f"[smoke] 실패 — 예상하지 못한 응답: {e}")
+            return 1
 
         print(f"[smoke] 대기… {last_err} — {RETRY_INTERVAL}s 후 재시도")
         time.sleep(RETRY_INTERVAL)
@@ -103,4 +81,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

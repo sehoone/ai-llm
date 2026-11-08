@@ -57,6 +57,8 @@ services:
       - MINIO_BUCKET=chat-attachments
       - MINIO_SECURE=false
       - UPLOAD_DIR=/data/uploads   # local 폴백용 (storage_backend=local일 때만)
+      # 네트워크 좌표는 compose가 서비스 DNS로 override. api.env의 localhost 값은 bare-metal 전용.
+      - LANGFUSE_HOST=http://langfuse-web:3000
     volumes:
       - api-uploads:/data/uploads
     depends_on:

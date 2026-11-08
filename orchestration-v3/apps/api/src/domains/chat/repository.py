@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
+from sqlalchemy import func, or_
+from sqlalchemy.engine import Row
+from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
 
 from src.domains.chat.model import (
@@ -14,6 +17,7 @@ from src.domains.chat.model import (
     ChatMessage,
     ChatSession,
 )
+from src.domains.user.model import User
 
 
 class ChatRepository:
@@ -129,6 +133,91 @@ class ChatRepository:
                 .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
             ).all()
         )
+
+    # ── 대화 이력(관리자 뷰) ──
+    # 한 줄 = user 메시지(질문) + 같은 세션에서 그 뒤의 첫 assistant 메시지(답변).
+    # 답변은 상관 서브쿼리로 뽑아 검색·표시에 함께 쓴다(별도 왕복 없음).
+    def _answer_subquery(self):
+        """각 user 메시지에 대한 답변(뒤이은 첫 assistant 메시지 content) — 상관 스칼라 서브쿼리."""
+        a = aliased(ChatMessage)
+        return (
+            select(a.content)
+            .where(
+                a.session_id == ChatMessage.session_id,
+                a.role == "assistant",
+                a.id > ChatMessage.id,
+            )
+            .order_by(a.id.asc())
+            .limit(1)
+            .correlate(ChatMessage)
+            .scalar_subquery()
+        )
+
+    @staticmethod
+    def _search_filter(search: str, answer_subq):
+        like = f"%{search}%"
+        return or_(
+            ChatMessage.content.ilike(like),
+            ChatSession.title.ilike(like),
+            User.email.ilike(like),
+            answer_subq.ilike(like),
+        )
+
+    def list_history(self, limit: int, offset: int, search: str = "") -> list[Row]:
+        answer_subq = self._answer_subquery()
+        stmt = (
+            select(
+                ChatMessage.id.label("id"),
+                ChatMessage.session_id.label("session_id"),
+                ChatMessage.content.label("question"),
+                ChatMessage.created_at.label("created_at"),
+                ChatSession.title.label("session_name"),
+                User.email.label("user_email"),
+                answer_subq.label("answer"),
+            )
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(ChatMessage.role == "user")
+        )
+        if search:
+            stmt = stmt.where(self._search_filter(search, answer_subq))
+        stmt = (
+            stmt.order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(self.session.exec(stmt).all())
+
+    def count_history(self, search: str = "") -> int:
+        answer_subq = self._answer_subquery()
+        stmt = (
+            select(func.count())
+            .select_from(ChatMessage)
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(ChatMessage.role == "user")
+        )
+        if search:
+            stmt = stmt.where(self._search_filter(search, answer_subq))
+        return self.session.scalar(stmt) or 0
+
+    def get_history_row(self, message_id: int) -> Row | None:
+        answer_subq = self._answer_subquery()
+        stmt = (
+            select(
+                ChatMessage.id.label("id"),
+                ChatMessage.session_id.label("session_id"),
+                ChatMessage.content.label("question"),
+                ChatMessage.created_at.label("created_at"),
+                ChatSession.title.label("session_name"),
+                User.email.label("user_email"),
+                answer_subq.label("answer"),
+            )
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(ChatMessage.id == message_id, ChatMessage.role == "user")
+        )
+        return self.session.exec(stmt).first()
 
     # ── 승인 ──
     def save_approvals(

@@ -8,15 +8,17 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from src.core.db import get_session
 from src.core.response import ApiResponse
-from src.domains.auth.dependencies import get_current_user
+from src.domains.auth.dependencies import get_current_user, require_admin
 from src.domains.chat.schema import (
     ApprovalResumeRequest,
+    ChatHistoryItem,
+    ChatHistoryListResponse,
     MessageRequest,
     MessageResponse,
     SessionCreateRequest,
@@ -107,6 +109,30 @@ def delete_memory(
     """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015)."""
     ChatService(session).delete_memory(user)
     return ApiResponse.ok(None)
+
+
+# ── 대화 이력(관리자 뷰) ──
+# `/history/all`을 `/history/{message_id}`보다 먼저 선언 — 경로 매칭 우선순위.
+@router.get("/history/all", response_model=ApiResponse[ChatHistoryListResponse])
+def all_chat_history(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    search: str = "",
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+) -> ApiResponse[ChatHistoryListResponse]:
+    """전체 사용자 대화 이력(질문·답변 페어) — 페이지네이션·검색. 관리자 전용."""
+    return ApiResponse.ok(ChatService(session).all_history(limit, offset, search))
+
+
+@router.get("/history/{message_id}", response_model=ApiResponse[ChatHistoryItem])
+def chat_history_detail(
+    message_id: int,
+    _admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+) -> ApiResponse[ChatHistoryItem]:
+    """대화 이력 상세(첨부 메타 포함). 관리자 전용."""
+    return ApiResponse.ok(ChatService(session).history_detail(message_id))
 
 
 @router.get("/attachments/{attachment_id}")

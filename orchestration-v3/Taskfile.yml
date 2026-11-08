@@ -43,19 +43,16 @@ tasks:
     cmds: [pnpm gen:types]
 
   deploy:
-    desc: 전체 스택 docker compose 빌드+기동 (deploy/)
-    dir: deploy
+    desc: "환경별 전체 스택 빌드+기동 (ENV=local|dev|stg|prd 필수)"
     cmds:
-      - docker compose up -d --build
+      - uv run --project apps/api python tools/deploy.py up "{{.ENV}}"
 
   deploy-test:
-    desc: 배포(전체 스택 build+up) 후 로그인 스모크 테스트 (ADR-0009)
+    desc: "환경별 배포 후 로그인 스모크 테스트 (ENV 및 SMOKE_* 필수)"
     cmds:
-      - task: deploy
-      - uv run --project apps/api python tools/smoke_login.py
+      - uv run --project apps/api python tools/deploy.py test "{{.ENV}}"
 
   deploy-down:
-    desc: 스택 종료. 스키마 변경 반영 등 DB 초기화가 필요하면 `task deploy-down -- -v`
-    dir: deploy
+    desc: "환경별 스택 종료 (볼륨 유지, prd는 CONFIRM_PRD=prd 필요)"
     cmds:
-      - docker compose down {{.CLI_ARGS}}
+      - uv run --project apps/api python tools/deploy.py down "{{.ENV}}"
