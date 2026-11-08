@@ -19,6 +19,7 @@ class LlmResourceCreateRequest(BaseModel):
     region: str | None = None
     priority: int = Field(default=0, ge=0)
     weight: int = Field(default=1, ge=1)
+    is_active: bool = True
 
 
 class LlmResourceUpdateRequest(BaseModel):

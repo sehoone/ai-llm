@@ -1,7 +1,7 @@
 """LLM 설정 값 객체 (ADR-0010 §2).
 
-순수 값 — DB·domains 미의존(ADR-0005). domain이 `llm_resource` 행을 해석해 이 값으로 주입하거나,
-`core.config`(env)에서 기본값을 읽는다(__init__.default_llm_config).
+순수 값 — DB·domains 미의존(ADR-0005). domain이 `llm_resource` 행을 해석해 이 값으로 주입한다
+(provider·model·key·endpoint는 전적으로 테이블에서 옴 — env 기본 모델 없음).
 """
 
 from __future__ import annotations

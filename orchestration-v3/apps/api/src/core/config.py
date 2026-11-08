@@ -1,8 +1,15 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# env 단일 소스는 deploy/environments/<env>/api.env (ADR-0018).
+# bare-metal 개발(uv run poe dev)은 ENV_FILE로 그 파일을 가리킨다(poe dev가 주입).
+# docker 배포는 compose가 env_file로 주입하므로 이 경로는 무시된다(파일 없음 → 기본값).
+_ENV_FILE = os.environ.get("ENV_FILE", ".env")
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 
     app_env: str = "development"
 
@@ -38,20 +45,10 @@ class Settings(BaseSettings):
     chat_approval_ttl_seconds: int = 900  # 승인 대기 만료 (15분)
     chat_checkpointer: str = "memory"     # "memory"(인프로세스) | "postgres"(후속)
 
-    # engine/llm — 실 LLM 호출 (ADR-0010). LiteLLM provider 통합.
-    # 키가 없으면(그리고 ollama가 아니면) chat은 FakeToolCallingModel로 폴백.
-    llm_provider: str = "openai"   # openai | azure | anthropic | google | ollama
-    llm_model: str = "gpt-4o-mini"
-    llm_api_key: str = ""
-    llm_api_base: str = ""         # azure/ollama 등 커스텀 엔드포인트
-    llm_api_version: str = ""      # azure
+    # engine/llm — 실 LLM 호출 (ADR-0010). provider·model·key·endpoint는 전적으로 `llm_resource`
+    # 테이블에서 온다(env 미참조). 아래는 테이블에 없는 생성 튜닝 기본값만 — 모델 선택과 무관.
     llm_temperature: float = 0.7
     llm_max_tokens: int = 0        # 0 = provider 기본값
-
-    @property
-    def llm_is_configured(self) -> bool:
-        """실 LLM 사용 가능 여부 — 키 존재 또는 로컬 ollama (ADR-0010 §3)."""
-        return bool(self.llm_api_key) or self.llm_provider == "ollama"
 
     # 첨부 저장 (ADR-0017) — MinIO(S3 호환, 기본) 또는 로컬 디스크 폴백.
     # bare 로컬 개발(docker 없이)은 storage_backend=local로 두면 upload_dir에 저장.
@@ -67,9 +64,8 @@ class Settings(BaseSettings):
     max_extract_chars: int = 50_000
 
     # 장기 메모리 (ADR-0015) — mem0 + pgvector. opt-in(추출 LLM 호출 비용·지연).
+    # 추출 LLM·임베더 모델은 `llm_resource` 테이블에서 해석(env 미참조) — 도메인이 주입.
     memory_enabled: bool = False
-    memory_llm_model: str = "gpt-4o-mini"
-    memory_embedder_model: str = "text-embedding-3-small"
     memory_collection: str = "longterm_memory"
     memory_max_count: int = 100
     postgres_schema: str = "llmonl"
