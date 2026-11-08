@@ -205,6 +205,40 @@ CREATE TABLE IF NOT EXISTS llmonl.artifact_data (
     updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- ai_overview 도메인: 사내 문서 + LLM 생성 키워드/동의어 + 하이브리드 검색(trgm + pgvector).
+-- FK CASCADE 없음 — 문서 삭제 시 앱이 키워드·임베딩을 명시적으로 정리.
+CREATE TABLE IF NOT EXISTS llmonl.ai_overview_document (
+    id         BIGSERIAL     PRIMARY KEY,
+    title      VARCHAR(500)  NOT NULL,
+    content    TEXT          NOT NULL,
+    source_url VARCHAR(1000),
+    status     VARCHAR(20)   NOT NULL DEFAULT 'pending',  -- pending|processing|ready|error
+    created_at TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP     NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS llmonl.ai_overview_keyword (
+    id           BIGSERIAL    PRIMARY KEY,
+    document_id  BIGINT       NOT NULL,
+    keyword      VARCHAR(200) NOT NULL,
+    keyword_type VARCHAR(20)  NOT NULL,   -- keyword|synonym
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_ov_kw_document_id ON llmonl.ai_overview_keyword (document_id);
+-- trgm 유사도 검색용 (keyword 문자열)
+CREATE INDEX IF NOT EXISTS idx_ai_ov_kw_trgm ON llmonl.ai_overview_keyword USING gin (keyword gin_trgm_ops);
+
+-- 하이브리드의 벡터 축: 문서 청크 임베딩 (차원 1536 — rag_embedding과 동일 제약).
+CREATE TABLE IF NOT EXISTS llmonl.ai_overview_embedding (
+    id          BIGSERIAL    PRIMARY KEY,
+    document_id BIGINT       NOT NULL,
+    chunk_index INTEGER      NOT NULL,
+    content     TEXT         NOT NULL,
+    embedding   vector(1536),
+    created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_ov_emb_document_id ON llmonl.ai_overview_embedding (document_id);
+
 -- chat 첨부 (ADR-0014): 파일 바이트는 로컬 볼륨, 메타만 DB. FK 없음 — 앱이 정리.
 CREATE TABLE IF NOT EXISTS llmonl.chat_attachment (
     id           BIGSERIAL  PRIMARY KEY,

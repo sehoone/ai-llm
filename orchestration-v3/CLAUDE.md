@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 전 반드시 참고. 구조가 표준과 어떻게 정렬되는지·참조 소스는 [`docs/structure-and-references.md`](docs/structure-and-references.md).
 
-> **현재 상태: 이식 진행 중** — 구조·계약·경계는 확정. 플랫폼 도메인(user·api_key·llm_resource)·인증·chat(HITL 골격)·관측(Langfuse)은 구현됨. LLM 도메인(rag·agent·workflow·meeting)과 `engine/llm`·`prompts`·`rag`·`memory`·`transcription`은 이식 대기. 정확한 범위는 아래 "구현 현황" 참고.
+> **현재 상태: 이식 진행 중** — 구조·계약·경계는 확정. 구현됨: 플랫폼 도메인(user·api_key·llm_resource)·인증·chat(HITL + 실 LLM + 첨부 + 장기메모리)·rag·artifact·ai_overview(사내 문서 + LLM 키워드 + trgm·pgvector 하이브리드 검색)·관측(Langfuse), 엔진 `llm`·`graph`·`agent`·`rag`·`memory`·`artifact`·`extraction`·`ai_overview`·`observability`·`prompts`. 이식/골격 대기: 도메인 `agent`·`workflow`·`meeting`, 엔진 `transcription`. 정확한 범위는 아래 "구현 현황" 참고.
 
 ## 핵심 설계 (ADR-0003)
 
@@ -23,6 +23,14 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 | [0007](docs/adr/0007-llm-observability-langfuse.md) | LLM 관측은 Langfuse(self-host)에 위임 — 계측은 `engine/observability`, 컨텍스트는 도메인이 값 주입 |
 | [0008](docs/adr/0008-chat-human-approval.md) | 챗 사용자 승인(HITL) — tool call 3-티어 정책(engine) + LangGraph interrupt/재개, 인가·영속은 domain |
 | [0009](docs/adr/0009-self-id-password-auth.md) | **자체 ID/PW 인증** — 백엔드가 자격 검증 후 HS256 JWT 발급(0003 IdP 위임 대체). OIDC 코드는 보존(비활성) |
+| [0010](docs/adr/0010-engine-llm-provider.md) | `engine/llm` — ChatLiteLLM 어댑터로 LLM 공급자 추상화. `LlmConfig`만으로 모델 조립(DB 미의존, 도메인이 주입) |
+| [0011](docs/adr/0011-chat-streaming-contract.md) | 챗 스트리밍 계약 — SSE + LangGraph `stream_mode="messages"` 토큰 전파, per-request 모델 선택 |
+| [0012](docs/adr/0012-engine-rag.md) | `engine/rag` + `domains/rag` — 지식베이스 그룹·문서·검색(chunk·embed, pgvector) |
+| [0013](docs/adr/0013-artifacts.md) | 아티팩트 — 스트리밍 산출물 + 버전관리 + 공개 링크(토큰) |
+| [0014](docs/adr/0014-attachments-multimodal.md) | 챗 첨부 멀티모달 — 문서 텍스트 추출/이미지 경로 |
+| [0015](docs/adr/0015-long-term-memory.md) | 장기 메모리 — mem0 + pgvector(`engine/memory`), opt-in·비차단 |
+| [0016](docs/adr/0016-document-text-extraction.md) | 문서 텍스트 추출 — `engine/extraction`(markitdown) |
+| [0017](docs/adr/0017-attachment-object-storage-minio.md) | 첨부 객체 저장 — MinIO(S3 호환, `core/storage`), 로컬 디스크 폴백 |
 | [0018](docs/adr/0018-env-config-layout.md) | **env 단일 소스** — `deploy/environments/<env>/{compose.env, api.env}`. api.env는 bare-metal 기준(localhost), docker는 compose가 네트워크 좌표 override. app-level `.env*` 제거 |
 
 ## 구조
@@ -33,8 +41,8 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 apps/api/src/
 ├─ domains/<d>/   # api·service·repository·schema 계층 (수직 슬라이스 / HTTP 경계)
 │                 # chat rag agent workflow meeting user api_key llm_resource auth
-├─ engine/        # AI 실행 능력 (ADR-0005) — llm prompts rag agent graph memory transcription
-├─ core/          # config·security(비밀번호 해싱·JWT 발급/검증; OIDC/JWKS 보존)·db(세션)·response(ApiResponse 래퍼)
+├─ engine/        # AI 실행 능력 (ADR-0005) — llm prompts rag agent graph memory artifact extraction observability transcription
+├─ core/          # config·security(비밀번호 해싱·JWT 발급/검증; OIDC/JWKS 보존)·db(세션)·response(ApiResponse 래퍼)·storage(MinIO 첨부)
 └─ main.py        # 도메인 라우터 등록 지점
 apps/web/src/           # shadcn-admin: api·app·features·components·stores·… (ADR-0006, FSD 아님)
 packages/contracts/     # api OpenAPI → web TS (생성물, 커밋 안 함 — openapi.json·api-schema.d.ts gitignore)
@@ -42,12 +50,15 @@ packages/contracts/     # api OpenAPI → web TS (생성물, 커밋 안 함 — 
 
 ### 구현 현황 (디렉터리 ≠ 구현됨)
 
-- **api 구현·등록 완료**: `domains/user`·`api_key`·`llm_resource`·`chat`가 `main.py`에 라우터 등록됨(`/api/v1/*`).
+- **api 구현·등록 완료**: `domains/user`·`api_key`·`llm_resource`·`chat`·`rag`·`artifact`·`ai_overview`가 `main.py`에 라우터 등록됨(`/api/v1/*`). artifact는 공개 링크용 `public_router`(`/api/v1/public/artifacts`, 미인증)도 등록.
 - **인증(api) — 자체 ID/PW (ADR-0009)**: `POST /api/v1/auth/login`이 username+password를 검증하고 **HS256 JWT**를 발급(`core/security.create_access_token`, subject=로컬 user id). 비밀번호는 bcrypt(`users.hashed_password`). `dependencies.py get_current_user`가 두 경로를 처리 — ① `sk-` API 키, ② 자체 JWT(`decode_access_token` 후 user id로 조회). 계정 생성은 관리자 전용(`POST /api/v1/users`) + 기동 시 seed SUPERADMIN(`SEED_ADMIN_*`). 비밀번호 변경 `POST /api/v1/auth/password`. 권한은 `require_admin`·`require_superadmin`. **OIDC(JWKS 검증 `verify_token`·`provision_user`)는 보존된 비활성 코드** — IdP 복귀용.
-- **chat(ADR-0008)**: 사용자 승인(HITL) 골격 — `engine/agent`(정책·레지스트리)·`engine/graph`(interrupt 게이트)·`domains/chat`(SSE·영속). 모델 노드는 `FakeToolCallingModel` seam(`engine/graph/fake_model.py`, engine/llm 이식 후 교체), 체크포인터는 InMemory(`checkpointer.py`, postgres는 후속).
+- **chat(ADR-0008·0010·0011·0014·0015)**: HITL 승인 골격 + 실 LLM. `engine/agent`(정책·레지스트리)·`engine/graph`(interrupt 게이트). 모델 노드는 `_resolve_model` 리졸버(`domains/chat/service.py`)가 per-request `LlmConfig`로 실모델(`engine/llm.build_chat_model` — ChatLiteLLM)을 조립; `FakeToolCallingModel`(`fake_model.py`)은 리졸브 실패 시 기본 폴백. 스트리밍은 SSE + `stream_mode="messages"`(ADR-0011). 첨부(ADR-0014)는 `engine/extraction`(markitdown) 추출 + `core/storage`(MinIO) 저장. 장기 메모리(ADR-0015)는 `engine/memory`(mem0+pgvector, opt-in `MEMORY_ENABLED`). 체크포인터는 InMemory(`checkpointer.py`, `CHAT_CHECKPOINTER=postgres`는 후속).
+- **rag(ADR-0012)**: `domains/rag`(그룹·키·문서 CRUD + 검색)가 `engine/rag`(chunk·embed, pgvector) 위임. 수직 슬라이스 구현됨.
+- **artifact(ADR-0013)**: `domains/artifact`(스트리밍 산출물·버전관리·공개 링크) + `engine/artifact`(parser). publish 시 토큰 발급, 공개 라우터로 미인증 조회.
 - **관측(ADR-0007)**: `engine/observability` 구현(`context`·`langfuse`·`runconfig`). `main.py` lifespan 종료 시 `observability_shutdown()`로 Langfuse 트레이스 flush(비활성이면 no-op). 엔진 경계 준수 — 도메인이 컨텍스트 값을 주입.
-- **api 빈 골격**: `domains/rag`·`agent`·`workflow`·`meeting`은 `__init__.py`뿐. `engine/llm`·`prompts`·`rag`·`memory`·`transcription`은 이식 대기(`prompts`·`observability` 외 engine 모듈은 비어 있음).
-- **테스트**: `tests/test_health.py`, `tests/engine/test_approval_policy.py`(HITL 정책 단위 테스트) 존재.
+- **ai_overview(V2 포팅)**: `domains/ai_overview`(사내 문서 CRUD + JSON 일괄 업로드 + 인메모리 progress job + LLM 키워드/동의어 생성) + `engine/ai_overview`(키워드 추출·답변 스트리밍 프롬프트, 순수). 검색은 **하이브리드** — LLM 질문 키워드 추출 → trgm 키워드 매칭(`pg_trgm`) + pgvector 코사인(`engine/rag` 청킹·임베딩 재사용)을 RRF로 융합 → NDJSON 답변 스트리밍(`POST /search`). 임베딩 리소스 없으면 벡터 축 degrade(trgm 단독). web가 보내는 `model` 문자열은 미사용(v3는 `llm_resource` 기본 chat 리소스) — `llm_resource_id` 재매핑은 후속. 테이블 3종(`ai_overview_document`·`ai_overview_keyword`·`ai_overview_embedding`, `init.sql`).
+- **api 빈 골격**: `domains/agent`·`workflow`·`meeting`은 `__init__.py`뿐. `engine/transcription`은 이식 대기(`__init__.py`만).
+- **테스트**: `tests/test_health.py`, `tests/engine/test_approval_policy.py`(HITL 정책), `tests/engine/test_artifact_parser.py`(artifact 파서), `tests/engine/test_ai_overview_keywords.py`(키워드 JSON 파싱), `tests/domains/test_ai_overview_fusion.py`(RRF 융합). deploy 도구는 `tools/tests/test_deploy.py`.
 - **web**: shadcn-admin 구조 이식 완료. 로그인은 `/login`의 **ID/PW 폼**(`app/login/page.tsx` → `auth/login`), 토큰은 `stores/auth-store.ts`(쿠키). `(authenticated)` 레이아웃이 `access_token` 쿠키 없으면 `/login`. `api/axios.ts`는 Bearer 첨부 + 401 시 `/login` 이동. **OIDC 흐름(`lib/oidc.ts`·`/auth/callback`·`api/auth.ts`)은 보존·미사용**. `src/api/*.ts`는 아직 V2 엔드포인트 기준(아래 규칙 참고).
 - 새 도메인 이식 시: 수직 슬라이스(`api`·`service`·`repository`·`schema`) 채우고 `main.py`에 라우터 등록, AI 연산은 `engine/`에 위임.
 
@@ -64,6 +75,9 @@ packages/contracts/     # api OpenAPI → web TS (생성물, 커밋 안 함 — 
 task dev            # api(:8000) + web(:3000)
 task lint / test
 task gen-types      # api OpenAPI → packages/contracts → web TS 재생성 (단방향)
+task deploy ENV=local        # 전체 스택 빌드+기동 (local|dev|stg|prd — tools/deploy.py)
+task deploy-test ENV=local   # 배포 후 로그인 스모크 (tools/smoke_login.py)
+task deploy-down ENV=local   # 스택 종료 (prd는 CONFIRM_PRD=prd 필요)
 
 # api (FastAPI, uv)
 # env는 deploy/environments/local/api.env 단일 소스(ADR-0018). poe dev가 ENV_FILE로 주입.

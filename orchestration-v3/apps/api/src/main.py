@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 from src.core.config import settings
 from src.core.db import engine
+from src.domains.ai_overview.api import router as ai_overview_router
 from src.domains.api_key.api import router as api_key_router
 from src.domains.artifact.api import public_router as artifact_public_router
 from src.domains.artifact.api import router as artifact_router
@@ -53,3 +54,6 @@ app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])
 # artifact: 스트리밍 산출물 + 버전관리 + 공개 링크 (ADR-0013)
 app.include_router(artifact_router, prefix="/api/v1/artifacts", tags=["artifacts"])
 app.include_router(artifact_public_router, prefix="/api/v1/public/artifacts", tags=["artifacts-public"])
+
+# ai_overview: 사내 문서 + LLM 키워드/동의어 + 하이브리드(trgm+pgvector) 검색 (V2 포팅)
+app.include_router(ai_overview_router, prefix="/api/v1/ai-overview", tags=["ai-overview"])
