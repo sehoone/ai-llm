@@ -8,6 +8,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+/deploy/environments/*/compose.env
+/deploy/environments/*/api.env
 
 # --- Node (apps/web) ---
 node_modules/

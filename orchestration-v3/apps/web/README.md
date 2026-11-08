@@ -26,7 +26,8 @@ src/
 
 ```bash
 pnpm install
-cp .env.example .env     # NEXT_PUBLIC_API_URL + NEXT_PUBLIC_OIDC_* 채우기
+# 로컬은 env 불필요 — NEXT_PUBLIC_API_URL 비면 `/api` 상대경로 → next.config rewrite가
+# localhost:8000으로 프록시. 환경 설정 단일 소스는 deploy/environments/ (ADR-0018).
 pnpm dev                 # :3000
 pnpm build && pnpm start
 pnpm lint

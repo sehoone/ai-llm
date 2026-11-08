@@ -40,6 +40,14 @@ function toMessage(m: V3Message): Message {
   return { role, content: m.content }
 }
 
+/** 백엔드 ChatHistoryItem(session_id:int) → web ChatHistoryResponse(session_id:string). */
+interface V3HistoryItem extends Omit<ChatHistoryResponse, 'session_id'> {
+  session_id: number
+}
+function toHistoryItem(h: V3HistoryItem): ChatHistoryResponse {
+  return { ...h, session_id: String(h.session_id) }
+}
+
 export const chatService = {
   // ── 세션 관리 ──
   getSessions: async (): Promise<ChatSession[]> => {
@@ -99,19 +107,18 @@ export const chatService = {
     )
   },
 
-  // ── V2-pending (이 v3 chat 재매핑 범위 밖) ──
-  // 관리자 대화 이력·첨부 다운로드는 아직 백엔드 미이식 — 호출 시 404.
-  // chat-history·attachments 화면 포팅 시 /api/v1/* 계약으로 재매핑 필요.
+  // ── 관리자 대화 이력 (v3: /api/v1/chat/history/*, 관리자 전용 — 403이면 권한 없음) ──
+  // 한 행 = user 메시지(질문) + 뒤이은 assistant 메시지(답변). id는 user 메시지 id.
   getAllChatHistory: async (limit = 10, offset = 0, search = ''): Promise<ChatHistoryListResponse> => {
-    const res = await api.get<ChatHistoryListResponse>('v1/chatbot/history/all', {
+    const res = await api.get<{ items: V3HistoryItem[]; total: number }>(`${CHAT_BASE}/history/all`, {
       params: { limit, offset, search: search || undefined },
     })
-    return res.data
+    return { items: res.data.items.map(toHistoryItem), total: res.data.total }
   },
 
   getChatHistoryDetail: async (messageId: number): Promise<ChatHistoryResponse> => {
-    const res = await api.get<ChatHistoryResponse>(`v1/chatbot/history/${messageId}`)
-    return res.data
+    const res = await api.get<V3HistoryItem>(`${CHAT_BASE}/history/${messageId}`)
+    return toHistoryItem(res.data)
   },
 
   downloadAttachment: async (attachment: AttachmentMeta): Promise<void> => {
