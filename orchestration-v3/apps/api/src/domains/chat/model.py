@@ -49,7 +49,7 @@ class ChatMessage(SQLModel, table=True):
 
 
 class ChatAttachment(SQLModel, table=True):
-    """chat 메시지 첨부 메타 (ADR-0014). 파일 바이트는 로컬 볼륨(storage_path)."""
+    """chat 메시지 첨부 메타 (ADR-0014). 파일 바이트는 MinIO 오브젝트(storage_path = 키) — ADR-0017."""
 
     __tablename__ = "chat_attachment"
     __table_args__ = {"schema": "llmonl"}

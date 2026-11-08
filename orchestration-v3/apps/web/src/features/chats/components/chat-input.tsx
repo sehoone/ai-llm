@@ -1,12 +1,25 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { toast } from 'sonner'
 import { Plus, Send, BrainCircuit, X, FileText, Image as ImageIcon, Database, Bot } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { RagGroup } from '@/api/rag-groups'
 import type { ChatModel } from '@/api/llm-resources'
+
+// 백엔드 지원 타입·상한과 일치 (ADR-0014 §5, ADR-0016) — image 비전, text 인라인, PDF·Office 추출.
+const ACCEPTED_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'text/plain', 'text/markdown', 'text/csv', 'application/json',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
+]
+const ACCEPT_ATTR = [...ACCEPTED_TYPES, '.md', '.csv', '.docx', '.xlsx', '.pptx'].join(',')
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 interface ChatInputProps {
   isSending: boolean
@@ -27,7 +40,21 @@ export function ChatInput({ isSending, onSend, ragGroups = [], selectedRagGroup,
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)])
+      const picked = Array.from(e.target.files)
+      const valid: File[] = []
+      for (const f of picked) {
+        // type이 비어있는 경우(.md 등)는 확장자를 믿고 통과, 설정된 type은 화이트리스트 검사.
+        if (f.type && !ACCEPTED_TYPES.includes(f.type)) {
+          toast.error(`지원하지 않는 파일 형식입니다: ${f.name}`)
+          continue
+        }
+        if (f.size > MAX_FILE_SIZE) {
+          toast.error(`${f.name}이(가) 10MB를 초과합니다`)
+          continue
+        }
+        valid.push(f)
+      }
+      if (valid.length) setSelectedFiles(prev => [...prev, ...valid])
     }
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -79,6 +106,7 @@ export function ChatInput({ isSending, onSend, ragGroups = [], selectedRagGroup,
         <input
           type="file"
           multiple
+          accept={ACCEPT_ATTR}
           className="hidden"
           ref={fileInputRef}
           onChange={handleFileSelect}

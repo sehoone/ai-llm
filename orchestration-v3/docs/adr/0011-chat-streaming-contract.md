@@ -27,6 +27,7 @@ V3는 ADR-0008에서 이미 **event-프레이밍 SSE**(`event: <name>\ndata: {�
 
 | event | data | 의미 |
 |-------|------|------|
+| `status` | `{phase, filename?}` | **첫 토큰 이전** 서버 진행 단계(§5). `phase ∈ {uploading, extracting, thinking}`. 진행 표시용(본문 아님). |
 | `content` | `{delta: str}` | assistant 토큰 조각(진행형). 버블에 이어붙인다. |
 | `message` | `{role, content, tool_calls}` | **비스트리밍** 완결 메시지 — tool 결과, 또는 스트리밍 못 한 모델(fake)의 assistant 폴백. |
 | `approval_required` | `{group_key, requests[]}` | CONFIRM 도구 — 중단(ADR-0008). |
@@ -66,6 +67,21 @@ V3는 ADR-0008에서 이미 **event-프레이밍 SSE**(`event: <name>\ndata: {�
 - `engine/graph`: 토큰 스트림을 콜백으로 흘리는 그래프(모델에 config 전달).
 - `engine/llm`: `streaming=True` 모델 + `generate_title`.
 - `domains/chat/service`: 모드 수신 → SSE 이벤트화, 메시지·제목 영속, 첫 대화 판정.
+
+### 5. 진행 단계 신호 `status` (첫 토큰 이전)
+
+첨부 파일 처리(MinIO 저장·문서 추출, ADR-0016/0017)는 그래프 실행 **이전**에 일어나 첫 토큰까지
+수 초의 무표시 구간이 생긴다. `domains/chat/service.stream_message`가 그 사이에 `status` 이벤트를
+흘려 사용자에게 단계를 표시한다:
+
+- `uploading` — 첨부 바이트를 MinIO에 저장하기 직전(파일 있을 때만).
+- `extracting` — 문서 본문 추출(markitdown) 직전(파일 있을 때만). 단일 파일이면 `filename` 포함.
+- `thinking` — 그래프 실행 직전(첫 토큰 대기). 승인 재개(resume) 경로도 이 단계만 방출.
+
+각 yield는 `StreamingResponse` + `X-Accel-Buffering: no`로 즉시 flush되므로, 뒤따르는 blocking
+작업(추출 등) **전에** 클라이언트에 도달한다. web은 첫 `content`·`artifact_start`·`approval_required`
+(또는 `done`/`error`)에서 표시를 해제한다. `status`는 **진행 표시 전용**이며 assistant 본문이 아니다
+(본문 규칙 §1 불변). `onStatus` 미지원 클라이언트는 무시해도 안전(낙관적 로컬 표시로 폴백).
 
 ## Alternatives considered (대안)
 

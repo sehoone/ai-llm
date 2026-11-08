@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from src.core.db import get_session
@@ -89,7 +91,9 @@ def send_message(
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
     """메시지 전송. CONFIRM 도구를 만나면 `event: approval_required`를 내고 스트림을 닫는다."""
-    stream = ChatService(session).stream_message(
+    svc = ChatService(session)
+    svc.validate_files(req.files)  # 스트림 시작 전 검증 → 깔끔한 400 (ADR-0016 §5)
+    stream = svc.stream_message(
         session_id, user, req.content, req.llm_resource_id, req.rag_group, req.files
     )
     return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
@@ -110,10 +114,13 @@ def download_attachment(
     attachment_id: int,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> FileResponse:
-    """첨부 다운로드 — 소유자 또는 관리자 (ADR-0014 §4)."""
-    path, filename, content_type = ChatService(session).download_attachment(user, attachment_id)
-    return FileResponse(path=str(path), filename=filename, media_type=content_type)
+) -> StreamingResponse:
+    """첨부 다운로드 — 소유자 또는 관리자 (ADR-0014 §4). MinIO 객체를 프록시 스트림(ADR-0017 §4)."""
+    stream, filename, content_type = ChatService(session).download_attachment(user, attachment_id)
+    disposition = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return StreamingResponse(
+        stream, media_type=content_type, headers={"Content-Disposition": disposition}
+    )
 
 
 @router.post("/sessions/{session_id}/approvals")

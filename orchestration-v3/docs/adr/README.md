@@ -28,8 +28,10 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0011](0011-chat-streaming-contract.md) | chat 스트리밍 계약 (토큰·HITL·제목 통합 event-SSE) | Accepted |
 | [0012](0012-engine-rag.md) | RAG — 검색 증강 (engine/rag + rag 도메인, pgvector) | Accepted |
 | [0013](0013-artifacts.md) | 아티팩트 (스트림 파서 + artifact 도메인 + 버저닝) | Accepted |
-| [0014](0014-attachments-multimodal.md) | 첨부/멀티모달 (이미지 비전 + 텍스트, 로컬 저장) | Accepted |
+| [0014](0014-attachments-multimodal.md) | 첨부/멀티모달 (이미지 비전 + 텍스트, 로컬 저장) | Accepted (저장은 0017로 개정) |
 | [0015](0015-long-term-memory.md) | 장기 메모리 (engine/memory — mem0 + pgvector) | Accepted |
+| [0016](0016-document-text-extraction.md) | 문서 본문 추출 (engine/extraction — markitdown) | Accepted |
+| [0017](0017-attachment-object-storage-minio.md) | 첨부 객체 스토리지 (MinIO / S3 호환) | Accepted (0014 §1·§4 개정) |
 
 ## 관련 문서
 

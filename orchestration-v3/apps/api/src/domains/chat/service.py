@@ -21,7 +21,7 @@ from langgraph.types import Command
 from sqlmodel import Session
 
 from src.core.config import settings
-from src.core.storage import FileStorage
+from src.core.storage import get_storage
 from src.domains.chat.model import ApprovalStatus, ChatSession
 from src.domains.chat.repository import ChatRepository
 from src.domains.chat.schema import (
@@ -38,6 +38,7 @@ from src.domains.llm_resource.repository import LlmResourceRepository
 from src.domains.rag.service import RagService
 from src.domains.user.model import User, UserRole
 from src.engine.artifact import ArtifactStreamParser, EventType
+from src.engine.extraction import ExtractResult, extract_text
 from src.engine.agent.policy import ApprovalPolicy
 from src.engine.agent.tools import default_registry
 from src.engine.graph.chat_graph import build_chat_graph
@@ -160,8 +161,25 @@ def _auto_approve_for(role: UserRole) -> frozenset[str]:
     return frozenset()
 
 
+def _render_extracted(filename: str, res: ExtractResult) -> str:
+    """추출 결과를 프롬프트 텍스트 블록으로 렌더 (ADR-0016)."""
+    header = f"\n\n--- {filename} ---\n"
+    footer = f"\n--- end of {filename} ---"
+    if res.status in ("ok", "truncated"):
+        body = res.text
+        if res.status == "truncated":
+            body += "\n\n…(내용이 길어 일부만 포함됨)"
+        return f"{header}{body}{footer}"
+    # empty / unsupported — 모델에 상황을 명시
+    note = res.note or "내용을 추출할 수 없음"
+    return f"{header}[{filename}: {note}]{footer}"
+
+
 def _build_graph_content(text: str, files: list[FileAttachment] | None) -> Any:
-    """파일이 있으면 멀티모달 블록 리스트, 없으면 텍스트 (ADR-0014 §3)."""
+    """파일이 있으면 멀티모달 블록 리스트, 없으면 텍스트 (ADR-0014 §3).
+
+    이미지는 비전 블록, 단순 텍스트는 인라인 디코드, 문서(PDF·Office)는 engine 추출(ADR-0016).
+    """
     if not files:
         return text
     parts: list[dict[str, Any]] = [{"type": "text", "text": text}]
@@ -178,10 +196,16 @@ def _build_graph_content(text: str, files: list[FileAttachment] | None) -> Any:
             parts.append(
                 {"type": "text", "text": f"\n\n--- {f.filename} ---\n{decoded}\n--- end of {f.filename} ---"}
             )
-        else:  # PDF 등 — 추출 미구현(placeholder, V2 동일)
-            parts.append(
-                {"type": "text", "text": f"\n\n[PDF attached: {f.filename}. Content extraction not implemented.]"}
-            )
+        else:  # PDF·Office 등 문서 → engine 본문 추출 (ADR-0016)
+            try:
+                raw = base64.b64decode(f.data)
+                res = extract_text(
+                    raw, f.content_type, f.filename, max_chars=settings.max_extract_chars
+                )
+            except Exception:
+                logger.exception("attachment_extract_failed", extra={"filename": f.filename})
+                res = ExtractResult(text="", status="unsupported", note="본문 추출 실패")
+            parts.append({"type": "text", "text": _render_extracted(f.filename, res)})
     return parts
 
 
@@ -203,9 +227,12 @@ class ChatService:
 
     def delete_session(self, session_id: int, user: User) -> None:
         s = self.get_session_owned(session_id, user)
-        storage = FileStorage()
+        storage = get_storage()
         for att in self.repo.list_session_attachments(s.id):
-            storage.delete(att.storage_path)  # 파일 정리 (메타는 repo가 삭제)
+            try:
+                storage.delete(att.storage_path)  # 오브젝트 정리 (메타는 repo가 삭제)
+            except Exception:
+                logger.exception("attachment_delete_failed", extra={"key": att.storage_path})
         self.repo.delete_session(s)
 
     def get_session_owned(self, session_id: int, user: User) -> ChatSession:
@@ -224,8 +251,11 @@ class ChatService:
         """메시지 id별 첨부 메타 (배치 조회) — ADR-0014."""
         return self.repo.attachments_by_message_ids(message_ids)
 
-    def download_attachment(self, user: User, attachment_id: int) -> tuple:
-        """다운로드용 (절대경로, filename, content_type). 소유자 또는 관리자만 (ADR-0014 §4)."""
+    def download_attachment(self, user: User, attachment_id: int) -> tuple[Iterator[bytes], str, str]:
+        """다운로드용 (바이트 스트림, filename, content_type). 소유자 또는 관리자만 (ADR-0014 §4).
+
+        MinIO 9000은 내부망이므로 백엔드가 객체를 스트리밍 프록시한다(ADR-0017 §4).
+        """
         att = self.repo.get_attachment(attachment_id)
         if att is None:
             raise HTTPException(status_code=404, detail="Attachment not found")
@@ -233,10 +263,10 @@ class ChatService:
             session = self.repo.get_session(att.session_id)
             if session is None or session.user_id != user.id:
                 raise HTTPException(status_code=403, detail="Access denied")
-        path = FileStorage().absolute_path(att.storage_path)
-        if not path.exists():
+        storage = get_storage()
+        if not storage.exists(att.storage_path):
             raise HTTPException(status_code=404, detail="File not found on server")
-        return path, att.filename, att.content_type
+        return storage.open_stream(att.storage_path), att.filename, att.content_type
 
     # ── 메시지 전송 (SSE) ──
     def stream_message(
@@ -253,9 +283,18 @@ class ChatService:
         is_first = len(self.repo.list_messages(session.id)) == 0
         # 원문(clean)만 영속 — 사전 주입 컨텍스트·첨부 바이트는 그래프 입력/스토리지에만.
         user_msg = self.repo.add_message(session.id, "user", content)
+        # 진행 단계 신호 (ADR-0011 §5) — 첫 토큰 이전의 서버 작업을 사용자에게 표시.
+        # 각 yield는 즉시 flush되므로 뒤따르는 blocking 작업(추출 등) 전에 클라이언트에 도달한다.
+        if files:
+            yield _sse("status", {"phase": "uploading"})
         self._persist_attachments(session, user_msg.id, files)
         llm_config = self._resolve_llm_config(llm_resource_id)
         text = self._augment_with_rag(user, content, rag_group)
+        if files:
+            yield _sse(
+                "status",
+                {"phase": "extracting", "filename": files[0].filename if len(files) == 1 else None},
+            )
         graph_content = _build_graph_content(text, files)  # 파일 있으면 멀티모달 (ADR-0014)
         # 장기 메모리 주입 (ADR-0015): 관련 메모리를 system prompt로 렌더해 맨 앞에 둔다.
         graph_messages: list = []
@@ -264,6 +303,7 @@ class ChatService:
             graph_messages.append(SystemMessage(content=load_system_prompt(long_term_memory=mem_str)))
         graph_messages.append(HumanMessage(content=graph_content))
         graph_input: Any = {"messages": graph_messages}
+        yield _sse("status", {"phase": "thinking"})  # 그래프 실행 직전 — 첫 토큰 대기 (ADR-0011 §5)
         yield from self._run(
             session, user, graph_input, user_content=content, is_first=is_first, llm_config=llm_config
         )
@@ -272,22 +312,37 @@ class ChatService:
         """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015)."""
         memory.delete_all(user.id)
 
-    def _persist_attachments(
-        self, session: ChatSession, message_id: int, files: list[FileAttachment] | None
-    ) -> None:
-        """첨부 검증·저장·메타 영속 (ADR-0014)."""
+    @staticmethod
+    def validate_files(files: list[FileAttachment] | None) -> None:
+        """타입·크기 검증 (ADR-0016 §5). 스트림 시작 전에 호출해 깔끔한 400을 반환한다.
+
+        (제너레이터 내부에서 raise하면 스트림 응답 중간이라 400이 전달되지 않으므로 사전 검증.)
+        """
         if not files:
             return
-        storage = FileStorage()
         for f in files:
             if f.content_type not in ALL_SUPPORTED_TYPES:
                 raise HTTPException(status_code=400, detail=f"Unsupported file type: {f.content_type}")
-            storage_path, size = storage.save_base64(f.data, session.id, f.filename)
+            try:
+                size = len(base64.b64decode(f.data))
+            except Exception as e:  # noqa: BLE001
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid file data: {f.filename}"
+                ) from e
             if size > MAX_FILE_SIZE:
-                storage.delete(storage_path)
                 raise HTTPException(
                     status_code=400, detail=f"File {f.filename} exceeds {MAX_FILE_SIZE // (1024 * 1024)}MB"
                 )
+
+    def _persist_attachments(
+        self, session: ChatSession, message_id: int, files: list[FileAttachment] | None
+    ) -> None:
+        """첨부 저장·메타 영속 (ADR-0014·0017). 타입/크기는 validate_files가 사전 검증."""
+        if not files:
+            return
+        storage = get_storage()
+        for f in files:
+            storage_path, size = storage.save_base64(f.data, session.id, f.filename)
             self.repo.add_attachment(
                 message_id=message_id,
                 session_id=session.id,
@@ -351,6 +406,7 @@ class ChatService:
                 self.repo.mark(row, ApprovalStatus.REJECTED, user.id)
                 decision_map[tool_call_id] = {"approved": False, "reason": "미결정(기본 거부)"}
 
+        yield _sse("status", {"phase": "thinking"})  # 재개 후 모델 재호출 대기 (ADR-0011 §5)
         yield from self._run(session, user, Command(resume=decision_map))
 
     # ── 공통 그래프 실행 루프 (토큰 스트리밍 + HITL + 제목, ADR-0011) ──

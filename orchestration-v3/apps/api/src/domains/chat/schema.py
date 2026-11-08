@@ -8,10 +8,16 @@ from pydantic import BaseModel, Field
 
 from src.domains.chat.model import ChatAttachment, ChatMessage, ChatSession
 
-# 지원 첨부 타입 (ADR-0014) — 이미지는 비전, 텍스트는 추출, PDF는 placeholder.
+# 지원 첨부 타입 — 이미지는 비전(ADR-0014), 단순 텍스트는 인라인 디코드,
+# 문서(PDF·Office)는 engine/extraction으로 본문 추출(ADR-0016).
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 SUPPORTED_TEXT_TYPES = {"text/plain", "text/markdown", "text/csv", "application/json"}
-SUPPORTED_DOC_TYPES = {"application/pdf"}
+SUPPORTED_DOC_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # docx
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # xlsx
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # pptx
+}
 ALL_SUPPORTED_TYPES = SUPPORTED_IMAGE_TYPES | SUPPORTED_TEXT_TYPES | SUPPORTED_DOC_TYPES
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
