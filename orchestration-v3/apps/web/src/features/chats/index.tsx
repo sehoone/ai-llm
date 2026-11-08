@@ -156,6 +156,10 @@ export function Chats() {
     try {
       const data = await getChatModels()
       setChatModels(data)
+      // llm_resource(chat 모델)가 있으면 첫 항목을 기본 선택 — "서버 기본값" 대신 DB 리소스 우선.
+      if (data.length > 0) {
+        setSelectedModelId((prev) => prev ?? data[0].id)
+      }
     } catch (error) {
       logger.error('Failed to load chat models', error)
     }

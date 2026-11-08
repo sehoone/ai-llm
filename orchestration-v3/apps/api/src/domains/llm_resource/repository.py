@@ -35,6 +35,25 @@ class LlmResourceRepository:
             ).all()
         )
 
+    def list_active_embedding_models(self) -> list[LlmResource]:
+        return list(
+            self.session.exec(
+                select(LlmResource)
+                .where(LlmResource.resource_type == "embedding", LlmResource.is_active == True)  # noqa: E712
+                .order_by(LlmResource.priority.desc())
+            ).all()
+        )
+
+    def default_chat_model(self) -> LlmResource | None:
+        """모델 미선택 시 기본 — 최고 priority 활성 chat 리소스(없으면 None)."""
+        rows = self.list_active_chat_models()
+        return rows[0] if rows else None
+
+    def default_embedding_model(self) -> LlmResource | None:
+        """최고 priority 활성 embedding 리소스(없으면 None) — 메모리 임베더용."""
+        rows = self.list_active_embedding_models()
+        return rows[0] if rows else None
+
     def save(self, resource: LlmResource) -> LlmResource:
         self.session.add(resource)
         self.session.commit()

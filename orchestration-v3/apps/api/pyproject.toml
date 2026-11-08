@@ -18,6 +18,7 @@ dependencies = [
     "langchain-litellm>=0.2",  # provider 통합(azure/openai/anthropic/google/ollama) — engine/llm (ADR-0010)
     "langfuse>=3",             # LLM 관측 — 트레이스/토큰/비용 (ADR-0007)
     "mem0ai>=1.0",             # 장기 메모리 (engine/memory, pgvector) — ADR-0015
+    "azure-identity>=1.19",    # mem0 azure_openai 임베더/LLM이 top-level import (llm_resource가 azure일 때) — ADR-0015
     "minio>=7.2",              # 첨부 객체 스토리지 (S3 호환) — ADR-0017
     "markitdown[pdf,docx,pptx,xlsx]>=0.0.1",  # 문서 본문 추출 (PDF·Office → markdown) — ADR-0016
 ]
@@ -31,9 +32,14 @@ dev = [
 ]
 
 [tool.poe.tasks]
-dev = "uvicorn src.main:app --reload --host 0.0.0.0 --port 8000"
 format = "ruff format ."
 test = "pytest"
+
+# bare-metal 개발: env 단일 소스(deploy/environments/local/api.env)를 읽는다 (ADR-0018).
+# localhost 좌표를 쓰려면 로컬 스택(task deploy ENV=local)이 떠 있어야 한다(db:8066 등).
+[tool.poe.tasks.dev]
+cmd = "uvicorn src.main:app --reload --host 0.0.0.0 --port 8000"
+env = { ENV_FILE = "../../deploy/environments/local/api.env" }
 
 [tool.poe.tasks.lint]
 # ruff + 레이어 경계(import-linter) 순차 실행

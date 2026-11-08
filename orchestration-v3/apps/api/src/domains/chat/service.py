@@ -30,6 +30,9 @@ from src.domains.chat.schema import (
     SUPPORTED_IMAGE_TYPES,
     SUPPORTED_TEXT_TYPES,
     ApprovalDecision,
+    AttachmentMeta,
+    ChatHistoryItem,
+    ChatHistoryListResponse,
     FileAttachment,
 )
 from src.domains.artifact.repository import ArtifactRepository
@@ -45,34 +48,16 @@ from src.engine.graph.chat_graph import build_chat_graph
 from src.engine.graph.checkpointer import build_checkpointer
 from src.engine.graph.fake_model import FakeToolCallingModel
 from src.engine import memory
-from src.engine.llm import build_default_chat_model, build_model_for, generate_title
+from src.engine.llm import build_model_for, generate_title
 from src.engine.llm.config import LlmConfig
 from src.engine.prompts import load_system_prompt
 
 logger = logging.getLogger(__name__)
 
 
-def _build_default_model():
-    """실 LLM(설정 시) 또는 FakeToolCallingModel(폴백) — ADR-0010 §3.
-
-    키가 있으면 실 LLM, 없거나 조립 실패 시 결정적 데모 모델로 안전 폴백(로컬·CI·HITL 테스트 불변).
-    """
-    if settings.llm_is_configured:
-        try:
-            model = build_default_chat_model()
-            if model is not None:
-                logger.info(
-                    "chat_model_real_llm", extra={"provider": settings.llm_provider, "model": settings.llm_model}
-                )
-                return model
-        except Exception:
-            logger.exception("chat_model_real_llm_init_failed_falling_back_to_fake")
-    else:
-        logger.info("chat_model_fake_fallback_llm_not_configured")
-    return FakeToolCallingModel()
-
-
-_default_model = _build_default_model()
+# LLM 선택은 전적으로 `llm_resource` 테이블에서 온다(env 미참조). 활성 chat 리소스가 하나도
+# 없을 때만 외부 호출 없는 결정적 데모 모델로 폴백(로컬·CI·HITL 테스트 불변).
+_default_model = FakeToolCallingModel()
 # per-request 모델 캐시 (LlmConfig는 frozen → 해시 가능). ADR-0011 §4.
 _model_cache: dict[LlmConfig, Any] = {}
 
@@ -251,6 +236,36 @@ class ChatService:
         """메시지 id별 첨부 메타 (배치 조회) — ADR-0014."""
         return self.repo.attachments_by_message_ids(message_ids)
 
+    # ── 대화 이력(관리자 뷰) ──
+    def all_history(self, limit: int, offset: int, search: str = "") -> ChatHistoryListResponse:
+        """전체 사용자 대화 이력(질문·답변 페어) 페이지. 관리자 전용(인가는 라우터 require_admin)."""
+        rows = self.repo.list_history(limit, offset, search)
+        total = self.repo.count_history(search)
+        att_map = self.repo.attachments_by_message_ids([r.id for r in rows])
+        items = [self._to_history_item(r, att_map.get(r.id)) for r in rows]
+        return ChatHistoryListResponse(items=items, total=total)
+
+    def history_detail(self, message_id: int) -> ChatHistoryItem:
+        """대화 이력 한 건 상세. 관리자 전용(인가는 라우터 require_admin)."""
+        row = self.repo.get_history_row(message_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Chat history not found")
+        att_map = self.repo.attachments_by_message_ids([row.id])
+        return self._to_history_item(row, att_map.get(row.id))
+
+    @staticmethod
+    def _to_history_item(row: Any, attachments: list | None) -> ChatHistoryItem:
+        return ChatHistoryItem(
+            id=row.id,
+            session_id=row.session_id,
+            user_email=row.user_email,
+            question=row.question,
+            answer=row.answer or "",
+            created_at=row.created_at,
+            session_name=row.session_name,
+            attachments=[AttachmentMeta.from_model(a) for a in (attachments or [])],
+        )
+
     def download_attachment(self, user: User, attachment_id: int) -> tuple[Iterator[bytes], str, str]:
         """다운로드용 (바이트 스트림, filename, content_type). 소유자 또는 관리자만 (ADR-0014 §4).
 
@@ -297,8 +312,10 @@ class ChatService:
             )
         graph_content = _build_graph_content(text, files)  # 파일 있으면 멀티모달 (ADR-0014)
         # 장기 메모리 주입 (ADR-0015): 관련 메모리를 system prompt로 렌더해 맨 앞에 둔다.
+        # LLM·임베더는 DB 리소스에서 해석(env 미참조). 비활성(기본)이면 DB 조회 생략.
+        mem_llm, mem_embedder = self._resolve_memory_configs() if memory.is_enabled() else (None, None)
         graph_messages: list = []
-        mem_str = memory.search(user.id, content)
+        mem_str = memory.search(user.id, content, mem_llm, mem_embedder)
         if mem_str:
             graph_messages.append(SystemMessage(content=load_system_prompt(long_term_memory=mem_str)))
         graph_messages.append(HumanMessage(content=graph_content))
@@ -309,8 +326,9 @@ class ChatService:
         )
 
     def delete_memory(self, user: User) -> None:
-        """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015)."""
-        memory.delete_all(user.id)
+        """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015). LLM·임베더는 DB 리소스에서 해석."""
+        mem_llm, mem_embedder = self._resolve_memory_configs()
+        memory.delete_all(user.id, mem_llm, mem_embedder)
 
     @staticmethod
     def validate_files(files: list[FileAttachment] | None) -> None:
@@ -362,13 +380,31 @@ class ChatService:
         return f"{content}\n\nContext from knowledge base:\n{context}"
 
     def _resolve_llm_config(self, llm_resource_id: int | None) -> LlmConfig | None:
-        """요청의 llm_resource_id → LlmConfig. 없음/비활성/비chat이면 None(기본 모델) — ADR-0011 §4."""
-        if llm_resource_id is None:
-            return None
-        resource = LlmResourceRepository(self.session).get(llm_resource_id)
-        if resource is None or not resource.is_active or resource.resource_type != "chat":
-            return None
-        return _config_from_resource(resource)
+        """요청 llm_resource_id → LlmConfig. 미지정/무효면 기본(최고 priority 활성 chat 리소스).
+
+        LLM 선택은 전적으로 DB에서 온다(env 미참조). 활성 chat 리소스가 없으면 None → Fake 폴백.
+        """
+        repo = LlmResourceRepository(self.session)
+        resource = None
+        if llm_resource_id is not None:
+            r = repo.get(llm_resource_id)
+            if r is not None and r.is_active and r.resource_type == "chat":
+                resource = r
+        if resource is None:
+            resource = repo.default_chat_model()
+        return _config_from_resource(resource) if resource is not None else None
+
+    def _resolve_memory_configs(self) -> tuple[LlmConfig | None, LlmConfig | None]:
+        """메모리용 (추출 LLM, 임베더) 설정을 DB 리소스에서 해석 — env 미참조 (ADR-0015).
+
+        추출 LLM = 기본 chat 리소스, 임베더 = 기본 embedding 리소스. 어느 하나라도 없으면 None.
+        """
+        repo = LlmResourceRepository(self.session)
+        chat = repo.default_chat_model()
+        emb = repo.default_embedding_model()
+        llm = _config_from_resource(chat) if chat is not None else None
+        embedder = _config_from_resource(emb) if emb is not None else None
+        return llm, embedder
 
     # ── 승인 결정 → 재개 (SSE) ──
     def resume(self, session_id: int, user: User, group_key: str, decisions: list[ApprovalDecision]) -> Iterator[str]:
@@ -546,27 +582,33 @@ class ChatService:
                             self.repo.add_message(session.id, "tool", msg.content or "", None)
                             yield _sse("message", {"role": "tool", "content": msg.content, "tool_calls": None})
 
-            # 스트림 정상 종료 — 첫 대화면 제목 자동생성 (ADR-0011 §3).
+            # 스트림 정상 종료 — 첫 대화면 제목 자동생성 (ADR-0011 §3). 제목 LLM = 이번 턴 DB 설정.
             if is_first and user_content and full_answer.strip():
-                title = self._maybe_generate_title(session, user_content, full_answer)
+                title = self._maybe_generate_title(session, user_content, full_answer, llm_config)
                 if title:
                     yield _sse("title", {"title": title})
             yield _sse("done", {"session_id": session.id})
             # done 이후 장기 메모리 적재 (ADR-0015) — 추출 LLM 호출이라 응답을 지연시키지 않는다. 비차단.
-            if user_content and full_answer.strip():
+            # LLM·임베더는 DB 리소스에서 해석(env 미참조).
+            if user_content and full_answer.strip() and memory.is_enabled():
+                mem_llm, mem_embedder = self._resolve_memory_configs()
                 memory.add(
                     user.id,
                     [{"role": "user", "content": user_content}, {"role": "assistant", "content": full_answer}],
+                    mem_llm,
+                    mem_embedder,
                 )
         except Exception as e:  # noqa: BLE001 — SSE로 오류 통지 후 종료
             logger.exception("chat_stream_failed")
             yield _sse("error", {"detail": str(e)})
 
-    def _maybe_generate_title(self, session: ChatSession, user_content: str, answer: str) -> str | None:
-        """첫 대화 제목 생성 + 세션에 반영. 미구성/실패 시 None."""
-        if not settings.llm_is_configured:
+    def _maybe_generate_title(
+        self, session: ChatSession, user_content: str, answer: str, llm_config: LlmConfig | None
+    ) -> str | None:
+        """첫 대화 제목 생성 + 세션에 반영. LLM 설정(DB) 없거나 실패 시 None."""
+        if llm_config is None:
             return None
-        title = generate_title(user_content, answer)
+        title = generate_title(user_content, answer, config=llm_config)
         if title:
             self.repo.rename_session(session, title)
             return title

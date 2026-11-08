@@ -30,9 +30,9 @@ def generate_title(user_message: str, ai_message: str, *, config: LlmConfig | No
     Args:
         user_message: 첫 사용자 발화.
         ai_message: 그에 대한 어시스턴트 답변.
-        config: LLM 설정(미지정 시 core.config 기본값). None이면 폴백.
+        config: LLM 설정(`llm_resource`에서 해석해 도메인이 주입). None이면 폴백.
     """
-    cfg = config or _default_config()
+    cfg = config
     if cfg is None:
         return _FALLBACK
     try:
@@ -49,10 +49,3 @@ def generate_title(user_message: str, ai_message: str, *, config: LlmConfig | No
     except Exception:
         logger.exception("title_generation_failed")
         return _FALLBACK
-
-
-def _default_config() -> LlmConfig | None:
-    # 지연 import로 순환 참조 회피 (__init__가 이 모듈을 노출).
-    from src.engine.llm import default_llm_config
-
-    return default_llm_config()
