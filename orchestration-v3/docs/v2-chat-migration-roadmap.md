@@ -171,11 +171,17 @@ Phase 1 완료 시점에 **"실제로 답하는 챗"**이 됨(현재 데모 승�
 - web: `handleSendMessage` 파일 base64 복원 + `streamMessage(…, files)`, `downloadAttachment` v3 경로.
 - 검증: 텍스트 추출(BANANA-42) + 비전(생성 PNG→"Blue") + 메타 조회 + 다운로드 확인.
 
-### Phase 5 — 장기 메모리(mem0)
-**목표**: 사용자별 장기 메모리 주입·삭제.
-- `engine/memory/`: V2 `_memory.py`(185) MemoryMixin 참조 → engine 모듈. mem0 의존.
-- `domains/chat`: 메모리 삭제 엔드포인트.
-- **신규 ADR-0015**: engine/memory(mem0) — 저장소·주입 지점·프라이버시.
+### Phase 5 — 장기 메모리(mem0) — ✅ 구현·검증됨 (2026-11-07) → [ADR-0015](adr/0015-long-term-memory.md)
+**목표**: 사용자별 장기 메모리 주입·삭제. **opt-in**(`MEMORY_ENABLED`).
+- `engine/memory/`: `mem0.Memory`(sync) 래퍼 — `search`/`add`/`delete_all`, pgvector(llmonl, `list_cols`
+  몽키패치), lazy 싱글턴, 지연 import·비차단(V2 `_memory.py` 참조).
+- `domains/chat`: 마지막 사용자 메시지로 검색 → system prompt(SystemMessage) 주입, done 후 메모리 적재,
+  `DELETE /api/v1/chat/memory`.
+- config/deps: `mem0ai>=1.0` + **`psycopg[binary,pool]`**(mem0 pgvector가 psycopg_pool 요구), `MEMORY_*` 설정.
+- **검증 중 수정 2건**: ① psycopg_pool 의존성 누락 → `psycopg[binary,pool]`. ② mem0 2.x `search`는
+  `filters={"user_id":…}` 필요(`user_id=` 거부) → engine/memory 수정.
+- 검증(비파괴): 실행 스택 네트워크·db에 일회용 api 컨테이너로 → 세션 간 회상("Sehoon/keyboards"),
+  `DELETE` 후 행 1→0·미회상, `longterm_memory` 자동 생성 확인.
 
 ### Phase 6 — 관리자 대화이력
 **목표**: 관리자 전체 대화 조회·검색·상세(V2 `/history/all`·`/history/{id}`).

@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.types import Command
 from sqlmodel import Session
 
@@ -43,8 +43,10 @@ from src.engine.agent.tools import default_registry
 from src.engine.graph.chat_graph import build_chat_graph
 from src.engine.graph.checkpointer import build_checkpointer
 from src.engine.graph.fake_model import FakeToolCallingModel
+from src.engine import memory
 from src.engine.llm import build_default_chat_model, build_model_for, generate_title
 from src.engine.llm.config import LlmConfig
+from src.engine.prompts import load_system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -255,10 +257,20 @@ class ChatService:
         llm_config = self._resolve_llm_config(llm_resource_id)
         text = self._augment_with_rag(user, content, rag_group)
         graph_content = _build_graph_content(text, files)  # 파일 있으면 멀티모달 (ADR-0014)
-        graph_input: Any = {"messages": [HumanMessage(content=graph_content)]}
+        # 장기 메모리 주입 (ADR-0015): 관련 메모리를 system prompt로 렌더해 맨 앞에 둔다.
+        graph_messages: list = []
+        mem_str = memory.search(user.id, content)
+        if mem_str:
+            graph_messages.append(SystemMessage(content=load_system_prompt(long_term_memory=mem_str)))
+        graph_messages.append(HumanMessage(content=graph_content))
+        graph_input: Any = {"messages": graph_messages}
         yield from self._run(
             session, user, graph_input, user_content=content, is_first=is_first, llm_config=llm_config
         )
+
+    def delete_memory(self, user: User) -> None:
+        """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015)."""
+        memory.delete_all(user.id)
 
     def _persist_attachments(
         self, session: ChatSession, message_id: int, files: list[FileAttachment] | None
@@ -484,6 +496,12 @@ class ChatService:
                 if title:
                     yield _sse("title", {"title": title})
             yield _sse("done", {"session_id": session.id})
+            # done 이후 장기 메모리 적재 (ADR-0015) — 추출 LLM 호출이라 응답을 지연시키지 않는다. 비차단.
+            if user_content and full_answer.strip():
+                memory.add(
+                    user.id,
+                    [{"role": "user", "content": user_content}, {"role": "assistant", "content": full_answer}],
+                )
         except Exception as e:  # noqa: BLE001 — SSE로 오류 통지 후 종료
             logger.exception("chat_stream_failed")
             yield _sse("error", {"detail": str(e)})
