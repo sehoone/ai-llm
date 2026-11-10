@@ -12,6 +12,7 @@ from src.domains.artifact.api import router as artifact_router
 from src.domains.auth.api import router as auth_router
 from src.domains.auth.service import ensure_seed_admin
 from src.domains.chat.api import router as chat_router
+from src.domains.gpts.api import router as gpts_router
 from src.domains.llm_resource.api import router as llm_resource_router
 from src.domains.meeting.api import router as meeting_router
 from src.domains.meeting.service import fail_stuck_meetings
@@ -51,6 +52,9 @@ app.include_router(llm_resource_router, prefix="/api/v1/llm-resources", tags=["l
 # ── LLM 도메인 라우터 ──
 # chat: 메시지 전송·승인(HITL) — SSE (ADR-0008)
 app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
+
+# gpts: 사용자 정의 커스텀 GPT — CRUD·세션·채팅(SSE) (V2 chatbot/custom_gpts 포팅)
+app.include_router(gpts_router, prefix="/api/v1/gpts", tags=["gpts"])
 
 # rag: 지식베이스 그룹·키·문서 + 검색 (ADR-0012)
 app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])

@@ -7,13 +7,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_litellm import ChatLiteLLM
 
 from src.engine.llm.config import LlmConfig
+
+
+def _chunk_text(content: Any) -> str:
+    """스트림 조각 content에서 텍스트만 추출. 블록 리스트 provider도 text만 모은다."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(p.get("text", "")) for p in content if isinstance(p, dict) and p.get("type") == "text"
+        )
+    return ""
 
 
 class LlmChatModel:
@@ -33,6 +44,24 @@ class LlmChatModel:
             return result
         # chat model은 AIMessage를 반환하지만 방어적으로 변환.
         return AIMessage(content=getattr(result, "content", str(result)))
+
+    def stream(self, messages: list[BaseMessage], config: Any = None) -> Iterator[str]:
+        """토큰 텍스트 조각을 순차 yield (HITL·도구 불필요한 단순 챗용).
+
+        `invoke`와 동일하게 system prompt를 선주입하고 `config`(관측 콜백 등)를 포워딩한다.
+        """
+        msgs = list(messages)
+        if self._system_prompt and not any(isinstance(m, SystemMessage) for m in msgs):
+            msgs = [SystemMessage(content=self._system_prompt), *msgs]
+        stream = (
+            self._runnable.stream(msgs, config=config)
+            if config is not None
+            else self._runnable.stream(msgs)
+        )
+        for chunk in stream:
+            text = _chunk_text(getattr(chunk, "content", ""))
+            if text:
+                yield text
 
 
 def build_chat_model(

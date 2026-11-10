@@ -110,6 +110,42 @@ CREATE TABLE IF NOT EXISTS llmonl.chat_approval (
 CREATE INDEX IF NOT EXISTS idx_chat_approval_session_id ON llmonl.chat_approval (session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_approval_group_key ON llmonl.chat_approval (group_key);
 
+-- gpts 도메인 (V2 chatbot/custom_gpts 포팅): 사용자 정의 커스텀 GPT + 세션 + Q/A 이력.
+-- FK 없음 — 연쇄 정리는 앱(repository)이 명시 수행(chat 도메인 관례와 동일).
+CREATE TABLE IF NOT EXISTS llmonl.custom_gpt (
+    id            TEXT         PRIMARY KEY,           -- uuid
+    user_id       BIGINT       NOT NULL,
+    name          VARCHAR(255) NOT NULL,
+    description   VARCHAR(500),
+    instructions  TEXT         NOT NULL DEFAULT '',
+    rag_key       TEXT         NOT NULL,              -- GPT 전용 지식베이스 키
+    is_public     BOOLEAN      NOT NULL DEFAULT false,
+    model         VARCHAR(255) NOT NULL DEFAULT 'gpt-4o-mini',
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_custom_gpt_user_id ON llmonl.custom_gpt (user_id);
+CREATE INDEX IF NOT EXISTS idx_custom_gpt_rag_key ON llmonl.custom_gpt (rag_key);
+
+CREATE TABLE IF NOT EXISTS llmonl.gpt_session (
+    id             TEXT        PRIMARY KEY,           -- uuid
+    user_id        BIGINT      NOT NULL,
+    custom_gpt_id  TEXT        NOT NULL,              -- custom_gpt.id
+    name           VARCHAR(255) NOT NULL DEFAULT '',
+    created_at     TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_gpt_session_user_id ON llmonl.gpt_session (user_id);
+CREATE INDEX IF NOT EXISTS idx_gpt_session_custom_gpt_id ON llmonl.gpt_session (custom_gpt_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.gpt_chat_message (
+    id          BIGSERIAL   PRIMARY KEY,
+    session_id  TEXT        NOT NULL,                 -- gpt_session.id
+    question    TEXT        NOT NULL DEFAULT '',
+    answer      TEXT        NOT NULL DEFAULT '',
+    created_at  TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_gpt_chat_message_session_id ON llmonl.gpt_chat_message (session_id);
+
 -- rag 도메인 (ADR-0012): pgvector 임베딩 기반 검색 증강. 임베딩 차원 1536 고정.
 CREATE TABLE IF NOT EXISTS llmonl.rag_group_config (
     id          TEXT         PRIMARY KEY,
