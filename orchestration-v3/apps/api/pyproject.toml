@@ -21,6 +21,9 @@ dependencies = [
     "azure-identity>=1.19",    # mem0 azure_openai 임베더/LLM이 top-level import (llm_resource가 azure일 때) — ADR-0015
     "minio>=7.2",              # 첨부 객체 스토리지 (S3 호환) — ADR-0017
     "markitdown[pdf,docx,pptx,xlsx]>=0.0.1",  # 문서 본문 추출 (PDF·Office → markdown) — ADR-0016
+    "apscheduler>=3.10",        # 워크플로우 cron 스케줄 트리거 (ADR-0019) — 도메인 인프라
+    "langchain-community>=0.3", # 워크플로우 tool 노드 web_search(DuckDuckGo) — ADR-0019
+    "ddgs>=6.0",                # DuckDuckGo 검색 백엔드 (langchain-community DuckDuckGoSearchResults)
 ]
 
 [dependency-groups]

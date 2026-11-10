@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     chat_approval_ttl_seconds: int = 900  # 승인 대기 만료 (15분)
     chat_checkpointer: str = "memory"     # "memory"(인프로세스) | "postgres"(후속)
 
+    # 워크플로우 엔진 (ADR-0019)
+    workflow_scheduler_enabled: bool = True  # cron 스케줄(APScheduler) 기동 on/off
+    workflow_http_timeout: int = 30          # http/loop 노드 기본 타임아웃(초)
+
     # engine/llm — 실 LLM 호출 (ADR-0010). provider·model·key·endpoint는 전적으로 `llm_resource`
     # 테이블에서 온다(env 미참조). 아래는 테이블에 없는 생성 튜닝 기본값만 — 모델 선택과 무관.
     llm_temperature: float = 0.7

@@ -1,7 +1,7 @@
 'use client'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { WorkflowNode } from '@/api/workflows'
+import { getChatModels, type ChatModel } from '@/api/llm-resources'
 
 interface ConfigPanelProps {
   node: WorkflowNode | null
@@ -17,14 +18,6 @@ interface ConfigPanelProps {
   onClose: () => void
   className?: string
 }
-
-const LLM_MODELS = [
-  'gpt-4o-mini',
-  'gpt-4o',
-  'gpt-5-mini',
-  'gpt-5',
-  'gpt-5-nano',
-]
 
 const CONDITION_OPERATORS = [
   { value: 'contains', label: 'contains' },
@@ -49,6 +42,12 @@ export function ConfigPanel({ node, onUpdate, onClose, className }: ConfigPanelP
     },
     [node, onUpdate]
   )
+
+  // 모델은 llm-resource(chat)에서 가져와 선택 — llm/loop 노드 공용.
+  const [chatModels, setChatModels] = useState<ChatModel[]>([])
+  useEffect(() => {
+    getChatModels().then(setChatModels).catch(() => setChatModels([]))
+  }, [])
 
   if (!node) return null
 
@@ -76,13 +75,13 @@ export function ConfigPanel({ node, onUpdate, onClose, className }: ConfigPanelP
       <div className='flex-1 overflow-y-auto px-4 py-3 space-y-5'>
         {node.type === 'start' && <StartConfig data={node.data} update={update} />}
         {node.type === 'end' && <EndConfig data={node.data} update={update} />}
-        {node.type === 'llm' && <LLMConfig data={node.data} update={update} />}
+        {node.type === 'llm' && <LLMConfig data={node.data} update={update} chatModels={chatModels} />}
         {node.type === 'condition' && <ConditionConfig data={node.data} update={update} />}
         {node.type === 'rag' && <RAGConfig data={node.data} update={update} />}
         {node.type === 'http' && <HTTPConfig data={node.data} update={update} />}
         {node.type === 'code' && <CodeConfig data={node.data} update={update} />}
         {node.type === 'tool' && <ToolConfig data={node.data} update={update} />}
-        {node.type === 'loop' && <LoopConfig data={node.data} update={update} />}
+        {node.type === 'loop' && <LoopConfig data={node.data} update={update} chatModels={chatModels} />}
       </div>
     </aside>
   )
@@ -232,24 +231,54 @@ function EndConfig({ data, update }: { data: any; update: (p: any) => void }) {
 
 // ── LLM Node Config ───────────────────────────────────────────────────────────
 
-function LLMConfig({ data, update }: { data: any; update: (p: any) => void }) {
+// 모델 선택 — llm-resource(chat)에서 가져온다. 값은 llm_resource_id(number).
+function ModelSelect({
+  data,
+  update,
+  chatModels,
+}: {
+  data: any
+  update: (p: any) => void
+  chatModels: ChatModel[]
+}) {
+  return (
+    <div className='space-y-1'>
+      <Label className='text-xs font-semibold'>
+        Model <span className='font-normal text-muted-foreground'>(llm-resource)</span>
+      </Label>
+      <Select
+        value={data.llm_resource_id != null ? String(data.llm_resource_id) : ''}
+        onValueChange={(v) => update({ llm_resource_id: Number(v) })}
+      >
+        <SelectTrigger className='text-xs h-8'>
+          <SelectValue placeholder={chatModels.length ? '모델 선택' : '등록된 chat 리소스 없음'} />
+        </SelectTrigger>
+        <SelectContent>
+          {chatModels.map((m) => (
+            <SelectItem key={m.id} value={String(m.id)} className='text-xs'>
+              {m.name}
+              {m.modelName ? ` (${m.modelName})` : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className='text-[11px] text-muted-foreground'>미선택 시 기본 chat 리소스를 사용합니다.</p>
+    </div>
+  )
+}
+
+function LLMConfig({
+  data,
+  update,
+  chatModels,
+}: {
+  data: any
+  update: (p: any) => void
+  chatModels: ChatModel[]
+}) {
   return (
     <div className='space-y-4'>
-      <div className='space-y-1'>
-        <Label className='text-xs font-semibold'>Model</Label>
-        <Select value={data.model ?? 'gpt-4o-mini'} onValueChange={(v) => update({ model: v })}>
-          <SelectTrigger className='text-xs h-8'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LLM_MODELS.map((m) => (
-              <SelectItem key={m} value={m} className='text-xs'>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <ModelSelect data={data} update={update} chatModels={chatModels} />
       <div className='space-y-1'>
         <Label className='text-xs font-semibold'>System Prompt</Label>
         <Textarea
@@ -484,7 +513,15 @@ function ToolConfig({ data, update }: { data: any; update: (p: any) => void }) {
 
 // ── Loop Node Config ──────────────────────────────────────────────────────────
 
-function LoopConfig({ data, update }: { data: any; update: (p: any) => void }) {
+function LoopConfig({
+  data,
+  update,
+  chatModels,
+}: {
+  data: any
+  update: (p: any) => void
+  chatModels: ChatModel[]
+}) {
   const processor = data.processor ?? 'passthrough'
   return (
     <div className='space-y-4'>
@@ -521,15 +558,7 @@ function LoopConfig({ data, update }: { data: any; update: (p: any) => void }) {
       </div>
       {processor === 'llm' && (
         <>
-          <div className='space-y-1'>
-            <Label className='text-xs font-semibold'>Model</Label>
-            <Select value={data.model ?? 'gpt-4o-mini'} onValueChange={(v) => update({ model: v })}>
-              <SelectTrigger className='text-xs h-8'><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {LLM_MODELS.map((m) => <SelectItem key={m} value={m} className='text-xs'>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+          <ModelSelect data={data} update={update} chatModels={chatModels} />
           <div className='space-y-1'>
             <Label className='text-xs font-semibold'>System Prompt</Label>
             <Textarea value={data.system_prompt ?? ''} onChange={(e) => update({ system_prompt: e.target.value })}

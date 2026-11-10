@@ -334,3 +334,77 @@ CREATE TABLE IF NOT EXISTS llmonl.meeting_minutes (
     created_at   TIMESTAMP   NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting_id ON llmonl.meeting_minutes (meeting_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- workflow 도메인 (ADR-0019): 노드 그래프 DAG 실행 엔진.
+-- definition은 React Flow {nodes,edges} JSON. FK CASCADE 없음 — 앱(repository)이 연쇄 정리.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.workflow (
+    id            TEXT         PRIMARY KEY,
+    user_id       BIGINT       NOT NULL,
+    name          VARCHAR(200) NOT NULL,
+    description   TEXT         NOT NULL DEFAULT '',
+    definition    JSONB        NOT NULL DEFAULT '{}'::jsonb,  -- {nodes:[...], edges:[...]}
+    is_published  BOOLEAN      NOT NULL DEFAULT false,
+    webhook_token TEXT,                                       -- NULL = 웹훅 비활성
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_user_id       ON llmonl.workflow (user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_webhook_token ON llmonl.workflow (webhook_token);
+
+CREATE TABLE IF NOT EXISTS llmonl.workflow_execution (
+    id           TEXT        PRIMARY KEY,
+    workflow_id  TEXT        NOT NULL,
+    user_id      BIGINT      NOT NULL,
+    status       VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending|running|completed|failed|skipped
+    input_data   JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    output_data  JSONB,
+    error        TEXT,
+    created_at   TIMESTAMP   NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_execution_workflow_id ON llmonl.workflow_execution (workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_execution_user_id     ON llmonl.workflow_execution (user_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.workflow_node_execution (
+    id           TEXT        PRIMARY KEY,
+    execution_id TEXT        NOT NULL,
+    node_id      TEXT        NOT NULL,   -- 프론트 캔버스 node id
+    node_type    TEXT        NOT NULL,
+    status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+    input_data   JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    output_data  JSONB,
+    error        TEXT,
+    created_at   TIMESTAMP   NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_node_execution_execution_id ON llmonl.workflow_node_execution (execution_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.workflow_schedule (
+    id           TEXT         PRIMARY KEY,   -- APScheduler job_id
+    workflow_id  TEXT         NOT NULL,
+    user_id      BIGINT       NOT NULL,
+    label        VARCHAR(200) NOT NULL DEFAULT '',
+    cron_expr    VARCHAR(100) NOT NULL,
+    input_data   JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    is_active    BOOLEAN      NOT NULL DEFAULT true,
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+    next_run_at  TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_schedule_workflow_id ON llmonl.workflow_schedule (workflow_id);
+
+CREATE TABLE IF NOT EXISTS llmonl.workflow_endpoint (
+    id           TEXT         PRIMARY KEY,
+    workflow_id  TEXT         NOT NULL,
+    user_id      BIGINT       NOT NULL,
+    path         VARCHAR(500) NOT NULL,   -- /api/v1/run/ 뒤 접미사
+    method       VARCHAR(10)  NOT NULL DEFAULT 'POST',
+    is_active    BOOLEAN      NOT NULL DEFAULT true,
+    description  TEXT         NOT NULL DEFAULT '',
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_endpoint_path_method UNIQUE (path, method)
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_workflow_id ON llmonl.workflow_endpoint (workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_path        ON llmonl.workflow_endpoint (path);

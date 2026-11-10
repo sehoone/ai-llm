@@ -18,6 +18,9 @@ from src.domains.meeting.api import router as meeting_router
 from src.domains.meeting.service import fail_stuck_meetings
 from src.domains.rag.api import router as rag_router
 from src.domains.user.api import router as user_router
+from src.domains.workflow.api import router as workflow_router
+from src.domains.workflow.api import trigger_router as workflow_trigger_router
+from src.domains.workflow.scheduler import workflow_scheduler
 from src.engine.observability import shutdown as observability_shutdown
 
 
@@ -28,8 +31,11 @@ async def lifespan(app: FastAPI):
         ensure_seed_admin(session)
     # 인프로세스 BackgroundTask로 처리되는 회의는 재시작 시 고아가 된다 → 비종료 상태를 FAILED로 정리.
     fail_stuck_meetings()
+    # 워크플로우 cron 스케줄러 기동 + 활성 스케줄 복원 (ADR-0019). 비활성/미설치면 no-op.
+    workflow_scheduler.start()
     yield
-    # 종료 시 버퍼된 Langfuse 트레이스 flush (ADR-0007). 비활성이면 no-op.
+    # 종료 시 스케줄러 정리 + 버퍼된 Langfuse 트레이스 flush (ADR-0007/0019). 비활성이면 no-op.
+    workflow_scheduler.shutdown()
     observability_shutdown()
 
 
@@ -68,3 +74,8 @@ app.include_router(ai_overview_router, prefix="/api/v1/ai-overview", tags=["ai-o
 
 # meeting: 음성 회의록 — 업로드·전사(STT)·요약·화자매핑·발행 (V2 포팅)
 app.include_router(meeting_router, prefix="/api/v1/meetings", tags=["meetings"])
+
+# workflow: 노드 그래프 DAG — CRUD·node-types·실행(동기/SSE)·스케줄·웹훅·동적 엔드포인트 (ADR-0019)
+app.include_router(workflow_router, prefix="/api/v1/workflows", tags=["workflows"])
+# 공개 트리거(미인증): 웹훅 POST /api/v1/webhooks/{token}, 동적 ANY /api/v1/run/{path}
+app.include_router(workflow_trigger_router, prefix="/api/v1", tags=["workflows-trigger"])
