@@ -32,6 +32,8 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0015](0015-long-term-memory.md) | 장기 메모리 (engine/memory — mem0 + pgvector) | Accepted |
 | [0016](0016-document-text-extraction.md) | 문서 본문 추출 (engine/extraction — markitdown) | Accepted |
 | [0017](0017-attachment-object-storage-minio.md) | 첨부 객체 스토리지 (MinIO / S3 호환) | Accepted (0014 §1·§4 개정) |
+| [0018](0018-env-config-layout.md) | env 설정 레이아웃 — 환경별 단일 소스 | Accepted |
+| [0019](0019-workflow-engine.md) | 워크플로우 — 노드 그래프 실행 엔진 + workflow 도메인 | Proposed |
 
 ## 관련 문서
 
