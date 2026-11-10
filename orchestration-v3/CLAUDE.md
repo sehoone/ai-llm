@@ -123,3 +123,45 @@ docker compose -p orchestration-v3-local --env-file ./environments/local/compose
 - 인증(ADR-0009): 백엔드가 ID/PW 검증·JWT 발급을 소유. `JWT_SECRET_KEY`·`SEED_ADMIN_PASSWORD`는 운영에서 반드시 교체. 자작 범위는 로그인·비밀번호 변경으로 최소화(bcrypt·표준 JWT). OIDC 코드는 보존(비활성) — 복귀 시 재활성.
 - **web `src/api/*.ts`는 아직 V2 엔드포인트 기준**(이식 직후). 백엔드 도메인 이식과 함께 `/api/v1/*`·`ApiResponse` 계약으로 재매핑 필요 (ADR-0006 후속).
 - **외부 시스템 연동 MCP 서버 추가 시**: `templates/mcp-server/`(복제형 스타터)를 `apps/<name>-mcp/`로 복사해 시작. v3 컨벤션 네이티브(uv·ruff·import-linter, `llmonl` 스키마, 인증은 JWKS 검증만 — ADR-0003). 절차·구조는 `templates/mcp-server/README.md` 참고.
+
+## 팀 협업 (Claude Code)
+
+여러 명이 Claude Code로 함께 개발한다. **공유 설정은 커밋하고 개인 설정은 커밋하지 않는다.**
+
+### 설정 파일 3계층
+| 파일 | git | 용도 |
+|------|-----|------|
+| `.claude/settings.json` | **커밋(공유)** | 팀 공통 권한 allowlist·deny, 공용 hook |
+| `.claude/settings.local.json` | gitignore(개인) | 개인 권한·실험. 공유할 가치가 생기면 `settings.json`으로 승격 |
+| `~/.claude/settings.json` | 각자 PC(전역) | 개인 모델·테마 등 |
+
+- **공유 명령·에이전트**: `.claude/commands/*.md`(슬래시 명령)·`.claude/agents/*.md`(서브에이전트)는 커밋하면 팀 전원이 공유한다. 현재 `/deploy-test`·`/port-domain`(V2 도메인 이식), `convention-checker` 보유.
+- **생성물·비밀파일 가드**: 공유 `settings.json`의 `deny`가 생성물·빌드 산출물·실 비밀파일 편집을 차단한다 — `packages/contracts/**`(gen-types 생성물), `**/*.tsbuildinfo`, `**/api.env`·`**/compose.env`(ADR-0018 실 env). `.example`은 편집 허용.
+- **메모리는 공유 금지**: 개인 로컬(`~/.claude/.../memory/`)이다. 팀이 공유할 지식은 메모리가 아니라 **`CLAUDE.md`·`docs/adr/`에 커밋**한다.
+- **MCP 서버 공유**: 팀 공용 MCP는 레포 루트 `.mcp.json`에 커밋(비밀값은 env 참조로 분리 — ADR-0018).
+
+### PR·리뷰 루틴
+- PR 전 변경분에 `/code-review`(로컬 diff) 또는 `/code-review ultra <PR#>`(클라우드 멀티에이전트). 인라인 코멘트는 `--comment`.
+- 레이어/컨벤션 점검은 `convention-checker` 서브에이전트(ADR-0005 경계·수직 슬라이스·ApiResponse·`llmonl`·인증 "검증만").
+- 작업은 피처 브랜치에서. `main` 직접 커밋 금지. push·force-push·`reset --hard`는 Claude에게 자동 승인하지 않는다(`settings.json` deny).
+- **병렬 작업**: 여러 명/여러 Claude 세션이 동시에 작업하면 git worktree로 격리(브랜치별 디렉터리)해 충돌을 줄인다. Claude Code가 worktree 생성을 지원한다.
+
+### ⚠️ GitHub Actions 위치
+GitHub는 **리포 루트(`ai-llm-1/`)의 `.github/workflows`만 실행**한다. 이 리포는 `sehoone/ai-llm` 단일 리포이므로 `orchestration-v3/.github/workflows/ci.yml`은 **현재 실행되지 않는다**(dormant). 동작시키려면 루트로 옮겨야 한다. `@claude` 멘션 워크플로(`ai-llm-1/.github/workflows/claude.yml`)는 루트에 배치됨 — 리포 Secret `ANTHROPIC_API_KEY` 등록 필요.
+
+### (opt-in) 저장 시 자동 ruff format — uv가 PATH에 있는 사람만
+프로젝트 관례상 lint/format은 수동(`uv run poe format`)이다. `uv`를 셸 PATH에 올린 팀원은 아래를 **개인** `.claude/settings.local.json`에 넣어 편집 즉시 포맷할 수 있다(공유 `settings.json`에 넣지 말 것 — uv 없는 PC에서 매 편집 에러):
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "command -v uv >/dev/null 2>&1 && uv run --project apps/api ruff format apps/api/src >/dev/null 2>&1 || true" }
+        ]
+      }
+    ]
+  }
+}
+```
