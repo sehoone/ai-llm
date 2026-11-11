@@ -21,11 +21,11 @@ from src.core.config import settings
 from src.core.db import engine as _db_engine
 from src.core.storage import get_storage
 from src.domains.artifact.repository import ArtifactRepository
-from src.domains.llm_resource.model import LlmResource
-from src.domains.llm_resource.repository import LlmResourceRepository
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
 from src.domains.meeting.model import Meeting, MeetingStatus
 from src.domains.meeting.repository import MeetingRepository
-from src.domains.user.model import User, UserRole
+from src.platform.user.model import User, UserRole
 from src.engine.llm.config import LlmConfig
 from src.engine.transcription import (
     TranscriptionConfig,

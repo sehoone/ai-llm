@@ -3,15 +3,15 @@ from sqlmodel import Session
 
 from src.core.db import get_session
 from src.core.response import ApiResponse
-from src.domains.auth.dependencies import get_current_user, require_admin, require_superadmin
-from src.domains.user.model import User
-from src.domains.user.schema import (
+from src.platform.auth.dependencies import get_current_user, require_admin, require_superadmin
+from src.platform.user.model import User
+from src.platform.user.schema import (
     AdminUserUpdateRequest,
     UserCreateRequest,
     UserResponse,
     UserUpdateRequest,
 )
-from src.domains.user.service import UserService
+from src.platform.user.service import UserService
 
 router = APIRouter()
 

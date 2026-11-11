@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from src.domains.user.model import User
+from src.platform.user.model import User
 
 
 class UserRepository:

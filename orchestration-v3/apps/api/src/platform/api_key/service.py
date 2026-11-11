@@ -5,9 +5,9 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from src.domains.api_key.model import ApiKey
-from src.domains.api_key.repository import ApiKeyRepository
-from src.domains.api_key.schema import ApiKeyCreateRequest, ApiKeyResponse
+from src.platform.api_key.model import ApiKey
+from src.platform.api_key.repository import ApiKeyRepository
+from src.platform.api_key.schema import ApiKeyCreateRequest, ApiKeyResponse
 
 
 class ApiKeyService:

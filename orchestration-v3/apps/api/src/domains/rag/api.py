@@ -11,7 +11,7 @@ from sqlmodel import Session
 
 from src.core.db import get_session
 from src.core.response import ApiResponse
-from src.domains.auth.dependencies import get_current_user
+from src.platform.auth.dependencies import get_current_user
 from src.domains.rag.schema import (
     DocumentResponse,
     DocumentUploadRequest,
@@ -26,7 +26,7 @@ from src.domains.rag.schema import (
     SearchResultItem,
 )
 from src.domains.rag.service import RagService
-from src.domains.user.model import User
+from src.platform.user.model import User
 
 router = APIRouter()
 

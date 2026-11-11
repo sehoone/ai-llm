@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from src.domains.api_key.model import ApiKey
+from src.platform.api_key.model import ApiKey
 
 
 class ApiKeyCreateRequest(BaseModel):

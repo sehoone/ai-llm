@@ -21,9 +21,9 @@ from fastapi import HTTPException
 from sqlmodel import Session
 
 from src.core.config import settings
-from src.domains.llm_resource.model import LlmResource
-from src.domains.llm_resource.repository import LlmResourceRepository
-from src.domains.user.model import User, UserRole
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
+from src.platform.user.model import User, UserRole
 from src.domains.workflow.model import (
     ExecutionStatus,
     NodeExecution,

@@ -23,8 +23,8 @@ from src.domains.artifact.schema import (
     PublishResponse,
 )
 from src.domains.artifact.service import ArtifactService
-from src.domains.auth.dependencies import get_current_user
-from src.domains.user.model import User
+from src.platform.auth.dependencies import get_current_user
+from src.platform.user.model import User
 
 router = APIRouter()
 public_router = APIRouter()

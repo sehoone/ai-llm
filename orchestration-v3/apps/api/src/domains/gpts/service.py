@@ -31,9 +31,9 @@ from src.domains.gpts.schema import (
     CustomGptUpdateRequest,
     GptMessage,
 )
-from src.domains.llm_resource.model import LlmResource
-from src.domains.llm_resource.repository import LlmResourceRepository
-from src.domains.user.model import User, UserRole
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
+from src.platform.user.model import User, UserRole
 from src.engine.llm import build_chat_model, generate_title
 from src.engine.llm.config import LlmConfig
 from src.engine.observability import TraceContext, build_run_config

@@ -24,7 +24,7 @@ from sqlmodel import Session
 from src.core.config import settings
 from src.core.db import get_session
 from src.core.response import ApiResponse
-from src.domains.auth.dependencies import get_current_user
+from src.platform.auth.dependencies import get_current_user
 from src.domains.meeting.model import MeetingStatus
 from src.domains.meeting.schema import (
     CreateMeetingResponse,
@@ -44,7 +44,7 @@ from src.domains.meeting.service import (
     meeting_storage,
     run_process_meeting,
 )
-from src.domains.user.model import User
+from src.platform.user.model import User
 
 router = APIRouter()
 

@@ -3,15 +3,15 @@ from sqlmodel import Session
 
 from src.core.db import get_session
 from src.core.response import ApiResponse
-from src.domains.auth.dependencies import get_current_user, require_admin
-from src.domains.llm_resource.schema import (
+from src.platform.auth.dependencies import get_current_user, require_admin
+from src.platform.llm_resource.schema import (
     ChatModelResponse,
     LlmResourceCreateRequest,
     LlmResourceResponse,
     LlmResourceUpdateRequest,
 )
-from src.domains.llm_resource.service import LlmResourceService
-from src.domains.user.model import User
+from src.platform.llm_resource.service import LlmResourceService
+from src.platform.user.model import User
 
 router = APIRouter()
 

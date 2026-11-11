@@ -17,7 +17,7 @@ from src.domains.chat.model import (
     ChatMessage,
     ChatSession,
 )
-from src.domains.user.model import User
+from src.platform.user.model import User
 
 
 class ChatRepository:

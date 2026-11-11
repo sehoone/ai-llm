@@ -12,8 +12,8 @@ from sqlmodel import Session
 
 from src.core.config import settings
 from src.core.security import hash_password, verify_password
-from src.domains.user.model import User, UserRole
-from src.domains.user.repository import UserRepository
+from src.platform.user.model import User, UserRole
+from src.platform.user.repository import UserRepository
 
 logger = logging.getLogger(__name__)
 

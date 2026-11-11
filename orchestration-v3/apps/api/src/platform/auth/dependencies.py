@@ -14,9 +14,9 @@ from sqlmodel import Session
 
 from src.core.db import get_session
 from src.core.security import decode_access_token
-from src.domains.api_key.repository import ApiKeyRepository
-from src.domains.user.model import User, UserRole
-from src.domains.user.repository import UserRepository
+from src.platform.api_key.repository import ApiKeyRepository
+from src.platform.user.model import User, UserRole
+from src.platform.user.repository import UserRepository
 
 _bearer = HTTPBearer()
 

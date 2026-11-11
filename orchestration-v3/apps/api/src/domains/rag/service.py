@@ -11,7 +11,7 @@ import logging
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from src.domains.llm_resource.repository import LlmResourceRepository
+from src.platform.llm_resource.repository import LlmResourceRepository
 from src.domains.rag.model import Document, RagGroupConfig, RagKeyConfig
 from src.domains.rag.repository import RagRepository
 from src.domains.rag.schema import (
@@ -22,7 +22,7 @@ from src.domains.rag.schema import (
     KeyUpdateRequest,
     SearchRequest,
 )
-from src.domains.user.model import User, UserRole
+from src.platform.user.model import User, UserRole
 from src.engine.llm.config import LlmConfig
 from src.engine.rag import chunk_text, embed_query, embed_texts
 

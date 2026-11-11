@@ -27,8 +27,8 @@ from src.domains.ai_overview.schema import (
     KeywordResponse,
 )
 from src.domains.ai_overview.upload_job import record_done
-from src.domains.llm_resource.model import LlmResource
-from src.domains.llm_resource.repository import LlmResourceRepository
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
 from src.engine.ai_overview import extract_query_keywords, generate_keywords, stream_answer
 from src.engine.llm.config import LlmConfig
 from src.engine.rag import chunk_text, embed_query, embed_texts

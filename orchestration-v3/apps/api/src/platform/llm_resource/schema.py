@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from src.domains.llm_resource.model import LlmResource
+from src.platform.llm_resource.model import LlmResource
 
 ResourceType = Literal["chat", "embedding"]
 

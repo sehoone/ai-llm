@@ -37,8 +37,8 @@ from src.domains.ai_overview.schema import (
 )
 from src.domains.ai_overview.service import AiOverviewService, run_keyword_generation_job
 from src.domains.ai_overview.upload_job import create_job, get_job
-from src.domains.auth.dependencies import get_current_user
-from src.domains.user.model import User
+from src.platform.auth.dependencies import get_current_user
+from src.platform.user.model import User
 
 router = APIRouter()
 

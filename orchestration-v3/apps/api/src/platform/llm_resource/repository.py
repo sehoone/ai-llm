@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from src.domains.llm_resource.model import LlmResource
+from src.platform.llm_resource.model import LlmResource
 
 
 class LlmResourceRepository:

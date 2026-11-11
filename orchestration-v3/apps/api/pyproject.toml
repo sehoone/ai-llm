@@ -62,10 +62,11 @@ root_package = "src"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "단방향 레이어: domains → engine → core"
+name = "단방향 레이어: domains → platform → engine → core"
 type = "layers"
 layers = [
     "src.domains",
+    "src.platform",   # 공유 커널(identity·llm_resource) — domains가 의존, 자신은 domains 비의존
     "src.engine",
     "src.core",
 ]
@@ -75,6 +76,18 @@ name = "engine은 HTTP를 모른다 (FastAPI 비의존)"
 type = "forbidden"
 source_modules = ["src.engine"]
 forbidden_modules = ["fastapi", "starlette"]
+
+# ── 도메인 간 경계 (협업 지속가능성) ──
+# 오케스트레이터(chat·meeting·gpts·workflow)는 능력 도메인(artifact·rag·ai_overview) 위.
+# 같은 레이어 내 `|` 형제들은 서로 독립(한 명의 변경이 다른 도메인을 깨지 못함).
+# 능력→오케스트레이터 역방향 import·기능 간 교차 결합을 import-linter가 CI에서 거부한다.
+[[tool.importlinter.contracts]]
+name = "도메인 경계: 오케스트레이터 > 능력, 기능끼리 독립"
+type = "layers"
+layers = [
+    "src.domains.chat | src.domains.meeting | src.domains.gpts | src.domains.workflow",
+    "src.domains.artifact | src.domains.rag | src.domains.ai_overview",
+]
 
 [build-system]
 requires = ["hatchling"]

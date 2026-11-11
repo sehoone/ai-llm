@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from src.domains.api_key.model import ApiKey
+from src.platform.api_key.model import ApiKey
 
 
 class ApiKeyRepository:

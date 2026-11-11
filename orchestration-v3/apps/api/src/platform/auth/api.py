@@ -10,12 +10,12 @@ from sqlmodel import Session
 from src.core.db import get_session
 from src.core.response import ApiResponse
 from src.core.security import create_access_token, hash_password, verify_password
-from src.domains.auth.dependencies import get_current_user
-from src.domains.auth.schema import LoginRequest, LoginResponse, PasswordChangeRequest
-from src.domains.auth.service import authenticate
-from src.domains.user.model import User
-from src.domains.user.repository import UserRepository
-from src.domains.user.schema import UserResponse
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.schema import LoginRequest, LoginResponse, PasswordChangeRequest
+from src.platform.auth.service import authenticate
+from src.platform.user.model import User
+from src.platform.user.repository import UserRepository
+from src.platform.user.schema import UserResponse
 
 router = APIRouter()
 

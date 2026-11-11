@@ -36,10 +36,10 @@ from src.domains.chat.schema import (
     FileAttachment,
 )
 from src.domains.artifact.repository import ArtifactRepository
-from src.domains.llm_resource.model import LlmResource
-from src.domains.llm_resource.repository import LlmResourceRepository
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
 from src.domains.rag.service import RagService
-from src.domains.user.model import User, UserRole
+from src.platform.user.model import User, UserRole
 from src.engine.artifact import ArtifactStreamParser, EventType
 from src.engine.extraction import ExtractResult, extract_text
 from src.engine.agent.policy import ApprovalPolicy

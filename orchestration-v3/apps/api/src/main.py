@@ -6,18 +6,18 @@ from sqlmodel import Session
 from src.core.config import settings
 from src.core.db import engine
 from src.domains.ai_overview.api import router as ai_overview_router
-from src.domains.api_key.api import router as api_key_router
+from src.platform.api_key.api import router as api_key_router
 from src.domains.artifact.api import public_router as artifact_public_router
 from src.domains.artifact.api import router as artifact_router
-from src.domains.auth.api import router as auth_router
-from src.domains.auth.service import ensure_seed_admin
+from src.platform.auth.api import router as auth_router
+from src.platform.auth.service import ensure_seed_admin
 from src.domains.chat.api import router as chat_router
 from src.domains.gpts.api import router as gpts_router
-from src.domains.llm_resource.api import router as llm_resource_router
+from src.platform.llm_resource.api import router as llm_resource_router
 from src.domains.meeting.api import router as meeting_router
 from src.domains.meeting.service import fail_stuck_meetings
 from src.domains.rag.api import router as rag_router
-from src.domains.user.api import router as user_router
+from src.platform.user.api import router as user_router
 from src.domains.workflow.api import router as workflow_router
 from src.domains.workflow.api import trigger_router as workflow_trigger_router
 from src.domains.workflow.scheduler import workflow_scheduler

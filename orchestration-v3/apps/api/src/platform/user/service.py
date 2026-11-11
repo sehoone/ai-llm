@@ -4,9 +4,9 @@ from fastapi import HTTPException
 from sqlmodel import Session
 
 from src.core.security import hash_password
-from src.domains.user.model import User
-from src.domains.user.repository import UserRepository
-from src.domains.user.schema import (
+from src.platform.user.model import User
+from src.platform.user.repository import UserRepository
+from src.platform.user.schema import (
     AdminUserUpdateRequest,
     UserCreateRequest,
     UserUpdateRequest,

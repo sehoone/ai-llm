@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from src.domains.user.schema import UserResponse
+from src.platform.user.schema import UserResponse
 
 
 class LoginRequest(BaseModel):

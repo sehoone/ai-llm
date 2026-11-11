@@ -16,9 +16,9 @@ from sqlmodel import Session
 from src.core.db import get_session
 from src.core.response import ApiResponse
 from src.core.security import decode_access_token
-from src.domains.auth.dependencies import get_current_user
-from src.domains.user.model import User
-from src.domains.user.repository import UserRepository
+from src.platform.auth.dependencies import get_current_user
+from src.platform.user.model import User
+from src.platform.user.repository import UserRepository
 from src.domains.workflow.schema import (
     EndpointCreateRequest,
     EndpointUpdateRequest,

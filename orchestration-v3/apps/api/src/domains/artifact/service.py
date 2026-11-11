@@ -7,7 +7,7 @@ from sqlmodel import Session
 
 from src.domains.artifact.model import Artifact
 from src.domains.artifact.repository import ArtifactRepository
-from src.domains.user.model import User, UserRole
+from src.platform.user.model import User, UserRole
 
 
 class ArtifactService:

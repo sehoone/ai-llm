@@ -40,10 +40,12 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 ```
 apps/api/src/
 ├─ domains/<d>/   # api·service·repository·schema 계층 (수직 슬라이스 / HTTP 경계)
-│                 # chat rag agent workflow meeting user api_key llm_resource auth
+│                 # chat gpts rag artifact ai_overview meeting workflow agent
+│                 # 오케스트레이터(chat·meeting·gpts·workflow) > 능력(artifact·rag·ai_overview) — 경계 계약 강제
+├─ platform/      # 공유 커널(shared kernel): identity(user·api_key·auth)·llm_resource. 모든 domains가 의존, 자신은 domains 비의존
 ├─ engine/        # AI 실행 능력 (ADR-0005) — llm prompts rag agent graph memory artifact extraction observability transcription
 ├─ core/          # config·security(비밀번호 해싱·JWT 발급/검증; OIDC/JWKS 보존)·db(세션)·response(ApiResponse 래퍼)·storage(MinIO 첨부)
-└─ main.py        # 도메인 라우터 등록 지점
+└─ main.py        # 도메인·플랫폼 라우터 등록 지점
 apps/web/src/           # shadcn-admin: api·app·features·components·stores·… (ADR-0006, FSD 아님)
 packages/contracts/     # api OpenAPI → web TS (생성물, 커밋 안 함 — openapi.json·api-schema.d.ts gitignore)
 ```
@@ -68,7 +70,7 @@ packages/contracts/     # api OpenAPI → web TS (생성물, 커밋 안 함 — 
 
 - **응답 래퍼**: 백엔드는 `ApiResponse[T]`(`{success, message, data}`)로 감싼다(`core/response.py`). web `src/api/axios.ts` 인터셉터가 `{success,data}`를 **자동 unwrap**하므로 web 호출부는 `data`만 다룬다.
 - **인증 흐름(web)**: ID/PW 자체 로그인(ADR-0009). `(authenticated)` 레이아웃이 `access_token` 쿠키 없으면 `/login` → ID/PW 폼이 `POST /api/v1/auth/login` 호출(전역 401 인터셉터 우회 위해 기본 axios 직접 사용) → 반환 JWT를 `auth-store`에 저장. axios는 Bearer 첨부 + **401이면 refresh 없이 `/login?redirect=…`로 이동**.
-- **엔진 격리**: `engine`은 `domains`·FastAPI를 import하지 않는다. `import-linter` 계약(pyproject)이 강제하며 `poe lint`에 포함.
+- **레이어·도메인 경계**: 단방향 `domains → platform → engine → core`. `engine`은 `domains`·FastAPI를 import하지 않고, `platform`(공유 커널: identity·llm_resource)은 `domains`를 import하지 않는다. 또한 **도메인 간 경계** — 오케스트레이터(chat·meeting·gpts·workflow)만 능력 도메인(artifact·rag·ai_overview)을 쓸 수 있고 기능끼리는 독립(서로 import 금지). 모두 `import-linter` 계약(pyproject)이 강제하며 `poe lint`에 포함.
 
 ## 명령
 

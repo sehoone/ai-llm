@@ -3,9 +3,9 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from src.domains.llm_resource.model import LlmResource
-from src.domains.llm_resource.repository import LlmResourceRepository
-from src.domains.llm_resource.schema import (
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
+from src.platform.llm_resource.schema import (
     ChatModelResponse,
     LlmResourceCreateRequest,
     LlmResourceResponse,

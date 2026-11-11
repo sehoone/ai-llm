@@ -3,10 +3,10 @@ from sqlmodel import Session
 
 from src.core.db import get_session
 from src.core.response import ApiResponse
-from src.domains.api_key.schema import ApiKeyCreateRequest, ApiKeyResponse
-from src.domains.api_key.service import ApiKeyService
-from src.domains.auth.dependencies import get_current_user
-from src.domains.user.model import User
+from src.platform.api_key.schema import ApiKeyCreateRequest, ApiKeyResponse
+from src.platform.api_key.service import ApiKeyService
+from src.platform.auth.dependencies import get_current_user
+from src.platform.user.model import User
 
 router = APIRouter()
 
