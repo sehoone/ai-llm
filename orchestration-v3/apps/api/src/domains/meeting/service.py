@@ -14,18 +14,15 @@ import json
 import logging
 from pathlib import Path
 
-from fastapi import HTTPException
 from sqlmodel import Session
 
 from src.core.config import settings
 from src.core.db import engine as _db_engine
+from src.core.exceptions import NotFoundError, PermissionDeniedError
 from src.core.storage import get_storage
 from src.domains.artifact import ArtifactIngest
-from src.platform.llm_resource.model import LlmResource
-from src.platform.llm_resource.repository import LlmResourceRepository
 from src.domains.meeting.model import Meeting, MeetingStatus
 from src.domains.meeting.repository import MeetingRepository
-from src.platform.user.model import User, UserRole
 from src.engine.llm.config import LlmConfig
 from src.engine.transcription import (
     TranscriptionConfig,
@@ -33,6 +30,9 @@ from src.engine.transcription import (
     minutes_to_markdown,
     transcribe,
 )
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
+from src.platform.user.model import User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +98,10 @@ class MeetingService:
         """회의 조회 + 소유권 강제(관리자는 전체 접근)."""
         meeting = self.repo.get(meeting_id)
         if meeting is None:
-            raise HTTPException(status_code=404, detail="Meeting not found")
+            raise NotFoundError("Meeting not found")
         is_admin = user.role in (UserRole.ADMIN, UserRole.SUPERADMIN)
         if not is_admin and meeting.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise PermissionDeniedError("Access denied")
         return meeting
 
     # ── CRUD ──
@@ -135,7 +135,9 @@ class MeetingService:
         self.repo.update_speaker_names(meeting_id, mapping)
 
     def save_minutes_manual(self, meeting_id: str, *, summary: str, content: dict):
-        return self.repo.save_minutes(meeting_id, summary=summary, content=content, model_used="manual")
+        return self.repo.save_minutes(
+            meeting_id, summary=summary, content=content, model_used="manual"
+        )
 
     def delete_meeting(self, meeting: Meeting) -> None:
         artifact_id = meeting.artifact_id
@@ -208,7 +210,9 @@ class MeetingService:
             else:
                 generated = {
                     "summary": "활성 chat LLM 리소스가 없어 회의록을 생성하지 못했습니다.",
-                    "content": {"summary": "활성 chat LLM 리소스가 없어 회의록을 생성하지 못했습니다. 전사는 저장되었습니다."},
+                    "content": {
+                        "summary": "활성 chat LLM 리소스가 없어 회의록을 생성하지 못했습니다. 전사는 저장되었습니다."
+                    },
                     "model_used": "none",
                 }
             self.repo.save_minutes(
@@ -221,7 +225,9 @@ class MeetingService:
             logger.info("meeting_processing_complete meeting_id=%s", meeting_id)
         except Exception as e:
             logger.exception("meeting_processing_failed meeting_id=%s", meeting_id)
-            self.repo.update_status(meeting_id, MeetingStatus.FAILED, error_message=f"처리 중 오류: {e}")
+            self.repo.update_status(
+                meeting_id, MeetingStatus.FAILED, error_message=f"처리 중 오류: {e}"
+            )
 
     async def regenerate_minutes(self, meeting_id: str):
         """기존 세그먼트로 요약 재실행(예: 화자 매핑 후). 세그먼트 없거나 LLM 없으면 None."""

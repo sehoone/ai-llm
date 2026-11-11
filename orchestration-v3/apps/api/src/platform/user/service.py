@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from fastapi import HTTPException
 from sqlmodel import Session
 
+from src.core.exceptions import ConflictError, NotFoundError
 from src.core.security import hash_password
 from src.platform.user.model import User
 from src.platform.user.repository import UserRepository
@@ -20,9 +20,9 @@ class UserService:
 
     def create(self, req: UserCreateRequest) -> User:
         if self.repo.exists_username(req.username):
-            raise HTTPException(status_code=409, detail="Username already exists")
+            raise ConflictError("Username already exists")
         if self.repo.exists_email(req.email):
-            raise HTTPException(status_code=409, detail="Email already exists")
+            raise ConflictError("Email already exists")
         user = User(
             username=req.username,
             email=req.email,
@@ -34,7 +34,7 @@ class UserService:
     def get(self, user_id: int) -> User:
         user = self.repo.get(user_id)
         if user is None:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise NotFoundError("User not found")
         return user
 
     def list(self, limit: int = 20, offset: int = 0) -> list[User]:
@@ -61,10 +61,10 @@ class UserService:
     def _apply_profile(self, user: User, username: str | None, email: str | None) -> None:
         if email is not None and email != user.email:
             if self.repo.exists_email(email):
-                raise HTTPException(status_code=409, detail="Email already exists")
+                raise ConflictError("Email already exists")
             user.email = email
         if username is not None and username != user.username:
             if self.repo.exists_username(username):
-                raise HTTPException(status_code=409, detail="Username already exists")
+                raise ConflictError("Username already exists")
             user.username = username
         user.updated_at = datetime.utcnow()

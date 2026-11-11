@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from fastapi import HTTPException
 from sqlmodel import Session
 
+from src.core.exceptions import NotFoundError
 from src.platform.llm_resource.model import LlmResource
 from src.platform.llm_resource.repository import LlmResourceRepository
 from src.platform.llm_resource.schema import (
@@ -54,5 +54,5 @@ class LlmResourceService:
     def _find(self, resource_id: int) -> LlmResource:
         resource = self.repo.get(resource_id)
         if resource is None:
-            raise HTTPException(status_code=404, detail="LLM resource not found")
+            raise NotFoundError("LLM resource not found")
         return resource

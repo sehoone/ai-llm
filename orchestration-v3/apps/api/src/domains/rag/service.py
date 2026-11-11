@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import HTTPException
 from sqlmodel import Session
 
-from src.platform.llm_resource.repository import LlmResourceRepository
+from src.core.exceptions import NotFoundError, ValidationError
 from src.domains.rag.model import Document, RagGroupConfig, RagKeyConfig
 from src.domains.rag.repository import RagRepository
 from src.domains.rag.schema import (
@@ -22,9 +21,11 @@ from src.domains.rag.schema import (
     KeyUpdateRequest,
     SearchRequest,
 )
-from src.platform.user.model import User, UserRole
 from src.engine.llm.config import LlmConfig
 from src.engine.rag import chunk_text, embed_query, embed_texts
+from src.platform.authz import assert_owner_or_admin
+from src.platform.llm_resource.repository import LlmResourceRepository
+from src.platform.user.model import User
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +40,12 @@ class RagService:
 
     # ── 임베딩 설정 해석 ──
     def _embedding_config(self) -> LlmConfig:
-        resources = [r for r in LlmResourceRepository(self.session).list_by_type("embedding") if r.is_active]
+        resources = [
+            r for r in LlmResourceRepository(self.session).list_by_type("embedding") if r.is_active
+        ]
         if not resources:
-            raise HTTPException(
-                status_code=400,
-                detail="활성 embedding 리소스가 없습니다. LLM 리소스에 embedding 타입을 추가하세요.",
+            raise ValidationError(
+                "활성 embedding 리소스가 없습니다. LLM 리소스에 embedding 타입을 추가하세요.",
             )
         r = sorted(resources, key=lambda x: x.priority, reverse=True)[0]
         model = r.deployment_name if r.provider == "azure" else (r.model_name or r.name)
@@ -60,13 +62,20 @@ class RagService:
         out: list[tuple[RagGroupConfig, int, int]] = []
         for g in self.repo.list_groups(user.id):
             out.append(
-                (g, self.repo.count_keys_in_group(user.id, g.name), self.repo.count_docs_in_group(g.name))
+                (
+                    g,
+                    self.repo.count_keys_in_group(user.id, g.name),
+                    self.repo.count_docs_in_group(g.name),
+                )
             )
         return out
 
     def create_group(self, user: User, req: GroupCreateRequest) -> RagGroupConfig:
         g = RagGroupConfig(
-            user_id=user.id, name=req.name, description=req.description, color=req.color or "#6366f1"
+            user_id=user.id,
+            name=req.name,
+            description=req.description,
+            color=req.color or "#6366f1",
         )
         return self.repo.create_group(g)
 
@@ -89,7 +98,10 @@ class RagService:
 
     # ── 키 ──
     def list_keys(self, user: User, rag_group: str | None = None) -> list[tuple[RagKeyConfig, int]]:
-        return [(k, self.repo.count_docs_in_key(k.rag_key)) for k in self.repo.list_keys(user.id, rag_group)]
+        return [
+            (k, self.repo.count_docs_in_key(k.rag_key))
+            for k in self.repo.list_keys(user.id, rag_group)
+        ]
 
     def list_group_keys(self, user: User, group_id: str) -> list[tuple[RagKeyConfig, int]]:
         g = self._owned_group(group_id, user)
@@ -155,20 +167,24 @@ class RagService:
             )
         return doc, indexed
 
-    def list_documents(self, user: User, rag_group: str | None, rag_key: str | None) -> list[Document]:
+    def list_documents(
+        self, user: User, rag_group: str | None, rag_key: str | None
+    ) -> list[Document]:
         return self.repo.list_documents(rag_group=rag_group, rag_key=rag_key)
 
     def delete_document(self, user: User, doc_id: int) -> None:
         doc = self.repo.get_document(doc_id)
         if doc is None:
-            raise HTTPException(status_code=404, detail="Document not found")
+            raise NotFoundError("Document not found")
         self.repo.delete_document(doc)
 
     # ── 검색 ──
     def search(self, user: User, req: SearchRequest) -> list[dict]:
         cfg = self._embedding_config()
         qv = embed_query(req.query, cfg)
-        return self.repo.vector_search_group(rag_group=req.rag_group, query_vector=qv, limit=req.limit)
+        return self.repo.vector_search_group(
+            rag_group=req.rag_group, query_vector=qv, limit=req.limit
+        )
 
     def rag_context(self, user: User, rag_group: str, query: str, *, limit: int = 3) -> str:
         """chat 사전 주입용 컨텍스트 (ADR-0012 §1). 검색된 상위 청크를 합친다.
@@ -178,7 +194,9 @@ class RagService:
         try:
             cfg = self._embedding_config()
             qv = embed_query(query, cfg)
-            results = self.repo.vector_search_group(rag_group=rag_group, query_vector=qv, limit=limit)
+            results = self.repo.vector_search_group(
+                rag_group=rag_group, query_vector=qv, limit=limit
+            )
         except Exception:
             logger.exception("rag_context_retrieval_failed")
             return ""
@@ -188,15 +206,13 @@ class RagService:
     def _owned_group(self, group_id: str, user: User) -> RagGroupConfig:
         g = self.repo.get_group(group_id)
         if g is None:
-            raise HTTPException(status_code=404, detail="RAG group not found")
-        if g.user_id != user.id and user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
-            raise HTTPException(status_code=403, detail="Not your RAG group")
+            raise NotFoundError("RAG group not found")
+        assert_owner_or_admin(user, g.user_id, message="Not your RAG group")
         return g
 
     def _owned_key(self, key_id: str, user: User) -> RagKeyConfig:
         k = self.repo.get_key(key_id)
         if k is None:
-            raise HTTPException(status_code=404, detail="RAG key not found")
-        if k.user_id != user.id and user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
-            raise HTTPException(status_code=403, detail="Not your RAG key")
+            raise NotFoundError("RAG key not found")
+        assert_owner_or_admin(user, k.user_id, message="Not your RAG key")
         return k

@@ -19,11 +19,11 @@ import uuid
 from collections.abc import Iterator
 from typing import Any
 
-from fastapi import HTTPException
 from langchain_core.messages import AIMessage, HumanMessage
 from sqlmodel import Session
 
 from src.core.config import settings
+from src.core.exceptions import NotFoundError, PermissionDeniedError
 from src.domains.gpts.model import CustomGpt, GptSession
 from src.domains.gpts.repository import GptsRepository
 from src.domains.gpts.schema import (
@@ -31,12 +31,13 @@ from src.domains.gpts.schema import (
     CustomGptUpdateRequest,
     GptMessage,
 )
-from src.platform.llm_resource.model import LlmResource
-from src.platform.llm_resource.repository import LlmResourceRepository
-from src.platform.user.model import User, UserRole
 from src.engine.llm import build_chat_model, generate_title
 from src.engine.llm.config import LlmConfig
 from src.engine.observability import TraceContext, build_run_config
+from src.platform.authz import assert_owner_or_admin
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
+from src.platform.user.model import User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -85,21 +86,25 @@ class GptsService:
         """조회 접근: 공개 GPT는 누구나, 비공개는 소유자/관리자만."""
         gpt = self.repo.get_gpt(gpt_id)
         if gpt is None:
-            raise HTTPException(status_code=404, detail="Custom GPT not found")
-        if not gpt.is_public and gpt.user_id != user.id and user.role not in (
-            UserRole.ADMIN,
-            UserRole.SUPERADMIN,
+            raise NotFoundError("Custom GPT not found")
+        if (
+            not gpt.is_public
+            and gpt.user_id != user.id
+            and user.role
+            not in (
+                UserRole.ADMIN,
+                UserRole.SUPERADMIN,
+            )
         ):
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise PermissionDeniedError("Access denied")
         return gpt
 
     def _get_owned_gpt(self, gpt_id: str, user: User) -> CustomGpt:
         """수정/삭제 접근: 소유자/관리자만."""
         gpt = self.repo.get_gpt(gpt_id)
         if gpt is None:
-            raise HTTPException(status_code=404, detail="Custom GPT not found")
-        if gpt.user_id != user.id and user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
-            raise HTTPException(status_code=403, detail="Custom GPT not found or access denied")
+            raise NotFoundError("Custom GPT not found")
+        assert_owner_or_admin(user, gpt.user_id, message="Custom GPT not found or access denied")
         return gpt
 
     def update_gpt(self, gpt_id: str, user: User, req: CustomGptUpdateRequest) -> CustomGpt:
@@ -125,9 +130,8 @@ class GptsService:
     def _get_owned_session(self, session_id: str, gpt_id: str, user: User) -> GptSession:
         s = self.repo.get_session(session_id)
         if s is None or s.custom_gpt_id != gpt_id:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if s.user_id != user.id and user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
-            raise HTTPException(status_code=403, detail="Cannot access other sessions")
+            raise NotFoundError("Session not found")
+        assert_owner_or_admin(user, s.user_id, message="Cannot access other sessions")
         return s
 
     def rename_session(self, gpt_id: str, session_id: str, user: User, name: str) -> GptSession:
@@ -192,7 +196,9 @@ class GptsService:
         # gpt.instructions를 system prompt로 주입, 요청 대화 이력을 LLM 메시지로 변환.
         model = build_chat_model(cfg, system_prompt=gpt.instructions or None)
         lc_messages = [
-            AIMessage(content=m.content) if m.role == "assistant" else HumanMessage(content=m.content)
+            AIMessage(content=m.content)
+            if m.role == "assistant"
+            else HumanMessage(content=m.content)
             for m in messages
         ]
         # 관측(ADR-0007): 도메인이 컨텍스트 값 주입, 비활성 시 {} 반환.

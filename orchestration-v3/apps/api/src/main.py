@@ -1,27 +1,30 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
 from src.core.config import settings
 from src.core.db import engine
+from src.core.exceptions import DomainError
+from src.core.response import ApiResponse
 from src.domains.ai_overview.api import router as ai_overview_router
-from src.platform.api_key.api import router as api_key_router
 from src.domains.artifact.api import public_router as artifact_public_router
 from src.domains.artifact.api import router as artifact_router
-from src.platform.auth.api import router as auth_router
-from src.platform.auth.service import ensure_seed_admin
 from src.domains.chat.api import router as chat_router
 from src.domains.gpts.api import router as gpts_router
-from src.platform.llm_resource.api import router as llm_resource_router
 from src.domains.meeting.api import router as meeting_router
 from src.domains.meeting.service import fail_stuck_meetings
 from src.domains.rag.api import router as rag_router
-from src.platform.user.api import router as user_router
 from src.domains.workflow.api import router as workflow_router
 from src.domains.workflow.api import trigger_router as workflow_trigger_router
 from src.domains.workflow.scheduler import workflow_scheduler
 from src.engine.observability import shutdown as observability_shutdown
+from src.platform.api_key.api import router as api_key_router
+from src.platform.auth.api import router as auth_router
+from src.platform.auth.service import ensure_seed_admin
+from src.platform.llm_resource.api import router as llm_resource_router
+from src.platform.user.api import router as user_router
 
 
 @asynccontextmanager
@@ -40,6 +43,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="orchestration-v3 api", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(DomainError)
+async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
+    """도메인 예외 → ApiResponse(success=False) + 상태코드 (단계 A).
+
+    서비스 레이어가 HTTP를 모른 채 raise한 도메인 예외를 일관된 응답 계약으로 변환한다.
+    """
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ApiResponse(
+            success=False, message=exc.message or "요청을 처리할 수 없습니다."
+        ).model_dump(),
+    )
 
 
 @app.get("/health")

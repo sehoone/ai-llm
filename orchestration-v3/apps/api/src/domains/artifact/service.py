@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException
 from sqlmodel import Session
 
+from src.core.exceptions import NotFoundError
 from src.domains.artifact.model import Artifact
 from src.domains.artifact.repository import ArtifactRepository
+from src.platform.authz import assert_owner_or_admin
 from src.platform.user.model import User, UserRole
 
 
@@ -36,7 +37,7 @@ class ArtifactService:
         self._owned(artifact_id, user)
         ver = self.repo.get_version(artifact_id, version)
         if ver is None:
-            raise HTTPException(status_code=404, detail="Artifact version not found")
+            raise NotFoundError("Artifact version not found")
         return ver
 
     def delete(self, user: User, artifact_id: str) -> None:
@@ -92,7 +93,6 @@ class ArtifactService:
     def _owned(self, artifact_id: str, user: User) -> Artifact:
         art = self.repo.get_artifact(artifact_id)
         if art is None:
-            raise HTTPException(status_code=404, detail="Artifact not found")
-        if art.user_id != user.id and user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
-            raise HTTPException(status_code=403, detail="Not your artifact")
+            raise NotFoundError("Artifact not found")
+        assert_owner_or_admin(user, art.user_id, message="Not your artifact")
         return art

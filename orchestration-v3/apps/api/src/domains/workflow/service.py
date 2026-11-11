@@ -17,13 +17,16 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Any
 
-from fastapi import HTTPException
 from sqlmodel import Session
 
 from src.core.config import settings
-from src.platform.llm_resource.model import LlmResource
-from src.platform.llm_resource.repository import LlmResourceRepository
-from src.platform.user.model import User, UserRole
+from src.core.exceptions import (
+    ConflictError,
+    NotFoundError,
+    PermissionDeniedError,
+    UnauthorizedError,
+    ValidationError,
+)
 from src.domains.workflow.model import (
     ExecutionStatus,
     NodeExecution,
@@ -55,6 +58,9 @@ from src.engine.workflow import (
     WorkflowRunner,
     list_node_types,
 )
+from src.platform.llm_resource.model import LlmResource
+from src.platform.llm_resource.repository import LlmResourceRepository
+from src.platform.user.model import User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +99,9 @@ class WorkflowService:
     def _owned(self, workflow_id: str, user: User) -> Workflow:
         w = self.repo.get(workflow_id)
         if w is None:
-            raise HTTPException(status_code=404, detail="Workflow not found")
+            raise NotFoundError("Workflow not found")
         if w.user_id != user.id and user.role not in _ADMIN_ROLES:
-            raise HTTPException(status_code=403, detail="Workflow not found or access denied")
+            raise PermissionDeniedError("Workflow not found or access denied")
         return w
 
     # ── Workflow CRUD ──
@@ -290,9 +296,9 @@ class WorkflowService:
     def get_execution(self, execution_id: str, user: User) -> WorkflowExecution:
         e = self.repo.get_execution(execution_id)
         if e is None:
-            raise HTTPException(status_code=404, detail="Execution not found")
+            raise NotFoundError("Execution not found")
         if e.user_id != user.id and user.role not in _ADMIN_ROLES:
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise PermissionDeniedError("Access denied")
         return e
 
     def list_executions(self, workflow_id: str, user: User) -> list[WorkflowExecution]:
@@ -307,7 +313,7 @@ class WorkflowService:
         elif action == "revoke":
             w.webhook_token = None
         else:
-            raise HTTPException(status_code=400, detail="action must be 'generate' or 'revoke'")
+            raise ValidationError("action must be 'generate' or 'revoke'")
         w.updated_at = _now()
         self.repo.save(w)
         return w.webhook_token
@@ -339,7 +345,7 @@ class WorkflowService:
         self._owned(workflow_id, user)
         s = self.repo.get_schedule(schedule_id)
         if s is None or s.workflow_id != workflow_id:
-            raise HTTPException(status_code=404, detail="Schedule not found")
+            raise NotFoundError("Schedule not found")
         for key, value in req.model_dump(exclude_unset=True).items():
             setattr(s, key, value)
         s = self.repo.save_schedule(s)
@@ -353,7 +359,7 @@ class WorkflowService:
         self._owned(workflow_id, user)
         s = self.repo.get_schedule(schedule_id)
         if s is None or s.workflow_id != workflow_id:
-            raise HTTPException(status_code=404, detail="Schedule not found")
+            raise NotFoundError("Schedule not found")
         workflow_scheduler.remove_job(s.id)
         self.repo.delete_schedule(s)
 
@@ -368,7 +374,7 @@ class WorkflowService:
         self._owned(workflow_id, user)
         path = req.path.strip("/")
         if self.repo.get_endpoint_by_route(path, req.method) is not None:
-            raise HTTPException(status_code=409, detail="Endpoint (path, method) already exists")
+            raise ConflictError("Endpoint (path, method) already exists")
         e = WorkflowEndpoint(
             workflow_id=workflow_id,
             user_id=user.id,
@@ -385,7 +391,7 @@ class WorkflowService:
         self._owned(workflow_id, user)
         e = self.repo.get_endpoint(endpoint_id)
         if e is None or e.workflow_id != workflow_id:
-            raise HTTPException(status_code=404, detail="Endpoint not found")
+            raise NotFoundError("Endpoint not found")
         data = req.model_dump(exclude_unset=True)
         if "path" in data and data["path"] is not None:
             data["path"] = data["path"].strip("/")
@@ -400,16 +406,14 @@ class WorkflowService:
         self._owned(workflow_id, user)
         e = self.repo.get_endpoint(endpoint_id)
         if e is None or e.workflow_id != workflow_id:
-            raise HTTPException(status_code=404, detail="Endpoint not found")
+            raise NotFoundError("Endpoint not found")
         self.repo.delete_endpoint(e)
 
     # ── 공개 트리거 (웹훅 / 동적 엔드포인트) ──
-    async def trigger_by_webhook(
-        self, token: str, input_data: dict[str, Any]
-    ) -> WorkflowExecution:
+    async def trigger_by_webhook(self, token: str, input_data: dict[str, Any]) -> WorkflowExecution:
         w = self.repo.get_by_webhook_token(token)
         if w is None:
-            raise HTTPException(status_code=404, detail="Unknown webhook token")
+            raise NotFoundError("Unknown webhook token")
         return await self.execute(w, input_data, w.user_id)
 
     async def trigger_by_endpoint(
@@ -421,13 +425,13 @@ class WorkflowService:
     ) -> WorkflowExecution:
         endpoint = self.repo.get_endpoint_by_route(path.strip("/"), method)
         if endpoint is None or not endpoint.is_active:
-            raise HTTPException(status_code=404, detail="No workflow bound to this route")
+            raise NotFoundError("No workflow bound to this route")
         w = self.repo.get(endpoint.workflow_id)
         if w is None:
-            raise HTTPException(status_code=404, detail="Bound workflow not found")
+            raise NotFoundError("Bound workflow not found")
         # 미발행 워크플로우는 인증 필요(ADR-0019 보안). 발행 워크플로우는 공개.
         if not w.is_published and caller is None:
-            raise HTTPException(status_code=401, detail="Authentication required (unpublished)")
+            raise UnauthorizedError("Authentication required (unpublished)")
         return await self.execute(w, input_data, w.user_id)
 
 

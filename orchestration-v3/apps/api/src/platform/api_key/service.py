@@ -2,9 +2,9 @@ import base64
 import secrets
 from datetime import datetime
 
-from fastapi import HTTPException
 from sqlmodel import Session
 
+from src.core.exceptions import NotFoundError, PermissionDeniedError
 from src.platform.api_key.model import ApiKey
 from src.platform.api_key.repository import ApiKeyRepository
 from src.platform.api_key.schema import ApiKeyCreateRequest, ApiKeyResponse
@@ -29,9 +29,9 @@ class ApiKeyService:
     def revoke(self, user_id: int, key_id: int) -> None:
         api_key = self.repo.get(key_id)
         if api_key is None:
-            raise HTTPException(status_code=404, detail="API key not found")
+            raise NotFoundError("API key not found")
         if api_key.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+            raise PermissionDeniedError("Forbidden")
         api_key.is_active = False
         api_key.updated_at = datetime.utcnow()
         self.repo.save(api_key)
