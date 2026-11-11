@@ -35,10 +35,10 @@ from src.domains.chat.schema import (
     ChatHistoryListResponse,
     FileAttachment,
 )
-from src.domains.artifact.repository import ArtifactRepository
+from src.domains.artifact import ArtifactIngest
 from src.platform.llm_resource.model import LlmResource
 from src.platform.llm_resource.repository import LlmResourceRepository
-from src.domains.rag.service import RagService
+from src.domains.rag import RagService
 from src.platform.user.model import User, UserRole
 from src.engine.artifact import ArtifactStreamParser, EventType
 from src.engine.extraction import ExtractResult, extract_text
@@ -473,7 +473,7 @@ class ChatService:
 
         # 아티팩트 파서(ADR-0013): assistant 토큰을 chat 본문과 아티팩트 이벤트로 가른다.
         parser = ArtifactStreamParser()
-        art_repo = ArtifactRepository(self.session)
+        art_repo = ArtifactIngest(self.session)
         display_parts: list[str] = []          # 칩 포함 chat 본문(영속·제목용)
         created_version_rows: list[int] = []   # 이번 assistant 턴에 생성된 아티팩트 버전 행
         current_artifact: dict[str, Any] | None = None
@@ -575,7 +575,7 @@ class ChatService:
                             saved = self.repo.add_message(session.id, "assistant", display, tool_calls)
                             if created_version_rows:
                                 try:
-                                    art_repo.set_versions_message_id(created_version_rows, saved.id)
+                                    art_repo.link_versions_to_message(created_version_rows, saved.id)
                                 except Exception:
                                     logger.exception("artifact_link_failed")
                             # 다음 assistant 턴(툴 루프) 대비 리셋

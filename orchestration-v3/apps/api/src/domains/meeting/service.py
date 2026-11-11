@@ -20,7 +20,7 @@ from sqlmodel import Session
 from src.core.config import settings
 from src.core.db import engine as _db_engine
 from src.core.storage import get_storage
-from src.domains.artifact.repository import ArtifactRepository
+from src.domains.artifact import ArtifactIngest
 from src.platform.llm_resource.model import LlmResource
 from src.platform.llm_resource.repository import LlmResourceRepository
 from src.domains.meeting.model import Meeting, MeetingStatus
@@ -142,10 +142,10 @@ class MeetingService:
         object_key = meeting.audio_object_key
         self.repo.delete(meeting.id)
         if artifact_id:
-            art_repo = ArtifactRepository(self.session)
-            art = art_repo.get_artifact(artifact_id)
+            art_repo = ArtifactIngest(self.session)
+            art = art_repo.get(artifact_id)
             if art is not None:
-                art_repo.delete_artifact(art)
+                art_repo.delete(art)
         try:
             meeting_storage().delete(object_key)
         except Exception:
@@ -271,7 +271,7 @@ class MeetingService:
             content = {"summary": latest.summary}
 
         markdown = minutes_to_markdown(meeting.title, content)
-        art_repo = ArtifactRepository(self.session)
+        art_repo = ArtifactIngest(self.session)
         result = art_repo.upsert_version(
             session_id=_PUBLISH_SESSION_ID,
             user_id=meeting.user_id,
@@ -280,7 +280,7 @@ class MeetingService:
             title=meeting.title or "회의록",
             content=markdown,
         )
-        art = art_repo.get_artifact(result["artifact_id"])
+        art = art_repo.get(result["artifact_id"])
         if art is None:
             return None
         token = art_repo.publish(art)

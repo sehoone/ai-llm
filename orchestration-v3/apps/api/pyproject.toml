@@ -89,6 +89,49 @@ layers = [
     "src.domains.artifact | src.domains.rag | src.domains.ai_overview",
 ]
 
+# ── 공개 포트 캡슐화 (단계 2) ──
+# 소비되는 능력 도메인(artifact·rag)의 내부(repository·model·service·schema)는
+# 외부 도메인이 직접 import 금지 — 오직 공개 포트(__init__ 노출: ArtifactIngest / RagService·SearchRequest)로만.
+# 도메인 자신의 내부 import는 source_modules에 포함되지 않으므로 허용된다.
+[[tool.importlinter.contracts]]
+name = "artifact 내부 캡슐화 — 외부는 공개 포트(ArtifactIngest)로만"
+type = "forbidden"
+# 직접 import만 금지. 공개 포트(__init__→ports→repository)를 통한 간접 접근은 허용.
+allow_indirect_imports = "true"
+source_modules = [
+    "src.domains.chat",
+    "src.domains.meeting",
+    "src.domains.gpts",
+    "src.domains.workflow",
+    "src.domains.rag",
+    "src.domains.ai_overview",
+]
+forbidden_modules = [
+    "src.domains.artifact.repository",
+    "src.domains.artifact.model",
+    "src.domains.artifact.service",
+]
+
+[[tool.importlinter.contracts]]
+name = "rag 내부 캡슐화 — 외부는 공개 포트(RagService·SearchRequest)로만"
+type = "forbidden"
+# 직접 import만 금지. 공개 포트(__init__→service)를 통한 간접 접근은 허용.
+allow_indirect_imports = "true"
+source_modules = [
+    "src.domains.chat",
+    "src.domains.meeting",
+    "src.domains.gpts",
+    "src.domains.workflow",
+    "src.domains.artifact",
+    "src.domains.ai_overview",
+]
+forbidden_modules = [
+    "src.domains.rag.repository",
+    "src.domains.rag.model",
+    "src.domains.rag.service",
+    "src.domains.rag.schema",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

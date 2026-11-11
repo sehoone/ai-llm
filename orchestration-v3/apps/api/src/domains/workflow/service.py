@@ -165,8 +165,7 @@ class WorkflowService:
         async def _rag_search(*, query: str, rag_group: str, limit: int) -> list[dict]:
             def _search() -> list[dict]:
                 from src.core.db import engine as db_engine
-                from src.domains.rag.schema import SearchRequest
-                from src.domains.rag.service import RagService
+                from src.domains.rag import RagService, SearchRequest
 
                 with Session(db_engine) as s:
                     user = s.get(User, user_id)
