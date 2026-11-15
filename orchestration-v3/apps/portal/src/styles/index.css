@@ -1,0 +1,104 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './theme.css';
+/* 코드블록은 앱 테마와 무관하게 다크 배경 + github-dark 하이라이트 (Claude 스타일). */
+@import 'highlight.js/styles/github-dark.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    border-color: var(--border);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  html {
+    overflow-x: hidden;
+  }
+  body {
+    @apply min-h-svh w-full bg-background text-foreground;
+    font-family: var(--font-noto-sans-kr), sans-serif;
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+  /* 모바일 입력 포커스 확대 방지 */
+  @media screen and (max-width: 767px) {
+    input,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 마크다운 코드블록: 다크 캔버스 */
+.markdown pre {
+  @apply my-3 overflow-x-auto rounded-lg bg-[#0d1117] p-4 text-sm;
+}
+.markdown pre code.hljs {
+  @apply bg-transparent p-0;
+}
+/* 인라인 코드 */
+.markdown :not(pre) > code {
+  @apply rounded bg-muted px-1.5 py-0.5 text-[0.85em];
+}
+
+/* 마크다운 본문 요소 (typography 플러그인 없이 수동 — 린 유지) */
+.markdown {
+  @apply text-sm leading-relaxed;
+}
+.markdown > :first-child {
+  @apply mt-0;
+}
+.markdown > :last-child {
+  @apply mb-0;
+}
+.markdown p {
+  @apply my-2;
+}
+.markdown h1 {
+  @apply mt-5 mb-2 text-xl font-semibold;
+}
+.markdown h2 {
+  @apply mt-5 mb-2 text-lg font-semibold;
+}
+.markdown h3 {
+  @apply mt-4 mb-2 text-base font-semibold;
+}
+.markdown ul {
+  @apply my-2 list-disc ps-6;
+}
+.markdown ol {
+  @apply my-2 list-decimal ps-6;
+}
+.markdown li {
+  @apply my-1;
+}
+.markdown a {
+  @apply text-primary underline underline-offset-2;
+}
+.markdown blockquote {
+  @apply my-3 border-s-2 border-border ps-4 text-muted-foreground;
+}
+.markdown hr {
+  @apply my-4 border-border;
+}
+.markdown table {
+  @apply my-3 w-full border-collapse text-sm;
+}
+.markdown th,
+.markdown td {
+  @apply border border-border px-3 py-1.5 text-start;
+}
+.markdown th {
+  @apply bg-muted font-medium;
+}

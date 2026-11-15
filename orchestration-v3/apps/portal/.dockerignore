@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+# .env.local이 .env.production을 덮어써 빌드 arg가 깨지는 것을 방지 (팀 메모리 교훈)
+.env*
+!.env.example
+npm-debug.log
+Dockerfile
+.dockerignore
