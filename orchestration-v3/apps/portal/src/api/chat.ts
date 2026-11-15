@@ -11,10 +11,26 @@ export interface ChatSession {
   title: string;
 }
 
+/** 전송용 첨부 (base64) — ADR-0014 FileAttachment. */
+export interface FileAttachment {
+  filename: string;
+  content_type: string;
+  data: string; // base64
+}
+
+/** 조회용 첨부 메타 (바이트 미포함). id가 있으면 다운로드 가능. */
+export interface AttachmentMeta {
+  id?: number;
+  filename: string;
+  content_type: string;
+  file_size: number;
+}
+
 export interface ChatMessage {
   id: number;
   role: string; // 'user' | 'assistant' | 'tool'
   content: string;
+  attachments?: AttachmentMeta[] | null;
 }
 
 export const chatApi = {
@@ -28,6 +44,19 @@ export const chatApi = {
   },
   getMessages: async (id: number): Promise<ChatMessage[]> =>
     (await api.get<ChatMessage[]>(`${BASE}/sessions/${id}/messages`)).data,
+
+  /** 첨부 다운로드 — 소유자/관리자만(ADR-0014 §4). axios가 Bearer 첨부, blob으로 받아 저장. */
+  downloadAttachment: async (id: number, filename: string): Promise<void> => {
+    const res = await api.get(`${BASE}/attachments/${id}`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export interface StreamCallbacks {
@@ -97,14 +126,16 @@ async function runStream(
   }
 }
 
-/** 메시지 전송 + 토큰 스트리밍(SSE). */
+/** 메시지 전송 + 토큰 스트리밍(SSE). files는 base64 멀티모달 첨부(ADR-0014). */
 export async function streamMessage(
   sessionId: number,
   content: string,
   cb: StreamCallbacks,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  files?: FileAttachment[]
 ): Promise<void> {
-  await runStream(`${BASE}/sessions/${sessionId}/messages`, { content }, cb, signal);
+  const body = files && files.length ? { content, files } : { content };
+  await runStream(`${BASE}/sessions/${sessionId}/messages`, body, cb, signal);
 }
 
 /** 마지막 답변 재생성(SSE) — 직전 assistant 턴 교체(ADR-0020 / portal-roadmap Phase 1). */

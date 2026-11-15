@@ -19,11 +19,11 @@ export default function ChatPage() {
     loadSessions();
   }, [loadSessions]);
 
-  function handleSubmit() {
+  function handleSubmit(files: File[] = []) {
     const t = draft.trim();
-    if (!t) return;
+    if (!t && files.length === 0) return;
     setDraft('');
-    void send(t);
+    void send(t, files);
   }
 
   function pickPrompt(p: string) {

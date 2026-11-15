@@ -6,8 +6,11 @@ import {
   chatApi,
   regenerate as apiRegenerate,
   streamMessage,
+  type AttachmentMeta,
+  type FileAttachment,
   type StreamCallbacks,
 } from '@/api/chat';
+import { fileToBase64 } from '@/lib/files';
 import { useChatStore } from '@/stores/chat-store';
 
 const APPROVAL_NOTE = '\n\n_(이 작업은 승인이 필요합니다. 현재 포털에서는 지원되지 않습니다.)_';
@@ -66,6 +69,15 @@ export function useChat() {
         flush();
         abortRef.current = null;
         getState().setSending(false);
+        // 완료 후 정규화: 서버 메시지로 교체해 첨부 id·assistant id를 확정(다운로드 가능).
+        // 중단됐거나 그새 다른 세션으로 이동했으면 생략(낙관적 메시지 보존).
+        if (!controller.signal.aborted && getState().activeId === sessionId) {
+          try {
+            getState().setMessages(await chatApi.getMessages(sessionId));
+          } catch {
+            /* 정규화 실패는 무시 */
+          }
+        }
       }
     },
     [startFlushing, stopFlushing, flush]
@@ -98,10 +110,10 @@ export function useChat() {
   }, []);
 
   const send = useCallback(
-    async (content: string) => {
+    async (content: string, files: File[] = []) => {
       const text = content.trim();
       const st = getState();
-      if (!text || st.sending) return;
+      if ((!text && files.length === 0) || st.sending) return;
       st.setSending(true);
 
       let sessionId = st.activeId;
@@ -123,12 +135,37 @@ export function useChat() {
       }
       const sid = sessionId;
 
+      // 첨부(ADR-0014): base64 변환 + 낙관적 메타. content는 min_length=1이라 파일만일 때 기본 문구.
+      let fileAttachments: FileAttachment[] | undefined;
+      let optimistic: AttachmentMeta[] | undefined;
+      if (files.length) {
+        try {
+          fileAttachments = await Promise.all(
+            files.map(async (f) => ({
+              filename: f.name,
+              content_type: f.type || 'application/octet-stream',
+              data: await fileToBase64(f),
+            }))
+          );
+        } catch {
+          toast.error('첨부 파일을 읽지 못했습니다.');
+          getState().setSending(false);
+          return;
+        }
+        optimistic = files.map((f) => ({
+          filename: f.name,
+          content_type: f.type,
+          file_size: f.size,
+        }));
+      }
+      const sendText = text || '첨부한 파일을 확인해줘.';
+
       const uid = Date.now();
       getState().appendMessages(
-        { id: uid, role: 'user', content: text },
+        { id: uid, role: 'user', content: sendText, attachments: optimistic },
         { id: uid + 1, role: 'assistant', content: '' }
       );
-      await drive(sid, (cb, signal) => streamMessage(sid, text, cb, signal));
+      await drive(sid, (cb, signal) => streamMessage(sid, sendText, cb, signal, fileAttachments));
     },
     [drive]
   );
