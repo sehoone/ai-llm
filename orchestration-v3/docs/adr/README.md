@@ -34,9 +34,12 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0017](0017-attachment-object-storage-minio.md) | 첨부 객체 스토리지 (MinIO / S3 호환) | Accepted (0014 §1·§4 개정) |
 | [0018](0018-env-config-layout.md) | env 설정 레이아웃 — 환경별 단일 소스 | Accepted |
 | [0019](0019-workflow-engine.md) | 워크플로우 — 노드 그래프 실행 엔진 + workflow 도메인 | Proposed |
+| [0020](0020-user-portal-frontend.md) | 사용자 포털 프론트 분리 (apps/portal — 경로 분리·셀프 가입) | Proposed |
 
 ## 관련 문서
 
 - [`../v2-chat-migration-roadmap.md`](../v2-chat-migration-roadmap.md) — V2 chat 기능 이식 단계별 로드맵(ADR-0010~0015 매핑).
+
+- [`../portal-roadmap.md`](../portal-roadmap.md) — 사용자 포털을 "클로드급" 챗 경험으로 끌어올리는 단계별 로드맵(ADR-0020 실행 계획).
 
 - [`../structure-and-references.md`](../structure-and-references.md) — 위 결정들이 업계 표준·사실상 표준과 어떻게 정렬되는지 검증·참조 소스 모음 (ADR이 아닌 레퍼런스).
