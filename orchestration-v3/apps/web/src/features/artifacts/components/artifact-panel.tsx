@@ -76,7 +76,8 @@ export function ArtifactPanel() {
     setPublishing(true)
     try {
       const token = await artifactService.publish(active.serverId)
-      const shareUrl = `${window.location.origin}/artifact/${token}`
+      // web은 /admin 하위(ADR-0020 basePath) — 공개 뷰 /admin/artifact/{token}. 원시 origin에 수동 prefix.
+      const shareUrl = `${window.location.origin}/admin/artifact/${token}`
       await navigator.clipboard.writeText(shareUrl)
       toast.success('공개 링크가 클립보드에 복사되었습니다')
     } catch (e) {

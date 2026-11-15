@@ -18,8 +18,11 @@ function reauthenticate() {
   redirecting = true
   useAuthStore.getState().auth.reset()
   toast.error('인증이 만료되었습니다. 다시 로그인하세요.')
-  const redirect = encodeURIComponent(window.location.pathname + window.location.search)
-  window.location.href = `/login?redirect=${redirect}`
+  // web은 /admin 하위(ADR-0020 basePath). 원시 window.location은 basePath 비적용이라 수동 prefix.
+  // redirect 값은 basePath를 제거한 경로 — 로그인 페이지의 router.replace가 basePath를 다시 붙인다(중복 방지).
+  const path = window.location.pathname.replace(/^\/admin/, '') + window.location.search
+  const redirect = encodeURIComponent(path || '/')
+  window.location.href = `/admin/login?redirect=${redirect}`
 }
 
 // 요청: access token을 Bearer로 첨부

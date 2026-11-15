@@ -3,8 +3,8 @@ version: '3'
 
 tasks:
   dev:
-    desc: api + web 개발 서버 동시 기동
-    deps: [dev-api, dev-web]
+    desc: api + web(관리자) + portal(사용자) 개발 서버 동시 기동
+    deps: [dev-api, dev-web, dev-portal]
 
   dev-api:
     dir: apps/api
@@ -14,10 +14,15 @@ tasks:
     dir: apps/web
     cmds: [pnpm dev]
 
+  dev-portal:
+    dir: apps/portal
+    cmds: [pnpm dev]
+
   lint:
     cmds:
       - task: lint-api
       - task: lint-web
+      - task: lint-portal
 
   lint-api:
     dir: apps/api
@@ -25,6 +30,10 @@ tasks:
 
   lint-web:
     dir: apps/web
+    cmds: [pnpm lint]
+
+  lint-portal:
+    dir: apps/portal
     cmds: [pnpm lint]
 
   test:
