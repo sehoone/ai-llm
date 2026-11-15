@@ -35,6 +35,7 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0018](0018-env-config-layout.md) | env 설정 레이아웃 — 환경별 단일 소스 | Accepted |
 | [0019](0019-workflow-engine.md) | 워크플로우 — 노드 그래프 실행 엔진 + workflow 도메인 | Proposed |
 | [0020](0020-user-portal-frontend.md) | 사용자 포털 프론트 분리 (apps/portal — 경로 분리·셀프 가입) | Proposed |
+| [0023](0023-admin-portal-split.md) | 관리자/사용자 포털 분리 (admin web ↔ user portal — 상위 아키텍처 결정) | Accepted |
 
 ## 관련 문서
 

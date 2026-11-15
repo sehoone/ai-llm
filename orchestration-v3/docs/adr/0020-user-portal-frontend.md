@@ -3,7 +3,7 @@
 - 상태: Proposed
 - 날짜: 2026-11-15
 - 결정자: sehoone
-- 관련: [ADR-0004](0004-apps-packages-monorepo-layout.md) (apps/* 레이아웃 — 세 번째 앱 추가) · [ADR-0006](0006-web-structure-and-oidc.md) (web = 관리자 UI) · [ADR-0009](0009-self-id-password-auth.md) (자체 ID/PW 인증 — 셀프 가입 추가로 확장) · [ADR-0003](0003-single-python-backend.md) (단일 백엔드 유지)
+- 관련: [ADR-0023](0023-admin-portal-split.md) (**상위 결정** — 관리자/사용자 포털 분리; 본 ADR은 그 프론트 구현) · [ADR-0004](0004-apps-packages-monorepo-layout.md) (apps/* 레이아웃 — 세 번째 앱 추가) · [ADR-0006](0006-web-structure-and-oidc.md) (web = 관리자 UI) · [ADR-0009](0009-self-id-password-auth.md) (자체 ID/PW 인증 — 셀프 가입 추가로 확장) · [ADR-0003](0003-single-python-backend.md) (단일 백엔드 유지)
 
 ## Context (맥락)
 
