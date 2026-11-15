@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from fastapi import HTTPException
 from sqlmodel import Session
 
 from src.core.config import settings
@@ -18,6 +19,26 @@ from src.domains.user.repository import UserRepository
 logger = logging.getLogger(__name__)
 
 _VALID_ROLES = {r.value for r in UserRole}
+
+
+def register(session: Session, username: str, email: str, password: str) -> User:
+    """사용자 셀프 가입(ADR-0020) — role=USER로 생성 후 반환.
+
+    role은 요청에서 받지 않고 서버가 USER로 고정한다(권한 상승 방지 — 승격은 관리자 전용).
+    username/email 중복은 409. (이메일 인증·레이트리밋 등 남용 방지는 후속 과제.)
+    """
+    repo = UserRepository(session)
+    if repo.exists_username(username):
+        raise HTTPException(status_code=409, detail="이미 사용 중인 아이디입니다.")
+    if repo.exists_email(email):
+        raise HTTPException(status_code=409, detail="이미 사용 중인 이메일입니다.")
+    user = User(
+        username=username,
+        email=email,
+        hashed_password=hash_password(password),
+        role=UserRole.USER,
+    )
+    return repo.save(user)
 
 
 def authenticate(session: Session, username: str, password: str) -> User | None:

@@ -74,10 +74,13 @@ CREATE TABLE IF NOT EXISTS llmonl.chat_session (
     id          BIGSERIAL    PRIMARY KEY,
     user_id     BIGINT       NOT NULL,
     title       VARCHAR(255) NOT NULL DEFAULT 'New chat',
+    thread_rev  INTEGER      NOT NULL DEFAULT 0,   -- LangGraph 스레드 리비전 (재생성 포크, ADR-0020)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_chat_session_user_id ON llmonl.chat_session (user_id);
+-- 기존 배포(테이블 이미 존재) 대응: 컬럼 멱등 추가.
+ALTER TABLE llmonl.chat_session ADD COLUMN IF NOT EXISTS thread_rev INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS llmonl.chat_message (
     id          BIGSERIAL    PRIMARY KEY,

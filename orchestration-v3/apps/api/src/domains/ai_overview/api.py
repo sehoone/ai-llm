@@ -37,7 +37,7 @@ from src.domains.ai_overview.schema import (
 )
 from src.domains.ai_overview.service import AiOverviewService, run_keyword_generation_job
 from src.domains.ai_overview.upload_job import create_job, get_job
-from src.domains.auth.dependencies import get_current_user
+from src.domains.auth.dependencies import get_current_user, require_admin
 from src.domains.user.model import User
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def upload_documents_json(
     file: UploadFile = File(...),
     system_prompt: str | None = Form(default=None),
     model: str | None = Form(default=None),  # (compat) 무시
-    user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> ApiResponse[dict]:
     if not (file.filename or "").lower().endswith(".json"):
@@ -91,7 +91,7 @@ async def upload_documents_json(
 
 @router.get("/documents/upload/{job_id}/progress", response_model=ApiResponse[dict])
 def get_upload_progress(
-    job_id: str, user: User = Depends(get_current_user)
+    job_id: str, _: User = Depends(require_admin)
 ) -> ApiResponse[dict]:
     job = get_job(job_id)
     if not job:
@@ -112,7 +112,7 @@ def get_upload_progress(
 @router.delete("/documents/batch", response_model=ApiResponse[dict])
 def batch_delete_documents(
     body: BatchDeleteRequest,
-    user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> ApiResponse[dict]:
     if not body.ids:
@@ -123,7 +123,7 @@ def batch_delete_documents(
 
 @router.delete("/documents/all", response_model=ApiResponse[dict])
 def delete_all_documents(
-    user: User = Depends(get_current_user), session: Session = Depends(get_session)
+    _: User = Depends(require_admin), session: Session = Depends(get_session)
 ) -> ApiResponse[dict]:
     deleted = AiOverviewService(session).delete_all_documents()
     return ApiResponse.ok({"deleted": deleted})
@@ -135,7 +135,7 @@ def list_documents(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     search: str = "",
-    user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> ApiResponse[DocumentListResponse]:
     items, total = AiOverviewService(session).list_documents(offset=offset, limit=limit, search=search)
@@ -145,7 +145,7 @@ def list_documents(
 @router.post("/documents", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[dict])
 def create_document(
     body: DocumentCreateRequest,
-    user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> ApiResponse[dict]:
     doc = AiOverviewService(session).create_document(
@@ -158,7 +158,7 @@ def create_document(
 
 @router.get("/documents/{doc_id}", response_model=ApiResponse[DocumentDetailResponse])
 def get_document(
-    doc_id: int, user: User = Depends(get_current_user), session: Session = Depends(get_session)
+    doc_id: int, _: User = Depends(require_admin), session: Session = Depends(get_session)
 ) -> ApiResponse[DocumentDetailResponse]:
     detail = AiOverviewService(session).get_document_detail(doc_id)
     if detail is None:
@@ -168,7 +168,7 @@ def get_document(
 
 @router.delete("/documents/{doc_id}", response_model=ApiResponse[None])
 def delete_document(
-    doc_id: int, user: User = Depends(get_current_user), session: Session = Depends(get_session)
+    doc_id: int, _: User = Depends(require_admin), session: Session = Depends(get_session)
 ) -> ApiResponse[None]:
     if not AiOverviewService(session).delete_document(doc_id):
         raise HTTPException(status_code=404, detail="Document not found")
@@ -179,7 +179,7 @@ def delete_document(
 def generate_keywords_endpoint(
     doc_id: int,
     body: GenerateKeywordsRequest = Body(default=None),
-    user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> ApiResponse[dict]:
     svc = AiOverviewService(session)
@@ -194,7 +194,7 @@ def generate_keywords_endpoint(
 
 @router.get("/documents/{doc_id}/keywords", response_model=ApiResponse[list[KeywordResponse]])
 def list_keywords(
-    doc_id: int, user: User = Depends(get_current_user), session: Session = Depends(get_session)
+    doc_id: int, _: User = Depends(require_admin), session: Session = Depends(get_session)
 ) -> ApiResponse[list[KeywordResponse]]:
     svc = AiOverviewService(session)
     if svc.get_document(doc_id) is None:
@@ -206,7 +206,7 @@ def list_keywords(
 def delete_keyword(
     doc_id: int,
     keyword_id: int,
-    user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> ApiResponse[None]:
     if not AiOverviewService(session).delete_keyword(keyword_id):

@@ -134,6 +134,20 @@ class ChatRepository:
             ).all()
         )
 
+    def delete_messages(self, messages: list[ChatMessage]) -> None:
+        """메시지 묶음 삭제 (재생성 시 직전 답변 턴 제거 — ADR-0020)."""
+        for m in messages:
+            self.session.delete(m)
+        self.session.commit()
+
+    def bump_thread_rev(self, session: ChatSession) -> ChatSession:
+        """LangGraph 스레드 리비전 +1 — 체크포인터 브랜치 포크 (재생성)."""
+        session.thread_rev = (session.thread_rev or 0) + 1
+        self.session.add(session)
+        self.session.commit()
+        self.session.refresh(session)
+        return session
+
     # ── 대화 이력(관리자 뷰) ──
     # 한 줄 = user 메시지(질문) + 같은 세션에서 그 뒤의 첫 assistant 메시지(답변).
     # 답변은 상관 서브쿼리로 뽑아 검색·표시에 함께 쓴다(별도 왕복 없음).

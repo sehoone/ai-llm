@@ -326,6 +326,48 @@ class ChatService:
             session, user, graph_input, user_content=content, is_first=is_first, llm_config=llm_config
         )
 
+    def regenerate(
+        self, session_id: int, user: User, llm_resource_id: int | None = None
+    ) -> Iterator[str]:
+        """마지막 답변을 새로 생성 — 직전 assistant 턴을 교체 (ADR-0020 / portal-roadmap Phase 1).
+
+        마지막 user 메시지 U 이후(직전 답변)를 DB에서 제거하고, 스레드 리비전을 +1 해 체크포인터
+        브랜치를 포크한 뒤, 재구성한 히스토리 [m0..U]를 새 스레드에 seed해 재실행한다. 이후 일반
+        전송은 새 리비전 스레드를 이어가므로 맥락이 유지된다.
+
+        제약(1차): tool/HITL이 섞인 턴의 LangChain 메시지 복원은 생략(best-effort — 텍스트 턴 기준).
+        """
+        session = self.get_session_owned(session_id, user)
+        messages = self.repo.list_messages(session.id)
+        last_user_idx = next(
+            (i for i in range(len(messages) - 1, -1, -1) if messages[i].role == "user"), None
+        )
+        if last_user_idx is None:
+            raise HTTPException(status_code=400, detail="재생성할 사용자 메시지가 없습니다.")
+
+        # 직전 답변 턴(마지막 user 이후) 제거 + 스레드 포크.
+        self.repo.delete_messages(messages[last_user_idx + 1 :])
+        session = self.repo.bump_thread_rev(session)
+
+        # 재구성 히스토리 [m0..U] → 새 스레드 seed (tool 메시지는 생략).
+        graph_messages: list = []
+        for m in messages[: last_user_idx + 1]:
+            if m.role == "user":
+                graph_messages.append(HumanMessage(content=m.content))
+            elif m.role == "assistant":
+                graph_messages.append(AIMessage(content=m.content))
+        last_user_content = messages[last_user_idx].content
+        llm_config = self._resolve_llm_config(llm_resource_id)
+        yield _sse("status", {"phase": "thinking"})
+        yield from self._run(
+            session,
+            user,
+            {"messages": graph_messages},
+            user_content=last_user_content,
+            is_first=False,
+            llm_config=llm_config,
+        )
+
     def delete_memory(self, user: User) -> None:
         """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015). LLM·임베더는 DB 리소스에서 해석."""
         mem_llm, mem_embedder = self._resolve_memory_configs()
@@ -458,7 +500,8 @@ class ChatService:
         llm_config: LlmConfig | None = None,
     ) -> Iterator[str]:
         configurable: dict[str, Any] = {
-            "thread_id": str(session.id),
+            # 스레드 리비전 포함 — 재생성 시 포크된 브랜치를 쓴다 (ADR-0020).
+            "thread_id": f"{session.id}:{session.thread_rev}",
             "role": str(user.role),
             "auto_approve_tools": list(_auto_approve_for(user.role)),
         }

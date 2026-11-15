@@ -21,6 +21,7 @@ from src.domains.chat.schema import (
     ChatHistoryListResponse,
     MessageRequest,
     MessageResponse,
+    RegenerateRequest,
     SessionCreateRequest,
     SessionRenameRequest,
     SessionResponse,
@@ -98,6 +99,18 @@ def send_message(
     stream = svc.stream_message(
         session_id, user, req.content, req.llm_resource_id, req.rag_group, req.files
     )
+    return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@router.post("/sessions/{session_id}/regenerate")
+def regenerate_message(
+    session_id: int,
+    req: RegenerateRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> StreamingResponse:
+    """마지막 답변을 새로 생성(SSE) — 직전 assistant 턴 교체 (ADR-0020)."""
+    stream = ChatService(session).regenerate(session_id, user, req.llm_resource_id)
     return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
