@@ -66,6 +66,10 @@ export interface StreamCallbacks {
   onError?: (detail: string) => void;
   onAborted?: () => void;
   onDone?: () => void;
+  // 아티팩트(ADR-0013) 스트리밍
+  onArtifactStart?: (identifier: string, type: string, title: string) => void;
+  onArtifactDelta?: (identifier: string, delta: string) => void;
+  onArtifactEnd?: (identifier: string, version?: number) => void;
 }
 
 /** 공통 SSE 구동(fetch). fetch는 axios 인터셉터를 안 타므로 Bearer를 직접 첨부, AbortSignal로 중단. */
@@ -112,6 +116,22 @@ async function runStream(
           break;
         case 'done':
           cb.onDone?.();
+          break;
+        case 'artifact_start':
+          cb.onArtifactStart?.(
+            String(d.identifier ?? ''),
+            String(d.artifact_type ?? 'text/markdown'),
+            String(d.title ?? '')
+          );
+          break;
+        case 'artifact_delta':
+          cb.onArtifactDelta?.(String(d.identifier ?? ''), String(d.delta ?? ''));
+          break;
+        case 'artifact_end':
+          cb.onArtifactEnd?.(
+            String(d.identifier ?? ''),
+            typeof d.version === 'number' ? d.version : undefined
+          );
           break;
         default:
           break;

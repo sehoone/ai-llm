@@ -7,10 +7,13 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/s
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { ChatMessages } from '@/components/chat/chat-messages';
 import { Composer } from '@/components/chat/composer';
+import { ArtifactPanel } from '@/components/chat/artifact-panel';
 import { useChat } from '@/hooks/use-chat';
+import { useArtifactStore } from '@/stores/artifact-store';
 
 export default function ChatPage() {
   const { loadSessions, selectSession, newChat, send, regenerate, stop, rename, remove } = useChat();
+  const panelOpen = useArtifactStore((s) => s.panelOpen);
   const [draft, setDraft] = React.useState('');
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -72,6 +75,8 @@ export default function ChatPage() {
           textareaRef={textareaRef}
         />
       </main>
+
+      {panelOpen && <ArtifactPanel />}
     </div>
   );
 }

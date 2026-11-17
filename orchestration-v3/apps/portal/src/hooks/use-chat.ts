@@ -11,12 +11,24 @@ import {
   type StreamCallbacks,
 } from '@/api/chat';
 import { fileToBase64 } from '@/lib/files';
+import { artifactApi } from '@/api/artifacts';
 import { useChatStore } from '@/stores/chat-store';
+import { useArtifactStore } from '@/stores/artifact-store';
 
 const APPROVAL_NOTE = '\n\n_(이 작업은 승인이 필요합니다. 현재 포털에서는 지원되지 않습니다.)_';
 const FLUSH_MS = 60; // 토큰 반영 throttle — 스트리밍 중 마크다운 재파싱 빈도 제한
 
 const getState = useChatStore.getState;
+const getArt = useArtifactStore.getState;
+
+/** 세션의 아티팩트 요약을 로드해 스토어에 병합(실패는 무시 — 아티팩트는 선택적). */
+async function loadArtifacts(sessionId: number): Promise<void> {
+  try {
+    getArt().mergeSummaries(await artifactApi.listBySession(sessionId));
+  } catch {
+    /* ignore */
+  }
+}
 
 /** 챗 오케스트레이션: 로드·선택·전송·중단·재생성·이름변경·삭제. 상태는 chat-store. */
 export function useChat() {
@@ -61,6 +73,13 @@ export function useChat() {
           bufferRef.current += APPROVAL_NOTE;
         },
         onError: (d) => toast.error(d),
+        // 아티팩트(ADR-0013): 시작 시 패널 자동 오픈, 델타 누적.
+        onArtifactStart: (id, type, title) => {
+          getArt().startArtifact(id, type, title);
+          getArt().openPanel(id);
+        },
+        onArtifactDelta: (id, delta) => getArt().appendArtifact(id, delta),
+        onArtifactEnd: (id, version) => getArt().endArtifact(id, version),
       };
       try {
         await call(cb, controller.signal);
@@ -77,6 +96,7 @@ export function useChat() {
           } catch {
             /* 정규화 실패는 무시 */
           }
+          await loadArtifacts(sessionId); // 아티팩트 id·published 확정(publish·지연로드용)
         }
       }
     },
@@ -95,11 +115,13 @@ export function useChat() {
     const st = getState();
     if (st.sending || st.activeId === id) return;
     st.setActiveId(id);
+    getArt().reset();
     try {
       st.setMessages(await chatApi.getMessages(id));
     } catch {
       toast.error('메시지를 불러오지 못했습니다.');
     }
+    void loadArtifacts(id);
   }, []);
 
   const newChat = useCallback(() => {
@@ -107,6 +129,7 @@ export function useChat() {
     if (st.sending) return;
     st.setActiveId(null);
     st.setMessages([]);
+    getArt().reset();
   }, []);
 
   const send = useCallback(
