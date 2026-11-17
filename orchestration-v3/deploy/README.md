@@ -90,7 +90,24 @@ Remove-Item Env:\SMOKE_BASE_URL, Env:\SMOKE_USERNAME, Env:\SMOKE_PASSWORD
 `LANGFUSE_HOST=http://langfuse-web:3000`은 컨테이너 내부 주소다.
 키가 비어 있으면 API의 Langfuse 관측은 비활성화된다(ADR-0007).
 
-## 4. 기존 배포와 데이터
+## 4. 로그 모니터링 (Loki)
+
+애플리케이션 로그는 Loki + Promtail + Grafana로 조회한다. Promtail이 Docker
+소켓으로 해당 환경의 컨테이너(`com.docker.compose.project=orchestration-v3-<환경>`)
+로그를 자동 수집해 Loki로 보내고, Grafana에 Loki datasource가 자동 등록된다
+(`grafana/provisioning/datasources/datasources.yml`).
+
+- Grafana(기본 loopback 포트 8064/8164/8264/8364) → Explore → datasource `Loki`.
+  예: `{service="api"}`, `{service="web"}`, `{project="orchestration-v3-local"}`,
+  레벨 필터 `{service="api", level="ERROR"}`.
+- `compose.env`에 `LOKI_PORT`가 필요하다(없으면 배포 실패). 예제는 local `8069`,
+  dev `8169`, stg `8269`, prd `8369`. Loki API는 호스트 loopback에만 바인딩된다.
+- api(uvicorn)·web(Next.js)는 현재 평문 로그라 `level` 라벨만 정규식으로 추출한다.
+  구조화 JSON 로깅을 도입하면 `promtail/promtail-config.yml`의 파싱 단계를
+  `json` stage로 교체해 필드를 라벨화할 수 있다.
+- 보존 기간은 기본 30일(`loki/loki-config.yml`의 `retention_period`).
+
+## 5. 기존 배포와 데이터
 
 이전 프로젝트 `orchestration-v3`의 볼륨은 새 프로젝트에서 자동으로 사용되지 않는다.
 기존 DB와 업로드, Grafana 및 Langfuse의 PostgreSQL·ClickHouse·MinIO 데이터가
@@ -102,7 +119,7 @@ PostgreSQL 초기화 SQL은 **빈 볼륨 최초 생성 시에만** 실행된다.
 ClickHouse 등의 저장된 자격이 자동으로 변경되는 것은 아니다.
 볼륨 삭제는 데이터 손실이므로 `deploy-down`에서 제공하지 않는다.
 
-## 5. 장애 확인
+## 6. 장애 확인
 
 정확한 환경을 지정해 Compose 로그를 조회한다. 설정 파일이나 `docker compose config`
 출력에는 비밀정보가 들어갈 수 있으므로 공유하지 않는다.
