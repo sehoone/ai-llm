@@ -196,7 +196,9 @@ export function useChat() {
         { id: uid, role: 'user', content: sendText, attachments: optimistic },
         { id: uid + 1, role: 'assistant', content: '' }
       );
-      await drive(sid, (cb, signal) => streamMessage(sid, sendText, cb, signal, fileAttachments));
+      await drive(sid, (cb, signal) =>
+        streamMessage(sid, sendText, cb, signal, fileAttachments, getState().selectedModelId)
+      );
     },
     [drive]
   );
@@ -208,7 +210,9 @@ export function useChat() {
     st.setSending(true);
     getState().dropLastAssistant();
     getState().appendMessages({ id: Date.now(), role: 'assistant', content: '' });
-    await drive(sessionId, (cb, signal) => apiRegenerate(sessionId, cb, signal));
+    await drive(sessionId, (cb, signal) =>
+      apiRegenerate(sessionId, cb, signal, getState().selectedModelId ?? undefined)
+    );
   }, [drive]);
 
   /** 승인/거부 제출 → 그래프 재개(ADR-0008). approved=false면 전체 거부. */

@@ -173,9 +173,12 @@ export async function streamMessage(
   content: string,
   cb: StreamCallbacks,
   signal?: AbortSignal,
-  files?: FileAttachment[]
+  files?: FileAttachment[],
+  llmResourceId?: number | null
 ): Promise<void> {
-  const body = files && files.length ? { content, files } : { content };
+  const body: Record<string, unknown> = { content };
+  if (files && files.length) body.files = files;
+  if (llmResourceId != null) body.llm_resource_id = llmResourceId;
   await runStream(`${BASE}/sessions/${sessionId}/messages`, body, cb, signal);
 }
 

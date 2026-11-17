@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { ArrowUp, FileText, Image as ImageIcon, Paperclip, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { ModelSelector } from '@/components/chat/model-selector';
 import { useChatStore } from '@/stores/chat-store';
 import { ACCEPT_ATTR, isImageType, validateFile } from '@/lib/files';
 
@@ -98,7 +99,11 @@ export function Composer({
             </div>
           )}
 
-          <div className="flex items-end gap-1 p-1">
+          <div className="flex items-center px-2 pt-1">
+            <ModelSelector />
+          </div>
+
+          <div className="flex items-end gap-1 p-1 pt-0">
             <input
               ref={fileInputRef}
               type="file"

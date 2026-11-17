@@ -12,12 +12,14 @@ interface ChatStore {
   messages: ChatMessage[];
   sending: boolean;
   pendingApproval: PendingApproval | null;
+  selectedModelId: number | null; // null = 기본 모델
 
   setSessions: (s: ChatSession[]) => void;
   setActiveId: (id: number | null) => void;
   setMessages: (m: ChatMessage[]) => void;
   setSending: (b: boolean) => void;
   setPendingApproval: (p: PendingApproval | null) => void;
+  setSelectedModelId: (id: number | null) => void;
 
   appendMessages: (...m: ChatMessage[]) => void;
   updateLastContent: (updater: (prev: string) => string) => void;
@@ -34,12 +36,14 @@ export const useChatStore = create<ChatStore>((set) => ({
   messages: [],
   sending: false,
   pendingApproval: null,
+  selectedModelId: null,
 
   setSessions: (sessions) => set({ sessions }),
   setActiveId: (activeId) => set({ activeId }),
   setMessages: (messages) => set({ messages }),
   setSending: (sending) => set({ sending }),
   setPendingApproval: (pendingApproval) => set({ pendingApproval }),
+  setSelectedModelId: (selectedModelId) => set({ selectedModelId }),
 
   appendMessages: (...m) => set((s) => ({ messages: [...s.messages, ...m] })),
   updateLastContent: (updater) =>
