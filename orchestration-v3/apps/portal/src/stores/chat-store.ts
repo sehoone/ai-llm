@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import type { ChatMessage, ChatSession } from '@/api/chat';
+import type { ApprovalRequiredData, ChatMessage, ChatSession } from '@/api/chat';
+
+export interface PendingApproval extends ApprovalRequiredData {
+  sessionId: number;
+}
 
 // 챗 화면 상태(세션 목록·활성 세션·메시지·전송중). 오케스트레이션은 hooks/use-chat.ts.
 interface ChatStore {
@@ -7,11 +11,13 @@ interface ChatStore {
   activeId: number | null;
   messages: ChatMessage[];
   sending: boolean;
+  pendingApproval: PendingApproval | null;
 
   setSessions: (s: ChatSession[]) => void;
   setActiveId: (id: number | null) => void;
   setMessages: (m: ChatMessage[]) => void;
   setSending: (b: boolean) => void;
+  setPendingApproval: (p: PendingApproval | null) => void;
 
   appendMessages: (...m: ChatMessage[]) => void;
   updateLastContent: (updater: (prev: string) => string) => void;
@@ -27,11 +33,13 @@ export const useChatStore = create<ChatStore>((set) => ({
   activeId: null,
   messages: [],
   sending: false,
+  pendingApproval: null,
 
   setSessions: (sessions) => set({ sessions }),
   setActiveId: (activeId) => set({ activeId }),
   setMessages: (messages) => set({ messages }),
   setSending: (sending) => set({ sending }),
+  setPendingApproval: (pendingApproval) => set({ pendingApproval }),
 
   appendMessages: (...m) => set((s) => ({ messages: [...s.messages, ...m] })),
   updateLastContent: (updater) =>

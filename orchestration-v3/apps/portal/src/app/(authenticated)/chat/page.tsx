@@ -12,7 +12,8 @@ import { useChat } from '@/hooks/use-chat';
 import { useArtifactStore } from '@/stores/artifact-store';
 
 export default function ChatPage() {
-  const { loadSessions, selectSession, newChat, send, regenerate, stop, rename, remove } = useChat();
+  const { loadSessions, selectSession, newChat, send, regenerate, stop, rename, remove, submitApproval } =
+    useChat();
   const panelOpen = useArtifactStore((s) => s.panelOpen);
   const [draft, setDraft] = React.useState('');
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -66,7 +67,11 @@ export default function ChatPage() {
           <span className="text-sm font-medium">AI 포털</span>
         </header>
 
-        <ChatMessages onRegenerate={regenerate} onPickPrompt={pickPrompt} />
+        <ChatMessages
+          onRegenerate={regenerate}
+          onPickPrompt={pickPrompt}
+          onApprovalDecision={submitApproval}
+        />
         <Composer
           value={draft}
           onChange={setDraft}

@@ -3,14 +3,17 @@
 import * as React from 'react';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { EmptyState } from '@/components/chat/empty-state';
+import { ApprovalCard } from '@/components/chat/approval-card';
 import { useChatStore } from '@/stores/chat-store';
 
 export function ChatMessages({
   onRegenerate,
   onPickPrompt,
+  onApprovalDecision,
 }: {
   onRegenerate: () => void;
   onPickPrompt: (prompt: string) => void;
+  onApprovalDecision: (approved: boolean) => void;
 }) {
   const messages = useChatStore((s) => s.messages);
   const sending = useChatStore((s) => s.sending);
@@ -54,6 +57,7 @@ export function ChatMessages({
             />
           );
         })}
+        <ApprovalCard onDecision={onApprovalDecision} />
       </div>
     </div>
   );

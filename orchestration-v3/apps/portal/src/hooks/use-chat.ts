@@ -6,6 +6,8 @@ import {
   chatApi,
   regenerate as apiRegenerate,
   streamMessage,
+  submitApprovals,
+  type ApprovalDecision,
   type AttachmentMeta,
   type FileAttachment,
   type StreamCallbacks,
@@ -15,7 +17,6 @@ import { artifactApi } from '@/api/artifacts';
 import { useChatStore } from '@/stores/chat-store';
 import { useArtifactStore } from '@/stores/artifact-store';
 
-const APPROVAL_NOTE = '\n\n_(이 작업은 승인이 필요합니다. 현재 포털에서는 지원되지 않습니다.)_';
 const FLUSH_MS = 60; // 토큰 반영 throttle — 스트리밍 중 마크다운 재파싱 빈도 제한
 
 const getState = useChatStore.getState;
@@ -69,8 +70,9 @@ export function useChat() {
           bufferRef.current += t;
         },
         onTitle: (title) => getState().patchSessionTitle(sessionId, title),
-        onApprovalRequired: () => {
-          bufferRef.current += APPROVAL_NOTE;
+        onApprovalRequired: (data) => {
+          // 스트림이 닫히고 승인 대기 — 승인 카드로 표시(use-chat submitApproval이 재개).
+          getState().setPendingApproval({ sessionId, ...data });
         },
         onError: (d) => toast.error(d),
         // 아티팩트(ADR-0013): 시작 시 패널 자동 오픈, 델타 누적.
@@ -89,8 +91,12 @@ export function useChat() {
         abortRef.current = null;
         getState().setSending(false);
         // 완료 후 정규화: 서버 메시지로 교체해 첨부 id·assistant id를 확정(다운로드 가능).
-        // 중단됐거나 그새 다른 세션으로 이동했으면 생략(낙관적 메시지 보존).
-        if (!controller.signal.aborted && getState().activeId === sessionId) {
+        // 중단·세션 이탈·승인 대기(턴 미완료) 시엔 생략(낙관적 메시지 보존).
+        if (
+          !controller.signal.aborted &&
+          !getState().pendingApproval &&
+          getState().activeId === sessionId
+        ) {
           try {
             getState().setMessages(await chatApi.getMessages(sessionId));
           } catch {
@@ -115,6 +121,7 @@ export function useChat() {
     const st = getState();
     if (st.sending || st.activeId === id) return;
     st.setActiveId(id);
+    st.setPendingApproval(null);
     getArt().reset();
     try {
       st.setMessages(await chatApi.getMessages(id));
@@ -129,6 +136,7 @@ export function useChat() {
     if (st.sending) return;
     st.setActiveId(null);
     st.setMessages([]);
+    st.setPendingApproval(null);
     getArt().reset();
   }, []);
 
@@ -203,6 +211,29 @@ export function useChat() {
     await drive(sessionId, (cb, signal) => apiRegenerate(sessionId, cb, signal));
   }, [drive]);
 
+  /** 승인/거부 제출 → 그래프 재개(ADR-0008). approved=false면 전체 거부. */
+  const submitApproval = useCallback(
+    async (approved: boolean) => {
+      const pending = getState().pendingApproval;
+      if (!pending || getState().sending) return;
+      const decisions: ApprovalDecision[] = pending.requests.map((r) => ({
+        tool_call_id: r.tool_call_id,
+        approved,
+      }));
+      getState().setPendingApproval(null);
+      getState().setSending(true);
+      // 재개 content는 이어지는 assistant 턴 — 마지막이 assistant가 아니면 빈 버블 추가.
+      const msgs = getState().messages;
+      if (!msgs.length || msgs[msgs.length - 1].role !== 'assistant') {
+        getState().appendMessages({ id: Date.now(), role: 'assistant', content: '' });
+      }
+      await drive(pending.sessionId, (cb, signal) =>
+        submitApprovals(pending.sessionId, pending.group_key, decisions, cb, signal)
+      );
+    },
+    [drive]
+  );
+
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -227,5 +258,15 @@ export function useChat() {
     }
   }, []);
 
-  return { loadSessions, selectSession, newChat, send, regenerate, stop, rename, remove };
+  return {
+    loadSessions,
+    selectSession,
+    newChat,
+    send,
+    regenerate,
+    stop,
+    rename,
+    remove,
+    submitApproval,
+  };
 }

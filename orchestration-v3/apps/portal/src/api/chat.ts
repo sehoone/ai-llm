@@ -59,10 +59,28 @@ export const chatApi = {
   },
 };
 
+// HITL 승인 (ADR-0008)
+export interface ApprovalRequest {
+  tool_call_id: string;
+  name: string;
+  args: Record<string, unknown>;
+  tier: string;
+  reason?: string | null;
+}
+export interface ApprovalRequiredData {
+  group_key: string;
+  requests: ApprovalRequest[];
+}
+export interface ApprovalDecision {
+  tool_call_id: string;
+  approved: boolean;
+  args?: Record<string, unknown>;
+}
+
 export interface StreamCallbacks {
   onDelta: (text: string) => void;
   onTitle?: (title: string) => void;
-  onApprovalRequired?: () => void;
+  onApprovalRequired?: (data: ApprovalRequiredData) => void;
   onError?: (detail: string) => void;
   onAborted?: () => void;
   onDone?: () => void;
@@ -109,7 +127,10 @@ async function runStream(
           cb.onTitle?.(String(d.title ?? ''));
           break;
         case 'approval_required':
-          cb.onApprovalRequired?.();
+          cb.onApprovalRequired?.({
+            group_key: String(d.group_key ?? ''),
+            requests: Array.isArray(d.requests) ? (d.requests as ApprovalRequest[]) : [],
+          });
           break;
         case 'error':
           cb.onError?.(String(d.detail ?? '오류가 발생했습니다.'));
@@ -166,4 +187,20 @@ export async function regenerate(
   llmResourceId?: number
 ): Promise<void> {
   await runStream(`${BASE}/sessions/${sessionId}/regenerate`, { llm_resource_id: llmResourceId }, cb, signal);
+}
+
+/** 승인/거부 결정 제출 → 그래프 재개 스트리밍(SSE) — ADR-0008 §4. */
+export async function submitApprovals(
+  sessionId: number,
+  groupKey: string,
+  decisions: ApprovalDecision[],
+  cb: StreamCallbacks,
+  signal?: AbortSignal
+): Promise<void> {
+  await runStream(
+    `${BASE}/sessions/${sessionId}/approvals`,
+    { group_key: groupKey, decisions },
+    cb,
+    signal
+  );
 }
