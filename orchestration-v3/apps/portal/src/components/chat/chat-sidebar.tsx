@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Bot, BrainCircuit, LogOut, Plus, Search, User } from 'lucide-react';
+import { Bot, BrainCircuit, LogOut, Plus, Search, Settings, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -141,6 +141,9 @@ export function ChatSidebar({
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel className="truncate">{name}</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push('/settings')}>
+              <Settings /> 설정
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setMemoryConfirm(true)}>
               <BrainCircuit /> 장기 메모리 삭제
             </DropdownMenuItem>
