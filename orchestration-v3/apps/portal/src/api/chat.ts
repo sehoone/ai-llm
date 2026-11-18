@@ -45,6 +45,11 @@ export const chatApi = {
   getMessages: async (id: number): Promise<ChatMessage[]> =>
     (await api.get<ChatMessage[]>(`${BASE}/sessions/${id}/messages`)).data,
 
+  /** 현재 사용자의 장기 메모리 전체 삭제 (ADR-0015). */
+  deleteMemory: async (): Promise<void> => {
+    await api.delete(`${BASE}/memory`);
+  },
+
   /** 첨부 다운로드 — 소유자/관리자만(ADR-0014 §4). axios가 Bearer 첨부, blob으로 받아 저장. */
   downloadAttachment: async (id: number, filename: string): Promise<void> => {
     const res = await api.get(`${BASE}/attachments/${id}`, { responseType: 'blob' });
@@ -174,11 +179,13 @@ export async function streamMessage(
   cb: StreamCallbacks,
   signal?: AbortSignal,
   files?: FileAttachment[],
-  llmResourceId?: number | null
+  llmResourceId?: number | null,
+  ragGroup?: string | null
 ): Promise<void> {
   const body: Record<string, unknown> = { content };
   if (files && files.length) body.files = files;
   if (llmResourceId != null) body.llm_resource_id = llmResourceId;
+  if (ragGroup) body.rag_group = ragGroup;
   await runStream(`${BASE}/sessions/${sessionId}/messages`, body, cb, signal);
 }
 

@@ -13,6 +13,7 @@ interface ChatStore {
   sending: boolean;
   pendingApproval: PendingApproval | null;
   selectedModelId: number | null; // null = 기본 모델
+  selectedRagGroup: string | null; // null = RAG 미사용
 
   setSessions: (s: ChatSession[]) => void;
   setActiveId: (id: number | null) => void;
@@ -20,6 +21,7 @@ interface ChatStore {
   setSending: (b: boolean) => void;
   setPendingApproval: (p: PendingApproval | null) => void;
   setSelectedModelId: (id: number | null) => void;
+  setSelectedRagGroup: (group: string | null) => void;
 
   appendMessages: (...m: ChatMessage[]) => void;
   updateLastContent: (updater: (prev: string) => string) => void;
@@ -37,6 +39,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   sending: false,
   pendingApproval: null,
   selectedModelId: null,
+  selectedRagGroup: null,
 
   setSessions: (sessions) => set({ sessions }),
   setActiveId: (activeId) => set({ activeId }),
@@ -44,6 +47,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   setSending: (sending) => set({ sending }),
   setPendingApproval: (pendingApproval) => set({ pendingApproval }),
   setSelectedModelId: (selectedModelId) => set({ selectedModelId }),
+  setSelectedRagGroup: (selectedRagGroup) => set({ selectedRagGroup }),
 
   appendMessages: (...m) => set((s) => ({ messages: [...s.messages, ...m] })),
   updateLastContent: (updater) =>

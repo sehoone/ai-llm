@@ -197,7 +197,15 @@ export function useChat() {
         { id: uid + 1, role: 'assistant', content: '' }
       );
       await drive(sid, (cb, signal) =>
-        streamMessage(sid, sendText, cb, signal, fileAttachments, getState().selectedModelId)
+        streamMessage(
+          sid,
+          sendText,
+          cb,
+          signal,
+          fileAttachments,
+          getState().selectedModelId,
+          getState().selectedRagGroup
+        )
       );
     },
     [drive]

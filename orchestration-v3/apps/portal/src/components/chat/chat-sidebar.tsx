@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Bot, LogOut, Plus, Search, User } from 'lucide-react';
+import { toast } from 'sonner';
+import { Bot, BrainCircuit, LogOut, Plus, Search, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -27,7 +28,7 @@ import {
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
-import type { ChatSession } from '@/api/chat';
+import { chatApi, type ChatSession } from '@/api/chat';
 
 export function ChatSidebar({
   onSelect,
@@ -49,6 +50,16 @@ export function ChatSidebar({
 
   const [q, setQ] = React.useState('');
   const [deleteTarget, setDeleteTarget] = React.useState<ChatSession | null>(null);
+  const [memoryConfirm, setMemoryConfirm] = React.useState(false);
+
+  async function clearMemory() {
+    try {
+      await chatApi.deleteMemory();
+      toast.success('장기 메모리를 삭제했습니다.');
+    } catch {
+      toast.error('메모리 삭제에 실패했습니다.');
+    }
+  }
 
   const filtered = q.trim()
     ? sessions.filter((s) => (s.title || '').toLowerCase().includes(q.toLowerCase()))
@@ -130,6 +141,10 @@ export function ChatSidebar({
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel className="truncate">{name}</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setMemoryConfirm(true)}>
+              <BrainCircuit /> 장기 메모리 삭제
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={logout}>
               <LogOut /> 로그아웃
             </DropdownMenuItem>
@@ -151,6 +166,28 @@ export function ChatSidebar({
               onClick={() => {
                 if (deleteTarget) onRemove(deleteTarget.id);
                 setDeleteTarget(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={memoryConfirm} onOpenChange={setMemoryConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>장기 메모리를 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 사용자에 대해 저장된 모든 장기 메모리가 영구 삭제됩니다. 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                clearMemory();
+                setMemoryConfirm(false);
               }}
             >
               삭제
