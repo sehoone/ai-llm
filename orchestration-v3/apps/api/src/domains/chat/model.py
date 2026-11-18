@@ -31,6 +31,9 @@ class ChatSession(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(index=True)
     title: str = Field(default="New chat")
+    # LangGraph 스레드 리비전 (ADR-0020 재생성). thread_id = f"{id}:{thread_rev}".
+    # 재생성 시 +1 해 체크포인터 브랜치를 포크한다(이전 답변 분기 폐기).
+    thread_rev: int = Field(default=0)
     created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
     updated_at: NaiveDatetime | None = Field(default=None)
 

@@ -129,7 +129,8 @@ export function MeetingDetail() {
   const handlePublish = async () => {
     try {
       const { public_token } = await meetingApi.publish(id)
-      const url = `${window.location.origin}/artifact/${public_token}`
+      // web은 /admin 하위(ADR-0020 basePath) — 공개 뷰 /admin/artifact/{token}. 원시 origin에 수동 prefix.
+      const url = `${window.location.origin}/admin/artifact/${public_token}`
       await navigator.clipboard.writeText(url)
       toast.success('공개 링크를 클립보드에 복사했습니다.')
       refetch()

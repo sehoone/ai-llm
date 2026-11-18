@@ -32,6 +32,7 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 | [0016](docs/adr/0016-document-text-extraction.md) | 문서 텍스트 추출 — `engine/extraction`(markitdown) |
 | [0017](docs/adr/0017-attachment-object-storage-minio.md) | 첨부 객체 저장 — MinIO(S3 호환, `core/storage`), 로컬 디스크 폴백 |
 | [0018](docs/adr/0018-env-config-layout.md) | **env 단일 소스** — `deploy/environments/<env>/{compose.env, api.env}`. api.env는 bare-metal 기준(localhost), docker는 compose가 네트워크 좌표 override. app-level `.env*` 제거 |
+| [0020](docs/adr/0020-user-portal-frontend.md) | **사용자 포털 분리** — `apps/portal`(사용자) + `apps/web`(관리자, basePath=/admin). nginx `/`→portal·`/admin`→web. 백엔드·인증·contracts 공유. 데이터 스코핑 감사 완료(rag·ai_overview 수정) |
 
 ## 구조
 
@@ -44,8 +45,9 @@ apps/api/src/
 ├─ engine/        # AI 실행 능력 (ADR-0005) — llm prompts rag agent graph memory artifact extraction observability transcription
 ├─ core/          # config·security(비밀번호 해싱·JWT 발급/검증; OIDC/JWKS 보존)·db(세션)·response(ApiResponse 래퍼)·storage(MinIO 첨부)
 └─ main.py        # 도메인 라우터 등록 지점
-apps/web/src/           # shadcn-admin: api·app·features·components·stores·… (ADR-0006, FSD 아님)
-packages/contracts/     # api OpenAPI → web TS (생성물, 커밋 안 함 — openapi.json·api-schema.d.ts gitignore)
+apps/web/src/           # 관리자 UI. shadcn-admin: api·app·features·components·stores·… (ADR-0006, FSD 아님). basePath=/admin (ADR-0020)
+apps/portal/src/        # 사용자 UI (ADR-0020). 린 구성(shadcn 미복제): app·api·stores·lib. nginx 루트 `/`
+packages/contracts/     # api OpenAPI → web·portal TS (생성물, 커밋 안 함 — openapi.json·api-schema.d.ts gitignore)
 ```
 
 ### 구현 현황 (디렉터리 ≠ 구현됨)

@@ -91,6 +91,12 @@ class MessageRequest(BaseModel):
     files: list[FileAttachment] | None = None
 
 
+class RegenerateRequest(BaseModel):
+    """마지막 답변 재생성 (ADR-0020). 선택적으로 재생성 시 모델 변경."""
+
+    llm_resource_id: int | None = None
+
+
 class ApprovalDecision(BaseModel):
     tool_call_id: str
     approved: bool

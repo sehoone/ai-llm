@@ -1,0 +1,101 @@
+'use client';
+
+import * as React from 'react';
+import { Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { ChatSidebar } from '@/components/chat/chat-sidebar';
+import { ChatMessages } from '@/components/chat/chat-messages';
+import { Composer } from '@/components/chat/composer';
+import { ArtifactPanel } from '@/components/chat/artifact-panel';
+import { useChat } from '@/hooks/use-chat';
+import { useArtifactStore } from '@/stores/artifact-store';
+
+export default function ChatPage() {
+  const { loadSessions, selectSession, newChat, send, regenerate, stop, rename, remove, submitApproval } =
+    useChat();
+  const panelOpen = useArtifactStore((s) => s.panelOpen);
+  const [draft, setDraft] = React.useState('');
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  React.useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  // 단축키: ⌘/Ctrl+K → 새 대화 + 입력창 포커스
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        newChat();
+        setDraft('');
+        textareaRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [newChat]);
+
+  function handleSubmit(files: File[] = []) {
+    const t = draft.trim();
+    if (!t && files.length === 0) return;
+    setDraft('');
+    void send(t, files);
+  }
+
+  function pickPrompt(p: string) {
+    setDraft(p);
+    textareaRef.current?.focus();
+  }
+
+  const renderSidebar = (onNavigate?: () => void) => (
+    <ChatSidebar
+      onSelect={selectSession}
+      onNewChat={newChat}
+      onRename={rename}
+      onRemove={remove}
+      onNavigate={onNavigate}
+    />
+  );
+
+  return (
+    <div className="flex h-svh">
+      <aside className="hidden w-72 shrink-0 border-e border-sidebar-border md:block">
+        {renderSidebar()}
+      </aside>
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center gap-2 border-b border-border p-2 md:hidden">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="대화 목록 열기">
+                <Menu />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 p-0">
+              <SheetTitle className="sr-only">대화 목록</SheetTitle>
+              {renderSidebar(() => setMobileOpen(false))}
+            </SheetContent>
+          </Sheet>
+          <span className="text-sm font-medium">AI 포털</span>
+        </header>
+
+        <ChatMessages
+          onRegenerate={regenerate}
+          onPickPrompt={pickPrompt}
+          onApprovalDecision={submitApproval}
+        />
+        <Composer
+          value={draft}
+          onChange={setDraft}
+          onSubmit={handleSubmit}
+          onStop={stop}
+          textareaRef={textareaRef}
+        />
+      </main>
+
+      {panelOpen && <ArtifactPanel />}
+    </div>
+  );
+}

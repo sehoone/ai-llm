@@ -156,12 +156,18 @@ class RagService:
         return doc, indexed
 
     def list_documents(self, user: User, rag_group: str | None, rag_key: str | None) -> list[Document]:
-        return self.repo.list_documents(rag_group=rag_group, rag_key=rag_key)
+        # 데이터 스코핑(ADR-0020): 일반 사용자는 본인 문서만, 관리자는 전체.
+        # 공유 문서(user_id NULL)는 관리자 영역 — 일반 사용자 관리 목록엔 노출하지 않는다.
+        scope = None if self._is_admin(user) else user.id
+        return self.repo.list_documents(rag_group=rag_group, rag_key=rag_key, user_id=scope)
 
     def delete_document(self, user: User, doc_id: int) -> None:
         doc = self.repo.get_document(doc_id)
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
+        # 소유자 또는 관리자만 — 공유 문서(user_id NULL)는 관리자만 삭제 가능.
+        if doc.user_id != user.id and not self._is_admin(user):
+            raise HTTPException(status_code=403, detail="Not your document")
         self.repo.delete_document(doc)
 
     # ── 검색 ──
@@ -185,11 +191,15 @@ class RagService:
         return "\n\n".join(r["content"] for r in results if r.get("content"))
 
     # ── 소유권 ──
+    @staticmethod
+    def _is_admin(user: User) -> bool:
+        return user.role in (UserRole.ADMIN, UserRole.SUPERADMIN)
+
     def _owned_group(self, group_id: str, user: User) -> RagGroupConfig:
         g = self.repo.get_group(group_id)
         if g is None:
             raise HTTPException(status_code=404, detail="RAG group not found")
-        if g.user_id != user.id and user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
+        if g.user_id != user.id and not self._is_admin(user):
             raise HTTPException(status_code=403, detail="Not your RAG group")
         return g
 
@@ -197,6 +207,6 @@ class RagService:
         k = self.repo.get_key(key_id)
         if k is None:
             raise HTTPException(status_code=404, detail="RAG key not found")
-        if k.user_id != user.id and user.role not in (UserRole.ADMIN, UserRole.SUPERADMIN):
+        if k.user_id != user.id and not self._is_admin(user):
             raise HTTPException(status_code=403, detail="Not your RAG key")
         return k
