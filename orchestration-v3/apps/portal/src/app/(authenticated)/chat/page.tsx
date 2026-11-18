@@ -23,6 +23,20 @@ export default function ChatPage() {
     loadSessions();
   }, [loadSessions]);
 
+  // 단축키: ⌘/Ctrl+K → 새 대화 + 입력창 포커스
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        newChat();
+        setDraft('');
+        textareaRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [newChat]);
+
   function handleSubmit(files: File[] = []) {
     const t = draft.trim();
     if (!t && files.length === 0) return;

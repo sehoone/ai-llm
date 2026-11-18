@@ -122,11 +122,15 @@ export function useChat() {
     if (st.sending || st.activeId === id) return;
     st.setActiveId(id);
     st.setPendingApproval(null);
+    st.setMessages([]);
+    st.setMessagesLoading(true);
     getArt().reset();
     try {
       st.setMessages(await chatApi.getMessages(id));
     } catch {
       toast.error('메시지를 불러오지 못했습니다.');
+    } finally {
+      getState().setMessagesLoading(false);
     }
     void loadArtifacts(id);
   }, []);
