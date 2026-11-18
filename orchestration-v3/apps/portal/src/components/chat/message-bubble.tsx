@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { toast } from 'sonner';
 import { Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Markdown } from '@/components/markdown';
@@ -45,7 +46,8 @@ function Attachments({ items, alignEnd }: { items: AttachmentMeta[]; alignEnd?: 
   );
 }
 
-export function MessageBubble({
+// memo: 스트리밍 중 변하지 않는 이전 버블의 재렌더를 막는다(마지막 버블만 갱신).
+export const MessageBubble = React.memo(function MessageBubble({
   message,
   streaming,
   showActions,
@@ -86,4 +88,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});
