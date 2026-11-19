@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LogOut, MessageSquare, Plus, Search, Settings, User } from 'lucide-react';
+import { FolderKanban, LogOut, MessageSquare, Plus, Search, Settings, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,8 +29,12 @@ import { ConversationItem } from '@/components/chat/conversation-item';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { type ChatSession } from '@/api/chat';
+import { projectsApi } from '@/api/projects';
 
-const NAV = [{ href: '/chat', label: '채팅', icon: MessageSquare }];
+const NAV = [
+  { href: '/projects', label: '프로젝트', icon: FolderKanban },
+  { href: '/chat', label: '채팅', icon: MessageSquare },
+];
 
 export function ChatSidebar({
   onSelect,
@@ -53,10 +57,35 @@ export function ChatSidebar({
 
   const [q, setQ] = React.useState('');
   const [deleteTarget, setDeleteTarget] = React.useState<ChatSession | null>(null);
+  // 프로젝트 메타(id→이름·색) — 대화 항목에 배지로 일반 대화와 구분 (ADR-0021).
+  const [projectMeta, setProjectMeta] = React.useState<Record<string, { name: string; color: string }>>({});
+
+  React.useEffect(() => {
+    projectsApi
+      .list()
+      .then((ps) =>
+        setProjectMeta(Object.fromEntries(ps.map((p) => [p.id, { name: p.name, color: p.color }])))
+      )
+      .catch(() => {});
+  }, []);
 
   const filtered = q.trim()
     ? sessions.filter((s) => (s.title || '').toLowerCase().includes(q.toLowerCase()))
     : sessions;
+
+  // 계층 구성(ADR-0021): 프로젝트 소속 대화는 프로젝트별로 묶고, 나머지는 일반("최근 대화").
+  // 세션은 백엔드에서 최신순 → 그룹 순서도 최근 활동 프로젝트가 위로 온다.
+  const generalSessions = filtered.filter((s) => !s.project_id);
+  const projectOrder: string[] = [];
+  const byProject: Record<string, ChatSession[]> = {};
+  for (const s of filtered) {
+    if (!s.project_id) continue;
+    if (!byProject[s.project_id]) {
+      byProject[s.project_id] = [];
+      projectOrder.push(s.project_id);
+    }
+    byProject[s.project_id].push(s);
+  }
 
   const name = auth.user?.username || auth.user?.email || '사용자';
 
@@ -113,22 +142,65 @@ export function ChatSidebar({
         </div>
       </div>
 
-      <div className="px-4 pb-1 pt-1 text-xs font-medium text-muted-foreground">최근 대화</div>
+      <nav className="flex-1 space-y-4 overflow-y-auto px-2 pb-2 pt-1">
+        {/* 프로젝트별 그룹 — 헤더 + 들여쓴 대화 목록(계층) */}
+        {projectOrder.map((pid) => {
+          const meta = projectMeta[pid];
+          const projActive = pathname === `/projects/${pid}`;
+          return (
+            <div key={pid}>
+              <Link
+                href={`/projects/${pid}`}
+                onClick={onNavigate}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium',
+                  projActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                )}
+              >
+                <FolderKanban className="size-3.5 shrink-0" style={{ color: meta?.color }} />
+                <span className="truncate">{meta?.name || '프로젝트'}</span>
+              </Link>
+              <div className="ms-3 mt-1 space-y-1 border-s border-sidebar-border ps-1.5">
+                {byProject[pid].map((s) => (
+                  <ConversationItem
+                    key={s.id}
+                    session={s}
+                    active={s.id === activeId}
+                    onSelect={() => {
+                      onSelect(s.id);
+                      onNavigate?.();
+                    }}
+                    onRename={onRename}
+                    onRequestDelete={setDeleteTarget}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
-        {filtered.map((s) => (
-          <ConversationItem
-            key={s.id}
-            session={s}
-            active={s.id === activeId}
-            onSelect={() => {
-              onSelect(s.id);
-              onNavigate?.();
-            }}
-            onRename={onRename}
-            onRequestDelete={setDeleteTarget}
-          />
-        ))}
+        {/* 일반 대화 */}
+        {generalSessions.length > 0 && (
+          <div>
+            <div className="px-3 pb-1 text-xs font-medium text-muted-foreground">최근 대화</div>
+            <div className="space-y-1">
+              {generalSessions.map((s) => (
+                <ConversationItem
+                  key={s.id}
+                  session={s}
+                  active={s.id === activeId}
+                  onSelect={() => {
+                    onSelect(s.id);
+                    onNavigate?.();
+                  }}
+                  onRename={onRename}
+                  onRequestDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {filtered.length === 0 && (
           <p className="px-3 py-2 text-xs text-muted-foreground">
             {q.trim() ? '검색 결과가 없습니다.' : '아직 대화가 없습니다.'}

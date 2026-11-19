@@ -25,8 +25,10 @@ class ChatRepository:
         self.session = session
 
     # ── 세션 ──
-    def create_session(self, user_id: int, title: str) -> ChatSession:
-        s = ChatSession(user_id=user_id, title=title)
+    def create_session(
+        self, user_id: int, title: str, project_id: str | None = None
+    ) -> ChatSession:
+        s = ChatSession(user_id=user_id, title=title, project_id=project_id)
         self.session.add(s)
         self.session.commit()
         self.session.refresh(s)

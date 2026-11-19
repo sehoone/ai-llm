@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Monitor, Moon, Plug, Sparkles, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -190,6 +191,23 @@ export default function SettingsPage() {
                 변경
               </Button>
             </div>
+          </div>
+        </Section>
+
+        <Section title="스킬·커넥터">
+          <div className="flex flex-col gap-2">
+            <Link
+              href="/skills"
+              className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent"
+            >
+              <Sparkles className="size-4" /> 스킬 관리 — 재사용 지침 프리셋
+            </Link>
+            <Link
+              href="/connectors"
+              className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent"
+            >
+              <Plug className="size-4" /> 커넥터 관리 — 사내 MCP 서버
+            </Link>
           </div>
         </Section>
 

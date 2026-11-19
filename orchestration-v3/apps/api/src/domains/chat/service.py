@@ -38,7 +38,10 @@ from src.domains.chat.schema import (
 from src.domains.artifact.repository import ArtifactRepository
 from src.domains.llm_resource.model import LlmResource
 from src.domains.llm_resource.repository import LlmResourceRepository
+from src.domains.project.model import Project
+from src.domains.project.repository import ProjectRepository
 from src.domains.rag.service import RagService
+from src.domains.skill.service import SkillService
 from src.domains.user.model import User, UserRole
 from src.engine.artifact import ArtifactStreamParser, EventType
 from src.engine.extraction import ExtractResult, extract_text
@@ -201,8 +204,10 @@ class ChatService:
         self.repo = ChatRepository(session)
 
     # ── 세션/메시지 조회 ──
-    def create_session(self, user: User, title: str | None) -> ChatSession:
-        return self.repo.create_session(user.id, title or "New chat")
+    def create_session(
+        self, user: User, title: str | None, project_id: str | None = None
+    ) -> ChatSession:
+        return self.repo.create_session(user.id, title or "New chat", project_id=project_id)
 
     def list_sessions(self, user: User) -> list[ChatSession]:
         return self.repo.list_sessions(user.id)
@@ -293,8 +298,14 @@ class ChatService:
         llm_resource_id: int | None = None,
         rag_group: str | None = None,
         files: list[FileAttachment] | None = None,
+        skill_ids: list[str] | None = None,
     ) -> Iterator[str]:
         session = self.get_session_owned(session_id, user)
+        # 소속 프로젝트(ADR-0021): 지침·지식(rag_group)을 대화에 자동 주입. 일반 대화면 None.
+        project = self._resolve_project(session)
+        # 프로젝트에 지식이 있고 요청이 rag_group을 명시하지 않으면 프로젝트 지식베이스로 자동 설정.
+        if project is not None and not rag_group:
+            rag_group = project.rag_group
         # 첫 왕복(이 턴 전 메시지 0건)이면 종료 후 제목 자동생성 (ADR-0011 §3).
         is_first = len(self.repo.list_messages(session.id)) == 0
         # 원문(clean)만 영속 — 사전 주입 컨텍스트·첨부 바이트는 그래프 입력/스토리지에만.
@@ -316,6 +327,11 @@ class ChatService:
         # LLM·임베더는 DB 리소스에서 해석(env 미참조). 비활성(기본)이면 DB 조회 생략.
         mem_llm, mem_embedder = self._resolve_memory_configs() if memory.is_enabled() else (None, None)
         graph_messages: list = []
+        # 프로젝트 지침(ADR-0021) + 활성 스킬 본문(ADR-0024)을 system prompt로 합성해 맨 앞에 둔다.
+        # 우선순위: project.instructions < 활성 스킬(요청 순) — ADR-0024 §2.
+        system_text = self._compose_system_prompt(project, user, skill_ids)
+        if system_text:
+            graph_messages.append(SystemMessage(content=system_text))
         mem_str = memory.search(user.id, content, mem_llm, mem_embedder)
         if mem_str:
             graph_messages.append(SystemMessage(content=load_system_prompt(long_term_memory=mem_str)))
@@ -412,6 +428,26 @@ class ChatService:
                 file_size=size,
                 storage_path=storage_path,
             )
+
+    def _resolve_project(self, session: ChatSession) -> Project | None:
+        """세션의 소속 프로젝트(ADR-0021). 일반 대화(project_id NULL)면 None."""
+        if not session.project_id:
+            return None
+        return ProjectRepository(self.session).get(session.project_id)
+
+    def _compose_system_prompt(
+        self, project: Project | None, user: User, skill_ids: list[str] | None
+    ) -> str | None:
+        """프로젝트 지침 + 활성 스킬 본문을 system prompt 텍스트로 합성 (ADR-0021/0024).
+
+        우선순위(위→아래 누적): project.instructions < 활성 스킬(요청 순). 비면 None.
+        """
+        parts: list[str] = []
+        if project is not None and project.instructions.strip():
+            parts.append(project.instructions.strip())
+        if skill_ids:
+            parts.extend(SkillService(self.session).bodies_for(skill_ids, user))
+        return "\n\n".join(parts) if parts else None
 
     def _augment_with_rag(self, user: User, content: str, rag_group: str | None) -> str:
         """rag_group이 있으면 검색 컨텍스트를 사전 주입 (ADR-0012 §1). 결과 없으면 원문 그대로."""

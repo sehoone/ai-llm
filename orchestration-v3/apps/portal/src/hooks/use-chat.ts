@@ -154,7 +154,8 @@ export function useChat() {
       let sessionId = st.activeId;
       if (sessionId == null) {
         try {
-          const s = await chatApi.createSession();
+          // 새 대화가 프로젝트 소속이면 project_id를 실어 생성 — 지침·지식 자동 주입(ADR-0021).
+          const s = await chatApi.createSession(undefined, st.activeProjectId);
           sessionId = s.id;
           getState().setActiveId(s.id);
           getState().upsertSessionFront(s);
@@ -208,7 +209,8 @@ export function useChat() {
           signal,
           fileAttachments,
           getState().selectedModelId,
-          getState().selectedRagGroup
+          getState().selectedRagGroup,
+          getState().selectedSkillIds
         )
       );
     },

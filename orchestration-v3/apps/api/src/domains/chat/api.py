@@ -40,7 +40,7 @@ def create_session(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ApiResponse[SessionResponse]:
-    s = ChatService(session).create_session(user, req.title)
+    s = ChatService(session).create_session(user, req.title, project_id=req.project_id)
     return ApiResponse.ok(SessionResponse.from_model(s))
 
 
@@ -97,7 +97,7 @@ def send_message(
     svc = ChatService(session)
     svc.validate_files(req.files)  # 스트림 시작 전 검증 → 깔끔한 400 (ADR-0016 §5)
     stream = svc.stream_message(
-        session_id, user, req.content, req.llm_resource_id, req.rag_group, req.files
+        session_id, user, req.content, req.llm_resource_id, req.rag_group, req.files, req.skill_ids
     )
     return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
 

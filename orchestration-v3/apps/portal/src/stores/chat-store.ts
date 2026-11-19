@@ -15,6 +15,8 @@ interface ChatStore {
   pendingApproval: PendingApproval | null;
   selectedModelId: number | null; // null = 기본 모델
   selectedRagGroup: string | null; // null = RAG 미사용
+  selectedSkillIds: string[]; // 활성 스킬(지침 프리셋) — ADR-0024
+  activeProjectId: string | null; // 새 대화가 소속될 프로젝트 — ADR-0021
 
   setSessions: (s: ChatSession[]) => void;
   setActiveId: (id: number | null) => void;
@@ -24,6 +26,8 @@ interface ChatStore {
   setPendingApproval: (p: PendingApproval | null) => void;
   setSelectedModelId: (id: number | null) => void;
   setSelectedRagGroup: (group: string | null) => void;
+  setSelectedSkillIds: (ids: string[]) => void;
+  setActiveProjectId: (id: string | null) => void;
 
   appendMessages: (...m: ChatMessage[]) => void;
   updateLastContent: (updater: (prev: string) => string) => void;
@@ -43,6 +47,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   pendingApproval: null,
   selectedModelId: null,
   selectedRagGroup: null,
+  selectedSkillIds: [],
+  activeProjectId: null,
 
   setSessions: (sessions) => set({ sessions }),
   setActiveId: (activeId) => set({ activeId }),
@@ -52,6 +58,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   setPendingApproval: (pendingApproval) => set({ pendingApproval }),
   setSelectedModelId: (selectedModelId) => set({ selectedModelId }),
   setSelectedRagGroup: (selectedRagGroup) => set({ selectedRagGroup }),
+  setSelectedSkillIds: (selectedSkillIds) => set({ selectedSkillIds }),
+  setActiveProjectId: (activeProjectId) => set({ activeProjectId }),
 
   appendMessages: (...m) => set((s) => ({ messages: [...s.messages, ...m] })),
   updateLastContent: (updater) =>

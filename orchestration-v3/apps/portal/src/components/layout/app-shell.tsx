@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { useChat } from '@/hooks/use-chat';
+import { useChatStore } from '@/stores/chat-store';
 
 // 인증 구역 공통 앱 셸(ADR-0020 포털). claude.ai식 고정 사이드바 — 모든 화면에서 유지되고
 // 본문(children)만 교체. 세션 목록 로드·사이드바 콜백은 여기서 전역 스토어(use-chat)로 연결한다.
@@ -25,6 +26,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push('/chat');
   }
   function newAndGo() {
+    // 사이드바의 새 대화는 일반 대화 — 프로젝트 홈에서 남은 activeProjectId를 비운다 (ADR-0021).
+    useChatStore.getState().setActiveProjectId(null);
     newChat();
     router.push('/chat');
   }

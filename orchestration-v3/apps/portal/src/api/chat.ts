@@ -9,6 +9,7 @@ const BASE = 'v1/chat';
 export interface ChatSession {
   id: number;
   title: string;
+  project_id?: string | null;
 }
 
 /** 전송용 첨부 (base64) — ADR-0014 FileAttachment. */
@@ -35,8 +36,9 @@ export interface ChatMessage {
 
 export const chatApi = {
   listSessions: async (): Promise<ChatSession[]> => (await api.get<ChatSession[]>(`${BASE}/sessions`)).data,
-  createSession: async (title?: string): Promise<ChatSession> =>
-    (await api.post<ChatSession>(`${BASE}/sessions`, { title })).data,
+  createSession: async (title?: string, projectId?: string | null): Promise<ChatSession> =>
+    (await api.post<ChatSession>(`${BASE}/sessions`, { title, project_id: projectId ?? undefined }))
+      .data,
   renameSession: async (id: number, title: string): Promise<ChatSession> =>
     (await api.patch<ChatSession>(`${BASE}/sessions/${id}`, { title })).data,
   deleteSession: async (id: number): Promise<void> => {
@@ -180,12 +182,14 @@ export async function streamMessage(
   signal?: AbortSignal,
   files?: FileAttachment[],
   llmResourceId?: number | null,
-  ragGroup?: string | null
+  ragGroup?: string | null,
+  skillIds?: string[]
 ): Promise<void> {
   const body: Record<string, unknown> = { content };
   if (files && files.length) body.files = files;
   if (llmResourceId != null) body.llm_resource_id = llmResourceId;
   if (ragGroup) body.rag_group = ragGroup;
+  if (skillIds && skillIds.length) body.skill_ids = skillIds;
   await runStream(`${BASE}/sessions/${sessionId}/messages`, body, cb, signal);
 }
 

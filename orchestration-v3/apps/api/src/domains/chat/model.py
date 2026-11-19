@@ -31,6 +31,9 @@ class ChatSession(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(index=True)
     title: str = Field(default="New chat")
+    # 소속 프로젝트 (ADR-0021). NULL = 일반 대화. 설정 시 project.instructions·지식(rag_group)이
+    # 대화에 자동 주입된다(ChatService).
+    project_id: str | None = Field(default=None, index=True)
     # LangGraph 스레드 리비전 (ADR-0020 재생성). thread_id = f"{id}:{thread_rev}".
     # 재생성 시 +1 해 체크포인터 브랜치를 포크한다(이전 답변 분기 폐기).
     thread_rev: int = Field(default=0)

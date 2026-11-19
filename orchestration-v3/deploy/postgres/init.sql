@@ -411,3 +411,60 @@ CREATE TABLE IF NOT EXISTS llmonl.workflow_endpoint (
 );
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_workflow_id ON llmonl.workflow_endpoint (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_path        ON llmonl.workflow_endpoint (path);
+
+-- ─────────────────────────────────────────────────────────────
+-- project 도메인 (ADR-0021): 대화·지침·지식을 묶는 작업공간.
+-- 대화는 chat 스택 재사용(chat_session.project_id), 지식은 rag 전용 그룹 재사용.
+-- FK CASCADE 없음 — 프로젝트 삭제 시 앱(repository)이 세션·지식 연쇄 정리.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.project (
+    id            TEXT         PRIMARY KEY,                 -- uuid
+    user_id       BIGINT       NOT NULL,
+    name          TEXT         NOT NULL,
+    description   TEXT,
+    instructions  TEXT         NOT NULL DEFAULT '',         -- 공유 system prompt
+    rag_key       TEXT         NOT NULL,                    -- 전용 지식베이스 키
+    rag_group     TEXT         NOT NULL,                    -- rag_group_config.name (1:1)
+    icon          TEXT         NOT NULL DEFAULT 'folder',
+    color         TEXT         NOT NULL DEFAULT '#6366f1',
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_project_user_id ON llmonl.project (user_id);
+
+-- chat_session에 소속 프로젝트 연결 (thread_rev와 동일한 재실행-안전 ALTER 패턴).
+ALTER TABLE llmonl.chat_session ADD COLUMN IF NOT EXISTS project_id TEXT;  -- NULL = 일반 대화
+CREATE INDEX IF NOT EXISTS idx_chat_session_project_id ON llmonl.chat_session (project_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- connector 도메인 (ADR-0022): 챗 도구를 사내 MCP 서버로 확장.
+-- 등록·인가는 domain, 도구 로드·위험도는 engine/agent. sk- 키는 참조로만 보관.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.connector (
+    id             TEXT         PRIMARY KEY,                -- uuid
+    user_id        BIGINT       NOT NULL,
+    name           TEXT         NOT NULL,
+    description    TEXT,
+    mcp_url        TEXT         NOT NULL,                   -- spring-ai-mcp /mcp 좌표
+    credential_ref TEXT,                                    -- sk- 키 참조(평문 금지)
+    enabled        BOOLEAN      NOT NULL DEFAULT true,
+    created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_connector_user_id ON llmonl.connector (user_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- skill 도메인 (ADR-0024): 재사용 지침 프리셋. body를 system prompt에 합성.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.skill (
+    id           TEXT         PRIMARY KEY,                  -- uuid
+    user_id      BIGINT       NOT NULL,
+    name         TEXT         NOT NULL,
+    description  TEXT,
+    body         TEXT         NOT NULL DEFAULT '',          -- 지침 본문
+    icon         TEXT         NOT NULL DEFAULT 'sparkles',
+    color        TEXT         NOT NULL DEFAULT '#6366f1',
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_skill_user_id ON llmonl.skill (user_id);

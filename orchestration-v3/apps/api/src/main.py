@@ -12,11 +12,14 @@ from src.domains.artifact.api import router as artifact_router
 from src.domains.auth.api import router as auth_router
 from src.domains.auth.service import ensure_seed_admin
 from src.domains.chat.api import router as chat_router
+from src.domains.connector.api import router as connector_router
 from src.domains.gpts.api import router as gpts_router
 from src.domains.llm_resource.api import router as llm_resource_router
 from src.domains.meeting.api import router as meeting_router
 from src.domains.meeting.service import fail_stuck_meetings
+from src.domains.project.api import router as project_router
 from src.domains.rag.api import router as rag_router
+from src.domains.skill.api import router as skill_router
 from src.domains.user.api import router as user_router
 from src.domains.workflow.api import router as workflow_router
 from src.domains.workflow.api import trigger_router as workflow_trigger_router
@@ -61,6 +64,15 @@ app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 
 # gpts: 사용자 정의 커스텀 GPT — CRUD·세션·채팅(SSE) (V2 chatbot/custom_gpts 포팅)
 app.include_router(gpts_router, prefix="/api/v1/gpts", tags=["gpts"])
+
+# project: 대화·지침·지식 작업공간 — chat 재사용 + rag 지식 (ADR-0021)
+app.include_router(project_router, prefix="/api/v1/projects", tags=["projects"])
+
+# skill: 재사용 지침 프리셋 — chat system prompt 합성 (ADR-0024)
+app.include_router(skill_router, prefix="/api/v1/skills", tags=["skills"])
+
+# connector: 챗 도구를 사내 MCP 서버로 확장 — CRUD·도구 미리보기 (ADR-0022)
+app.include_router(connector_router, prefix="/api/v1/connectors", tags=["connectors"])
 
 # rag: 지식베이스 그룹·키·문서 + 검색 (ADR-0012)
 app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])
