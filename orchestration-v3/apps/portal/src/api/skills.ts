@@ -32,4 +32,15 @@ export const skillsApi = {
   remove: async (id: string): Promise<void> => {
     await api.delete(`${BASE}/${id}`);
   },
+  // SKILL.md / .md / .txt / .zip 업로드 → 스킬 1건 생성 (ADR-0024 · claude.ai 참고).
+  // Content-Type을 비워 axios가 multipart 경계를 자동 설정하게 한다(기본 json 헤더 덮기).
+  importFile: async (file: File): Promise<Skill> => {
+    const form = new FormData();
+    form.append('file', file);
+    return (
+      await api.post<Skill>(`${BASE}/import`, form, {
+        headers: { 'Content-Type': undefined },
+      })
+    ).data;
+  },
 };

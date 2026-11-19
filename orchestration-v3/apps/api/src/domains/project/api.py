@@ -18,6 +18,7 @@ from src.domains.project.schema import (
     ProjectKnowledgeItem,
     ProjectResponse,
     ProjectSessionResponse,
+    ProjectSkillsRequest,
     ProjectUpdateRequest,
 )
 from src.domains.project.service import ProjectService
@@ -139,6 +140,26 @@ def delete_knowledge(
 ) -> ApiResponse[None]:
     ProjectService(session).delete_knowledge(project_id, user, doc_id)
     return ApiResponse.ok(None)
+
+
+# ── 기본 활성 스킬 (ADR-0024 §4) ──
+@router.get("/{project_id}/skills", response_model=ApiResponse[list[str]])
+def list_project_skills(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> ApiResponse[list[str]]:
+    return ApiResponse.ok(ProjectService(session).get_skill_ids(project_id, user))
+
+
+@router.put("/{project_id}/skills", response_model=ApiResponse[list[str]])
+def set_project_skills(
+    project_id: str,
+    req: ProjectSkillsRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> ApiResponse[list[str]]:
+    return ApiResponse.ok(ProjectService(session).set_skill_ids(project_id, user, req.skill_ids))
 
 
 # ── 산출물 집계 (조회 전용) ──

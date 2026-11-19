@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlmodel import Session
 
 from src.core.db import get_session
@@ -22,6 +22,18 @@ def create_skill(
     session: Session = Depends(get_session),
 ) -> ApiResponse[SkillResponse]:
     s = SkillService(session).create(user, req)
+    return ApiResponse.ok(SkillResponse.from_model(s))
+
+
+@router.post("/import", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[SkillResponse])
+async def import_skill(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> ApiResponse[SkillResponse]:
+    """SKILL.md / .md / .txt / .zip 업로드 → 스킬 1건 생성 (ADR-0024, claude.ai 참고·경량)."""
+    raw = await file.read()
+    s = SkillService(session).import_file(user, file.filename or "skill.md", raw)
     return ApiResponse.ok(SkillResponse.from_model(s))
 
 

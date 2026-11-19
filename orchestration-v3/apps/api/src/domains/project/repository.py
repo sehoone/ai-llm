@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlmodel import Session, select
 
 from src.domains.chat.model import ChatSession
-from src.domains.project.model import Project
+from src.domains.project.model import Project, ProjectSkill
 
 
 class ProjectRepository:
@@ -39,6 +39,25 @@ class ProjectRepository:
 
     def delete(self, p: Project) -> None:
         self.session.delete(p)
+        self.session.commit()
+
+    # ── 기본 활성 스킬(project_skill) — ADR-0024 §4 ──
+    def list_skill_ids(self, project_id: str) -> list[str]:
+        rows = self.session.exec(
+            select(ProjectSkill)
+            .where(ProjectSkill.project_id == project_id)
+            .order_by(ProjectSkill.sort_order)
+        ).all()
+        return [r.skill_id for r in rows]
+
+    def set_skill_ids(self, project_id: str, skill_ids: list[str]) -> None:
+        """전체 교체 — 기존 매핑을 지우고 순서대로 재삽입(sort_order = 인덱스)."""
+        for r in self.session.exec(
+            select(ProjectSkill).where(ProjectSkill.project_id == project_id)
+        ).all():
+            self.session.delete(r)
+        for i, sid in enumerate(skill_ids):
+            self.session.add(ProjectSkill(project_id=project_id, skill_id=sid, sort_order=i))
         self.session.commit()
 
     # ── 소속 대화(chat_session) ──

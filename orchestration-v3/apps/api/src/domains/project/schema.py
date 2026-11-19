@@ -70,3 +70,9 @@ class ProjectKnowledgeItem(BaseModel):
 class KnowledgeUploadRequest(BaseModel):
     filename: str = Field(min_length=1)
     content: str = Field(min_length=1)
+
+
+class ProjectSkillsRequest(BaseModel):
+    """프로젝트 기본 활성 스킬 전체 교체 (ADR-0024 §4). 순서가 합성 우선순위."""
+
+    skill_ids: list[str] = Field(default_factory=list)

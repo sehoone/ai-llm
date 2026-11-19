@@ -22,6 +22,7 @@ from src.domains.project.schema import ProjectCreateRequest, ProjectUpdateReques
 from src.domains.rag.model import Document
 from src.domains.rag.schema import DocumentUploadRequest
 from src.domains.rag.service import RagService
+from src.domains.skill.service import SkillService
 from src.domains.user.model import User, UserRole
 
 # 프로젝트 지식 문서는 소유자 전용(ADR-0020 §3) — rag user_isolated 타입으로 격리.
@@ -77,7 +78,23 @@ class ProjectService:
         rag = RagService(self.session)
         for doc in rag.list_documents(user, rag_group=p.rag_group, rag_key=p.rag_key):
             rag.delete_document(user, doc.id)
+        # 기본 활성 스킬 매핑 정리(ADR-0024 §4) — 스킬 자체는 공유 자원이라 보존.
+        self.repo.set_skill_ids(p.id, [])
         self.repo.delete(p)
+
+    # ── 기본 활성 스킬 (ADR-0024 §4) ──
+    def get_skill_ids(self, project_id: str, user: User) -> list[str]:
+        self.get_owned(project_id, user)
+        return self.repo.list_skill_ids(project_id)
+
+    def set_skill_ids(self, project_id: str, user: User, skill_ids: list[str]) -> list[str]:
+        """기본 활성 스킬 교체. 사용자 소유 스킬만 허용(순서·중복 제거). 반환은 적용된 id."""
+        self.get_owned(project_id, user)
+        owned = {s.id for s in SkillService(self.session).list_skills(user)}
+        seen: set[str] = set()
+        valid = [sid for sid in skill_ids if sid in owned and not (sid in seen or seen.add(sid))]
+        self.repo.set_skill_ids(project_id, valid)
+        return valid
 
     # ── 소속 대화 ──
     def list_sessions(self, project_id: str, user: User) -> list[ChatSession]:

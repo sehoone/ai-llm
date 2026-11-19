@@ -69,6 +69,12 @@ export const projectsApi = {
     await api.delete(`${BASE}/${id}/knowledge/${docId}`);
   },
 
+  // 기본 활성 스킬 (ADR-0024 §4) — 이 프로젝트 대화에 자동 적용될 스킬 id. 순서=합성 우선순위.
+  listSkills: async (id: string): Promise<string[]> =>
+    (await api.get<string[]>(`${BASE}/${id}/skills`)).data,
+  setSkills: async (id: string, skillIds: string[]): Promise<string[]> =>
+    (await api.put<string[]>(`${BASE}/${id}/skills`, { skill_ids: skillIds })).data,
+
   // 산출물 집계
   listArtifacts: async (id: string): Promise<ProjectArtifact[]> =>
     (await api.get<ProjectArtifact[]>(`${BASE}/${id}/artifacts`)).data,

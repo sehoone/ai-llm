@@ -468,3 +468,13 @@ CREATE TABLE IF NOT EXISTS llmonl.skill (
     updated_at   TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_skill_user_id ON llmonl.skill (user_id);
+
+-- project ↔ skill 기본 활성 스킬 (ADR-0024 §4 · ADR-0021): 프로젝트 대화에 자동 적용.
+-- FK 없음(도메인 관례) — 연쇄 정리는 앱이 수행. sort_order로 합성 순서(우선순위)를 보존.
+CREATE TABLE IF NOT EXISTS llmonl.project_skill (
+    project_id  TEXT     NOT NULL,
+    skill_id    TEXT     NOT NULL,
+    sort_order  INT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, skill_id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_skill_project ON llmonl.project_skill (project_id);

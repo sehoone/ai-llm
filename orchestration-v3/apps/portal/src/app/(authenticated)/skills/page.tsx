@@ -2,7 +2,20 @@
 
 import * as React from 'react';
 import { toast } from 'sonner';
-import { Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import {
+  Braces,
+  Brain,
+  Briefcase,
+  FileText,
+  Languages,
+  type LucideIcon,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Sparkles,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,6 +31,24 @@ import {
 } from '@/components/ui/alert-dialog';
 import { skillsApi, type Skill } from '@/api/skills';
 
+// 선택 가능한 아이콘·색상 (백엔드 skill.icon/color — 기본 'sparkles'/'#6366f1').
+const ICONS: Record<string, LucideIcon> = {
+  sparkles: Sparkles,
+  code: Braces,
+  document: FileText,
+  message: MessageSquare,
+  language: Languages,
+  brain: Brain,
+  business: Briefcase,
+};
+const ICON_NAMES = Object.keys(ICONS);
+const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6'];
+
+function SkillIcon({ name, className, color }: { name: string; className?: string; color?: string }) {
+  const Icon = ICONS[name] ?? Sparkles;
+  return <Icon className={className} style={color ? { color } : undefined} />;
+}
+
 // 스킬(지침 프리셋) 관리 (ADR-0024). 컴포저의 스킬 칩에서 활성화해 chat system prompt에 합성.
 export default function SkillsPage() {
   const [skills, setSkills] = React.useState<Skill[]>([]);
@@ -26,8 +57,12 @@ export default function SkillsPage() {
   const [name, setName] = React.useState('');
   const [desc, setDesc] = React.useState('');
   const [body, setBody] = React.useState('');
+  const [icon, setIcon] = React.useState('sparkles');
+  const [color, setColor] = React.useState(COLORS[0]);
   const [saving, setSaving] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<Skill | null>(null);
+  const importRef = React.useRef<HTMLInputElement>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -45,6 +80,8 @@ export default function SkillsPage() {
     setName('');
     setDesc('');
     setBody('');
+    setIcon('sparkles');
+    setColor(COLORS[0]);
     setOpen(true);
   }
   function openEdit(s: Skill) {
@@ -52,6 +89,8 @@ export default function SkillsPage() {
     setName(s.name);
     setDesc(s.description || '');
     setBody(s.body);
+    setIcon(s.icon || 'sparkles');
+    setColor(s.color || COLORS[0]);
     setOpen(true);
   }
 
@@ -67,6 +106,8 @@ export default function SkillsPage() {
           name: name.trim(),
           description: desc.trim() || undefined,
           body: body.trim(),
+          icon,
+          color,
         });
         setSkills((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
       } else {
@@ -74,6 +115,8 @@ export default function SkillsPage() {
           name: name.trim(),
           description: desc.trim() || undefined,
           body: body.trim(),
+          icon,
+          color,
         });
         setSkills((prev) => [created, ...prev]);
       }
@@ -95,11 +138,44 @@ export default function SkillsPage() {
     }
   }
 
+  // SKILL.md / .md / .txt / .zip 업로드 → 스킬 생성 (ADR-0024 · claude.ai 참고).
+  async function onImport(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setImporting(true);
+    try {
+      for (const f of Array.from(files)) {
+        const created = await skillsApi.importFile(f);
+        setSkills((prev) => [created, ...prev]);
+      }
+      toast.success('스킬을 가져왔습니다.');
+    } catch {
+      toast.error('가져오기에 실패했습니다. (SKILL.md · .md · .txt · .zip만 지원)');
+    } finally {
+      setImporting(false);
+      if (importRef.current) importRef.current.value = '';
+    }
+  }
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-6">
         <header className="mb-1 flex items-center gap-3">
           <h1 className="flex-1 text-xl font-semibold">스킬</h1>
+          <input
+            ref={importRef}
+            type="file"
+            multiple
+            accept=".md,.txt,.zip,text/markdown,text/plain,application/zip"
+            className="hidden"
+            onChange={(e) => onImport(e.target.files)}
+          />
+          <Button
+            variant="outline"
+            onClick={() => importRef.current?.click()}
+            disabled={importing}
+          >
+            <Upload /> 가져오기
+          </Button>
           <Button onClick={openNew}>
             <Plus /> 새 스킬
           </Button>
@@ -122,6 +198,39 @@ export default function SkillsPage() {
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">아이콘</span>
+                {ICON_NAMES.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setIcon(n)}
+                    aria-label={n}
+                    className={`rounded-md border p-1.5 transition hover:bg-accent ${
+                      icon === n ? 'border-ring bg-accent' : 'border-transparent'
+                    }`}
+                  >
+                    <SkillIcon name={n} className="size-4" color={color} />
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">색상</span>
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    aria-label={c}
+                    className={`size-5 rounded-full transition ${
+                      color === c ? 'ring-2 ring-offset-2 ring-offset-card' : ''
+                    }`}
+                    style={{ backgroundColor: c, ...(color === c ? { boxShadow: `0 0 0 2px ${c}` } : {}) }}
+                  />
+                ))}
+              </div>
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
                 취소
@@ -140,7 +249,7 @@ export default function SkillsPage() {
               className="group/card flex flex-col rounded-xl border border-border bg-card p-4"
             >
               <div className="mb-1 flex items-start gap-2">
-                <Sparkles className="size-5 shrink-0" style={{ color: s.color }} />
+                <SkillIcon name={s.icon} className="size-5 shrink-0" color={s.color} />
                 <div className="min-w-0 flex-1 truncate font-medium">{s.name}</div>
                 <button
                   onClick={() => openEdit(s)}

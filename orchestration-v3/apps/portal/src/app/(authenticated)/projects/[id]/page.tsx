@@ -7,6 +7,7 @@ import { ArrowLeft, FileText, MessageSquarePlus, Plus, Trash2 } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { projectsApi, type Project, type ProjectKnowledge, type ProjectSession } from '@/api/projects';
+import { skillsApi, type Skill } from '@/api/skills';
 import { useChat } from '@/hooks/use-chat';
 import { useChatStore } from '@/stores/chat-store';
 
@@ -19,6 +20,8 @@ export default function ProjectDetailPage() {
   const [project, setProject] = React.useState<Project | null>(null);
   const [sessions, setSessions] = React.useState<ProjectSession[]>([]);
   const [knowledge, setKnowledge] = React.useState<ProjectKnowledge[]>([]);
+  const [allSkills, setAllSkills] = React.useState<Skill[]>([]);
+  const [skillIds, setSkillIds] = React.useState<string[]>([]);
   const [instructions, setInstructions] = React.useState('');
   const [savingInstr, setSavingInstr] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
@@ -26,15 +29,19 @@ export default function ProjectDetailPage() {
 
   const load = React.useCallback(async () => {
     try {
-      const [p, ss, ks] = await Promise.all([
+      const [p, ss, ks, sk, allSk] = await Promise.all([
         projectsApi.get(id),
         projectsApi.listSessions(id),
         projectsApi.listKnowledge(id),
+        projectsApi.listSkills(id),
+        skillsApi.list(),
       ]);
       setProject(p);
       setInstructions(p.instructions);
       setSessions(ss);
       setKnowledge(ks);
+      setSkillIds(sk);
+      setAllSkills(allSk);
     } catch {
       toast.error('프로젝트를 불러오지 못했습니다.');
     }
@@ -79,6 +86,21 @@ export default function ProjectDetailPage() {
       setKnowledge((prev) => prev.filter((k) => k.id !== docId));
     } catch {
       toast.error('삭제하지 못했습니다.');
+    }
+  }
+
+  // 기본 활성 스킬 토글 (ADR-0024 §4) — 낙관적 반영 후 전체 교체 저장. 실패 시 롤백.
+  async function toggleSkill(sid: string) {
+    const next = skillIds.includes(sid)
+      ? skillIds.filter((x) => x !== sid)
+      : [...skillIds, sid];
+    const prev = skillIds;
+    setSkillIds(next);
+    try {
+      setSkillIds(await projectsApi.setSkills(id, next));
+    } catch {
+      setSkillIds(prev);
+      toast.error('기본 스킬을 저장하지 못했습니다.');
     }
   }
 
@@ -183,6 +205,39 @@ export default function ProjectDetailPage() {
                 {knowledge.length === 0 && (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground">
                     텍스트 파일을 추가하면 이 프로젝트 대화에서 자동 검색됩니다.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-4">
+              <h2 className="text-sm font-medium">기본 활성 스킬</h2>
+              <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
+                이 프로젝트의 대화에 자동 적용됩니다.
+              </p>
+              <div className="space-y-1">
+                {allSkills.map((s) => {
+                  const on = skillIds.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleSkill(s.id)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm hover:bg-accent/50"
+                    >
+                      <span
+                        className={`size-3.5 shrink-0 rounded-sm border ${
+                          on ? 'border-indigo-500 bg-indigo-500' : 'border-input'
+                        }`}
+                      />
+                      <span className="min-w-0 flex-1 truncate" style={on ? { color: s.color } : undefined}>
+                        {s.name}
+                      </span>
+                    </button>
+                  );
+                })}
+                {allSkills.length === 0 && (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                    먼저 스킬을 만들어주세요. (설정 → 스킬)
                   </p>
                 )}
               </div>

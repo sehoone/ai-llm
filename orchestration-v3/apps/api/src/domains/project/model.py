@@ -34,3 +34,17 @@ class Project(SQLModel, table=True):
     color: str = Field(default="#6366f1")
     created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
     updated_at: NaiveDatetime | None = Field(default=None)
+
+
+class ProjectSkill(SQLModel, table=True):
+    """프로젝트 기본 활성 스킬 (ADR-0024 §4). 프로젝트 대화에 자동 적용된다.
+
+    FK 없음(도메인 관례) — 연쇄 정리는 repository가 수행. `sort_order`로 합성 순서(우선순위) 보존.
+    """
+
+    __tablename__ = "project_skill"
+    __table_args__ = {"schema": "llmonl"}
+
+    project_id: str = Field(primary_key=True)
+    skill_id: str = Field(primary_key=True)
+    sort_order: int = Field(default=0)

@@ -440,13 +440,22 @@ class ChatService:
     ) -> str | None:
         """프로젝트 지침 + 활성 스킬 본문을 system prompt 텍스트로 합성 (ADR-0021/0024).
 
-        우선순위(위→아래 누적): project.instructions < 활성 스킬(요청 순). 비면 None.
+        우선순위(위→아래 누적): project.instructions < 프로젝트 기본 스킬(ADR-0024 §4) < 요청 스킬.
+        프로젝트 기본 스킬은 대화에 자동 적용되고, 요청 스킬이 뒤에 더해진다(순서=우선순위, 중복 제거).
+        비면 None.
         """
         parts: list[str] = []
         if project is not None and project.instructions.strip():
             parts.append(project.instructions.strip())
+        effective: list[str] = []
+        if project is not None:
+            effective.extend(ProjectRepository(self.session).list_skill_ids(project.id))
         if skill_ids:
-            parts.extend(SkillService(self.session).bodies_for(skill_ids, user))
+            effective.extend(skill_ids)
+        seen: set[str] = set()
+        ordered = [sid for sid in effective if not (sid in seen or seen.add(sid))]
+        if ordered:
+            parts.extend(SkillService(self.session).bodies_for(ordered, user))
         return "\n\n".join(parts) if parts else None
 
     def _augment_with_rag(self, user: User, content: str, rag_group: str | None) -> str:
