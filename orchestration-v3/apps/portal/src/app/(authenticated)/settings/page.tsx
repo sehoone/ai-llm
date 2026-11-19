@@ -1,10 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
-import { ArrowLeft, Monitor, Moon, Sun } from 'lucide-react';
+import { Monitor, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -36,7 +35,6 @@ const THEMES = [
 ];
 
 export default function SettingsPage() {
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -123,15 +121,13 @@ export default function SettingsPage() {
   const field = 'w-full';
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <header className="mb-6 flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/chat')} aria-label="채팅으로">
-          <ArrowLeft />
-        </Button>
-        <h1 className="text-xl font-semibold">설정</h1>
-      </header>
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-2xl p-6">
+        <header className="mb-6">
+          <h1 className="text-xl font-semibold">설정</h1>
+        </header>
 
-      <div className="space-y-5">
+        <div className="space-y-5">
         <Section title="프로필">
           <div className="space-y-3">
             <div className="space-y-1">
@@ -226,6 +222,7 @@ export default function SettingsPage() {
             </Button>
           </div>
         </Section>
+        </div>
       </div>
 
       <AlertDialog open={memoryConfirm} onOpenChange={setMemoryConfirm}>

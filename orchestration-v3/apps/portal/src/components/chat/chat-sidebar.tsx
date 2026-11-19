@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { Bot, BrainCircuit, LogOut, Plus, Search, Settings, User } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { LogOut, MessageSquare, Plus, Search, Settings, User } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ThemeToggle } from '@/components/theme-toggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +28,9 @@ import {
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { chatApi, type ChatSession } from '@/api/chat';
+import { type ChatSession } from '@/api/chat';
+
+const NAV = [{ href: '/chat', label: '채팅', icon: MessageSquare }];
 
 export function ChatSidebar({
   onSelect,
@@ -47,19 +49,10 @@ export function ChatSidebar({
   const activeId = useChatStore((s) => s.activeId);
   const { auth } = useAuthStore();
   const router = useRouter();
+  const pathname = usePathname();
 
   const [q, setQ] = React.useState('');
   const [deleteTarget, setDeleteTarget] = React.useState<ChatSession | null>(null);
-  const [memoryConfirm, setMemoryConfirm] = React.useState(false);
-
-  async function clearMemory() {
-    try {
-      await chatApi.deleteMemory();
-      toast.success('장기 메모리를 삭제했습니다.');
-    } catch {
-      toast.error('메모리 삭제에 실패했습니다.');
-    }
-  }
 
   const filtered = q.trim()
     ? sessions.filter((s) => (s.title || '').toLowerCase().includes(q.toLowerCase()))
@@ -74,10 +67,10 @@ export function ChatSidebar({
 
   return (
     <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center gap-2 p-3">
+      <div className="p-3">
         <Button
           variant="outline"
-          className="flex-1 justify-start"
+          className="w-full justify-start"
           onClick={() => {
             onNewChat();
             onNavigate?.();
@@ -85,7 +78,27 @@ export function ChatSidebar({
         >
           <Plus /> 새 대화
         </Button>
-        <ThemeToggle />
+      </div>
+
+      <div className="space-y-1 px-2 pb-2">
+        {NAV.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href || pathname.startsWith(`${href}/`);
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm',
+                active
+                  ? 'bg-accent text-accent-foreground'
+                  : 'hover:bg-accent hover:text-accent-foreground'
+              )}
+            >
+              <Icon className="size-4" /> {label}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="px-3 pb-2">
@@ -100,14 +113,7 @@ export function ChatSidebar({
         </div>
       </div>
 
-      <div className="px-2 pb-2">
-        <a
-          href="/gpts"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
-        >
-          <Bot className="size-4" /> 커스텀 GPT
-        </a>
-      </div>
+      <div className="px-4 pb-1 pt-1 text-xs font-medium text-muted-foreground">최근 대화</div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
         {filtered.map((s) => (
@@ -144,9 +150,6 @@ export function ChatSidebar({
             <DropdownMenuItem onClick={() => router.push('/settings')}>
               <Settings /> 설정
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setMemoryConfirm(true)}>
-              <BrainCircuit /> 장기 메모리 삭제
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={logout}>
               <LogOut /> 로그아웃
@@ -169,28 +172,6 @@ export function ChatSidebar({
               onClick={() => {
                 if (deleteTarget) onRemove(deleteTarget.id);
                 setDeleteTarget(null);
-              }}
-            >
-              삭제
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={memoryConfirm} onOpenChange={setMemoryConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>장기 메모리를 삭제할까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              이 사용자에 대해 저장된 모든 장기 메모리가 영구 삭제됩니다. 되돌릴 수 없습니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                clearMemory();
-                setMemoryConfirm(false);
               }}
             >
               삭제
