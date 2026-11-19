@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -9,11 +11,31 @@ from src.domains.artifact.model import Artifact
 from src.domains.artifact.repository import ArtifactRepository
 from src.domains.user.model import User, UserRole
 
+# 사용자가 직접 만든 standalone 아티팩트는 chat 세션에 속하지 않는다(세션 0 센티넬).
+STANDALONE_SESSION_ID = 0
+
 
 class ArtifactService:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.repo = ArtifactRepository(session)
+
+    # ── 생성 ──
+    def create(self, user: User, title: str, artifact_type: str, content: str) -> Artifact:
+        """사용자가 직접 만든 standalone 아티팩트(세션 0). v1 버전으로 저장."""
+        identifier = f"user-{uuid.uuid4().hex[:12]}"
+        result = self.repo.upsert_version(
+            session_id=STANDALONE_SESSION_ID,
+            user_id=user.id,
+            identifier=identifier,
+            artifact_type=artifact_type,
+            title=title,
+            content=content,
+        )
+        art = self.repo.get_artifact(result["artifact_id"])
+        if art is None:  # pragma: no cover - 방금 생성했으므로 발생하지 않음
+            raise HTTPException(status_code=500, detail="Failed to create artifact")
+        return art
 
     # ── 조회 ──
     def list_artifacts(self, user: User, session_id: int | None) -> list[Artifact]:

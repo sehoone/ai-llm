@@ -43,6 +43,12 @@ class ArtifactDetail(ArtifactSummary):
         return cls(**ArtifactSummary.from_model(a).model_dump(), content=content)
 
 
+class ArtifactCreate(BaseModel):
+    title: str = ""
+    artifact_type: str
+    content: str = ""
+
+
 class ArtifactListResponse(BaseModel):
     items: list[ArtifactSummary] = Field(default_factory=list)
 
