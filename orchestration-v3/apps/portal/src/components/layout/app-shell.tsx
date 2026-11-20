@@ -2,10 +2,11 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu } from 'lucide-react';
+import { Menu, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
+import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { useChat } from '@/hooks/use-chat';
 import { useChatStore } from '@/stores/chat-store';
 
@@ -15,6 +16,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { loadSessions, selectSession, newChat, rename, remove } = useChat();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  // 데스크톱 사이드바 접힘 상태(claude.ai식). 접히면 본문 좌상단 플로팅 버튼으로 다시 펼친다.
+  const [collapsed, setCollapsed] = React.useState(false);
 
   React.useEffect(() => {
     loadSessions();
@@ -32,21 +35,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push('/chat');
   }
 
-  const sidebar = (onNavigate?: () => void) => (
+  const sidebar = (opts?: { onNavigate?: () => void; onToggleCollapse?: () => void }) => (
     <ChatSidebar
       onSelect={selectAndGo}
       onNewChat={newAndGo}
       onRename={rename}
       onRemove={remove}
-      onNavigate={onNavigate}
+      onNavigate={opts?.onNavigate}
+      onToggleCollapse={opts?.onToggleCollapse}
     />
   );
 
   return (
     <div className="flex h-svh">
-      <aside className="hidden w-72 shrink-0 border-e border-sidebar-border md:block">
-        {sidebar()}
-      </aside>
+      {!collapsed && (
+        <aside className="hidden w-72 shrink-0 border-e border-sidebar-border md:block">
+          {sidebar({ onToggleCollapse: () => setCollapsed(true) })}
+        </aside>
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 border-b border-border p-2 md:hidden">
@@ -58,7 +64,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0">
               <SheetTitle className="sr-only">메뉴</SheetTitle>
-              {sidebar(() => setMobileOpen(false))}
+              {sidebar({
+                onNavigate: () => setMobileOpen(false),
+                onToggleCollapse: () => setMobileOpen(false),
+              })}
             </SheetContent>
           </Sheet>
           <span className="text-sm font-medium">AI 포털</span>
@@ -66,6 +75,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {children}
       </div>
+
+      {/* 데스크톱: 접힌 상태에서 사이드바를 다시 펼치는 플로팅 버튼 */}
+      {collapsed && (
+        <Button
+          variant="outline"
+          size="icon"
+          className="fixed start-2 top-2 z-30 hidden size-8 md:flex"
+          onClick={() => setCollapsed(false)}
+          aria-label="사이드바 펼치기"
+        >
+          <PanelLeft className="size-4" />
+        </Button>
+      )}
+
+      <SettingsDialog />
     </div>
   );
 }

@@ -3,7 +3,17 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FolderKanban, LogOut, MessageSquare, Plus, Search, Settings, User } from 'lucide-react';
+import {
+  ChevronsUpDown,
+  FolderKanban,
+  LogOut,
+  MessageSquare,
+  PanelLeft,
+  Plus,
+  Search,
+  Settings,
+  Sparkles,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +38,7 @@ import {
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { type ChatSession } from '@/api/chat';
 import { projectsApi } from '@/api/projects';
 
@@ -42,16 +53,19 @@ export function ChatSidebar({
   onRename,
   onRemove,
   onNavigate,
+  onToggleCollapse,
 }: {
   onSelect: (id: number) => void;
   onNewChat: () => void;
   onRename: (id: number, title: string) => void;
   onRemove: (id: number) => void;
   onNavigate?: () => void;
+  onToggleCollapse?: () => void;
 }) {
   const sessions = useChatStore((s) => s.sessions);
   const activeId = useChatStore((s) => s.activeId);
   const { auth } = useAuthStore();
+  const openSettings = useSettingsStore((s) => s.setOpen);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -88,6 +102,8 @@ export function ChatSidebar({
   }
 
   const name = auth.user?.username || auth.user?.email || '사용자';
+  const email = auth.user?.email ?? '';
+  const initial = name.trim().charAt(0).toUpperCase() || '?';
 
   function logout() {
     auth.reset();
@@ -96,7 +112,31 @@ export function ChatSidebar({
 
   return (
     <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="p-3">
+      <div className="flex items-center gap-1 px-2 pt-3">
+        {onToggleCollapse && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 text-muted-foreground"
+            onClick={onToggleCollapse}
+            aria-label="사이드바 접기"
+          >
+            <PanelLeft className="size-4" />
+          </Button>
+        )}
+        <Link
+          href="/"
+          onClick={onNavigate}
+          className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 font-semibold hover:bg-accent"
+        >
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Sparkles className="size-3.5" />
+          </span>
+          <span className="truncate">AI 포털</span>
+        </Link>
+      </div>
+
+      <div className="px-3 pb-3 pt-2">
         <Button
           variant="outline"
           className="w-full justify-start"
@@ -211,15 +251,31 @@ export function ChatSidebar({
       <div className="border-t border-sidebar-border p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground">
-              <User className="size-4" />
-              <span className="flex-1 truncate text-start">{name}</span>
+            <button
+              className="group flex w-full items-center gap-2.5 rounded-md border border-transparent px-2 py-2 text-sm transition-colors hover:border-sidebar-border hover:bg-accent hover:text-accent-foreground data-[state=open]:border-sidebar-border data-[state=open]:bg-accent"
+              aria-label="계정 메뉴 열기"
+            >
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                {initial}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col text-start leading-tight">
+                <span className="truncate font-medium">{name}</span>
+                {email && email !== name && (
+                  <span className="truncate text-xs text-muted-foreground">{email}</span>
+                )}
+              </span>
+              <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel className="truncate">{name}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/settings')}>
+            <DropdownMenuItem
+              onClick={() => {
+                openSettings(true);
+                onNavigate?.();
+              }}
+            >
               <Settings /> 설정
             </DropdownMenuItem>
             <DropdownMenuSeparator />
