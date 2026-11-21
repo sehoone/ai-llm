@@ -5,16 +5,15 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Loader2, Pencil, RefreshCw, Share2, Users } from 'lucide-react'
 import { meetingApi, type MeetingStatus, type MinutesContent } from '@/api/meetings'
-import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusBadge } from './components/status-badge'
-import { TranscriptTimeline } from './components/transcript-timeline'
-import { AudioPlayer } from './components/audio-player'
-import { MinutesPanel } from './components/minutes-panel'
-import { MinutesEditor } from './components/minutes-editor'
-import { SpeakerMappingDialog } from './components/speaker-mapping-dialog'
+import { StatusBadge } from './status-badge'
+import { TranscriptTimeline } from './transcript-timeline'
+import { AudioPlayer } from './audio-player'
+import { MinutesPanel } from './minutes-panel'
+import { MinutesEditor } from './minutes-editor'
+import { SpeakerMappingDialog } from './speaker-mapping-dialog'
 import { formatDuration, isProcessing, STATUS_LABEL } from './lib'
 
 const PROGRESS_STEPS: { key: MeetingStatus; label: string }[] = [
@@ -104,7 +103,7 @@ export function MeetingDetail() {
       toast.success('회의록을 재생성했습니다.')
       refetch()
     } catch (error) {
-      logger.error(error)
+      console.error(error)
       toast.error('재생성에 실패했습니다.')
     } finally {
       setRegenerating(false)
@@ -119,7 +118,7 @@ export function MeetingDetail() {
       setEditing(false)
       refetch()
     } catch (error) {
-      logger.error(error)
+      console.error(error)
       toast.error('저장에 실패했습니다.')
     } finally {
       setSavingMinutes(false)
@@ -129,13 +128,13 @@ export function MeetingDetail() {
   const handlePublish = async () => {
     try {
       const { public_token } = await meetingApi.publish(id)
-      // web은 /admin 하위(ADR-0020 basePath) — 공개 뷰 /admin/artifact/{token}. 원시 origin에 수동 prefix.
-      const url = `${window.location.origin}/admin/artifact/${public_token}`
+      // portal은 nginx 루트(`/`) — 공개 뷰는 /artifact/{token} (ADR-0020).
+      const url = `${window.location.origin}/artifact/${public_token}`
       await navigator.clipboard.writeText(url)
       toast.success('공개 링크를 클립보드에 복사했습니다.')
       refetch()
     } catch (error) {
-      logger.error(error)
+      console.error(error)
       toast.error('발행에 실패했습니다.')
     }
   }

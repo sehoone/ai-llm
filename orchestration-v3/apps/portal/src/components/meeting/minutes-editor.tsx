@@ -5,13 +5,20 @@ import { Plus, Trash2 } from 'lucide-react'
 import type { ActionItem, DiscussionItem, MinutesContent } from '@/api/meetings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 
 const linesToArray = (s: string): string[] =>
   s.split('\n').map((l) => l.trim()).filter(Boolean)
 const arrayToLines = (a?: string[]): string => (a ?? []).join('\n')
+
+// portal은 shadcn Label을 복제하지 않는다(ADR-0020 린 구성) — plain <label>로 대체.
+function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+  return (
+    <label htmlFor={htmlFor} className='text-sm font-medium leading-none'>
+      {children}
+    </label>
+  )
+}
 
 interface Props {
   content: MinutesContent
@@ -59,26 +66,26 @@ export function MinutesEditor({ content, saving, onCancel, onSave }: Props) {
 
   return (
     <div className='flex h-[calc(100vh-16rem)] flex-col'>
-      <ScrollArea className='flex-1'>
+      <div className='flex-1 overflow-y-auto'>
         <div className='space-y-4 p-4'>
           <div className='space-y-1.5'>
-            <Label>제목</Label>
+            <FieldLabel>제목</FieldLabel>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
 
           <div className='space-y-1.5'>
-            <Label>참석자 (쉼표로 구분)</Label>
+            <FieldLabel>참석자 (쉼표로 구분)</FieldLabel>
             <Input value={attendees} onChange={(e) => setAttendees(e.target.value)} />
           </div>
 
           <div className='space-y-1.5'>
-            <Label>안건 (줄바꿈으로 구분)</Label>
+            <FieldLabel>안건 (줄바꿈으로 구분)</FieldLabel>
             <Textarea rows={3} value={agenda} onChange={(e) => setAgenda(e.target.value)} />
           </div>
 
           <div className='space-y-2'>
             <div className='flex items-center justify-between'>
-              <Label>논의 내용</Label>
+              <FieldLabel>논의 내용</FieldLabel>
               <Button
                 type='button'
                 variant='ghost'
@@ -118,13 +125,13 @@ export function MinutesEditor({ content, saving, onCancel, onSave }: Props) {
           </div>
 
           <div className='space-y-1.5'>
-            <Label>결정 사항 (줄바꿈으로 구분)</Label>
+            <FieldLabel>결정 사항 (줄바꿈으로 구분)</FieldLabel>
             <Textarea rows={3} value={decisions} onChange={(e) => setDecisions(e.target.value)} />
           </div>
 
           <div className='space-y-2'>
             <div className='flex items-center justify-between'>
-              <Label>액션 아이템</Label>
+              <FieldLabel>액션 아이템</FieldLabel>
               <Button
                 type='button'
                 variant='ghost'
@@ -168,16 +175,16 @@ export function MinutesEditor({ content, saving, onCancel, onSave }: Props) {
           </div>
 
           <div className='space-y-1.5'>
-            <Label>요약</Label>
+            <FieldLabel>요약</FieldLabel>
             <Textarea rows={4} value={summary} onChange={(e) => setSummary(e.target.value)} />
           </div>
 
           <div className='space-y-1.5'>
-            <Label>다음 단계 (줄바꿈으로 구분)</Label>
+            <FieldLabel>다음 단계 (줄바꿈으로 구분)</FieldLabel>
             <Textarea rows={2} value={nextSteps} onChange={(e) => setNextSteps(e.target.value)} />
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
       <div className='flex justify-end gap-2 border-t p-3'>
         <Button variant='outline' size='sm' onClick={onCancel} disabled={saving}>

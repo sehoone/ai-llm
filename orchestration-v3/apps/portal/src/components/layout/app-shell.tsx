@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
+import { RecordingBar } from '@/components/meeting/recording-bar';
+import { SaveRecordingDialog } from '@/components/meeting/save-recording-dialog';
 import { useChat } from '@/hooks/use-chat';
 import { useChatStore } from '@/stores/chat-store';
 
@@ -90,6 +92,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <SettingsDialog />
+      {/* 전역 녹음 바·저장 다이얼로그 — 메뉴 이동 중에도 녹음 유지 (meeting-minutes) */}
+      <RecordingBar />
+      <SaveRecordingDialog />
     </div>
   );
 }

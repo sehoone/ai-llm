@@ -1,5 +1,4 @@
 import type { MinutesContent } from '@/api/meetings'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -22,7 +21,7 @@ export function MinutesPanel({ content }: { content: MinutesContent }) {
   } = content
 
   return (
-    <ScrollArea className='h-[calc(100vh-16rem)]'>
+    <div className='h-[calc(100vh-16rem)] overflow-y-auto'>
       <div className='space-y-6 p-4'>
         {attendees.length > 0 && (
           <Section title='참석자'>
@@ -113,6 +112,6 @@ export function MinutesPanel({ content }: { content: MinutesContent }) {
           </Section>
         )}
       </div>
-    </ScrollArea>
+    </div>
   )
 }

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { meetingApi } from '@/api/meetings'
-import { logger } from '@/lib/logger'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -32,7 +31,7 @@ export function AudioPlayer({ meetingId, filename }: Props) {
         setUrl(objectUrl)
       })
       .catch((e) => {
-        logger.error(e)
+        console.error(e)
         if (!cancelled) setError('오디오를 불러오지 못했습니다.')
       })
       .finally(() => {

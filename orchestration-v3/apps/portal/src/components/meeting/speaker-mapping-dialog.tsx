@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { meetingApi, type Segment } from '@/api/meetings'
-import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -49,7 +48,7 @@ export function SpeakerMappingDialog({ meetingId, segments, open, onOpenChange, 
       onSaved()
       onOpenChange(false)
     } catch (error) {
-      logger.error(error)
+      console.error(error)
       toast.error('저장에 실패했습니다.')
     } finally {
       setSaving(false)
