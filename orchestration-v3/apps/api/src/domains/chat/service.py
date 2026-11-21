@@ -51,7 +51,7 @@ from src.engine.extraction import ExtractResult, extract_text
 from src.engine.agent.policy import ApprovalPolicy
 from src.engine.agent.tools import default_registry, interrupt_tool_schemas
 from src.engine.graph.chat_graph import build_chat_graph
-from src.engine.graph.checkpointer import build_checkpointer
+from src.engine.graph.checkpointer import build_checkpointer, open_postgres_checkpointer
 from src.engine.graph.fake_model import FakeToolCallingModel
 from src.engine import memory
 from src.engine.llm import build_model_for, generate_title
@@ -107,16 +107,53 @@ def _config_from_resource(r: LlmResource) -> LlmConfig:
 
 
 # ── engine 조립 (프로세스 단일) ──
-# InMemorySaver는 인프로세스 상태를 유지하므로 그래프는 모듈 싱글턴으로 둔다(ADR-0008 §2).
 # model은 리졸버 — 요청별 주입된 LlmConfig를 해석(ADR-0011 §4).
+# 체크포인터: import 시점은 **항상 InMemory**(ADR-0028) — postgres 풀은 이벤트 루프가 필요해
+# lifespan(start_checkpointer)에서 열어 그래프를 교체한다. _run은 호출 시 모듈 전역 _graph를 읽는다.
 _registry = default_registry()
 _policy = ApprovalPolicy(_registry)
 _graph = build_chat_graph(
     model=_resolve_model,
     registry=_registry,
     policy=_policy,
-    checkpointer=build_checkpointer(settings.chat_checkpointer),
+    checkpointer=build_checkpointer(),
 )
+# postgres 체크포인터 풀 핸들(lifespan 관리). memory 모드면 None 유지.
+_pg_pool: Any = None
+
+
+def _pg_conninfo() -> str:
+    """psycopg DSN (SQLAlchemy URL 아님). 네트워크 좌표는 settings(=env, compose override)에서 온다."""
+    s = settings
+    return (
+        f"postgresql://{s.postgres_user}:{s.postgres_password}"
+        f"@{s.postgres_host}:{s.postgres_port}/{s.postgres_db}"
+    )
+
+
+async def start_checkpointer() -> None:
+    """lifespan startup (ADR-0028): postgres 모드면 AsyncPostgresSaver로 _graph를 교체한다.
+
+    풀 open/`setup()` 실패는 **그대로 전파**해 기동을 실패시킨다(조용한 memory 폴백 금지 —
+    운영에서 내구성 상실을 숨기지 않도록). memory 모드면 no-op.
+    """
+    global _graph, _pg_pool
+    if settings.chat_checkpointer != "postgres":
+        return
+    saver, pool = await open_postgres_checkpointer(_pg_conninfo())
+    _pg_pool = pool
+    _graph = build_chat_graph(
+        model=_resolve_model, registry=_registry, policy=_policy, checkpointer=saver
+    )
+    logger.info("chat_checkpointer_postgres_ready")
+
+
+async def stop_checkpointer() -> None:
+    """lifespan shutdown (ADR-0028): postgres 풀을 닫는다. memory 모드면 no-op."""
+    global _pg_pool
+    if _pg_pool is not None:
+        await _pg_pool.close()
+        _pg_pool = None
 
 
 def _sse(event: str, data: dict[str, Any]) -> str:

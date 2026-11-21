@@ -41,6 +41,8 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0024](0024-skills-instruction-presets.md) | 스킬 — 재사용 지침 프리셋 (skill 도메인 + system prompt 합성) | Accepted |
 | [0025](0025-chat-clarification-and-interrupt.md) | 챗 되묻기·사람 개입 (ask_user 인터럽트 + 중단 내구화) | Accepted |
 | [0026](0026-chat-async-streaming.md) | chat 비동기 스트리밍 전환 (취소 가능한 중단 — ADR-0011 §2 개정) | Accepted |
+| [0027](0027-async-db-session.md) | 비동기 DB 세션 (AsyncSession/psycopg async — 단계적·조건부) | Proposed |
+| [0028](0028-langgraph-postgres-checkpointer.md) | LangGraph Postgres 체크포인터 (AsyncPostgresSaver — 세션 내구화) | Accepted |
 
 ## 관련 문서
 

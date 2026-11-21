@@ -12,6 +12,7 @@ from src.domains.artifact.api import router as artifact_router
 from src.domains.auth.api import router as auth_router
 from src.domains.auth.service import ensure_seed_admin
 from src.domains.chat.api import router as chat_router
+from src.domains.chat.service import start_checkpointer, stop_checkpointer
 from src.domains.connector.api import router as connector_router
 from src.domains.gpts.api import router as gpts_router
 from src.domains.llm_resource.api import router as llm_resource_router
@@ -34,11 +35,15 @@ async def lifespan(app: FastAPI):
         ensure_seed_admin(session)
     # 인프로세스 BackgroundTask로 처리되는 회의는 재시작 시 고아가 된다 → 비종료 상태를 FAILED로 정리.
     fail_stuck_meetings()
+    # chat 체크포인터(ADR-0028): postgres 모드면 AsyncPostgresSaver 풀을 열고 그래프를 교체(내구화).
+    # memory 모드(기본)면 no-op. 풀 open 실패 시 기동 실패(내구성 상실을 숨기지 않음).
+    await start_checkpointer()
     # 워크플로우 cron 스케줄러 기동 + 활성 스케줄 복원 (ADR-0019). 비활성/미설치면 no-op.
     workflow_scheduler.start()
     yield
-    # 종료 시 스케줄러 정리 + 버퍼된 Langfuse 트레이스 flush (ADR-0007/0019). 비활성이면 no-op.
+    # 종료 시 스케줄러 정리 + 체크포인터 풀 닫기 + 버퍼된 Langfuse 트레이스 flush (ADR-0007/0019/0028).
     workflow_scheduler.shutdown()
+    await stop_checkpointer()
     observability_shutdown()
 
 

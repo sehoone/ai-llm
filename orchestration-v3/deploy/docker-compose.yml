@@ -78,6 +78,9 @@ services:
       - UPLOAD_DIR=/data/uploads   # local 폴백용 (storage_backend=local일 때만)
       # 네트워크 좌표는 compose가 서비스 DNS로 override. api.env의 localhost 값은 bare-metal 전용.
       - LANGFUSE_HOST=http://langfuse-web:3000
+      # chat 체크포인터(ADR-0028): postgres면 HITL/중단 세션이 재시작·다중 인스턴스에서 내구적.
+      # 기본 memory. 배포 시 CHAT_CHECKPOINTER=postgres로 토글(shell/compose.env). 테이블은 db의 llmonl에 생성.
+      - CHAT_CHECKPOINTER=${CHAT_CHECKPOINTER:-memory}
     volumes:
       - api-uploads:/data/uploads
     depends_on:
