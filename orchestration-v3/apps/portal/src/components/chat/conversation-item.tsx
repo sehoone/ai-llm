@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { FolderKanban, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,12 +15,15 @@ import type { ChatSession } from '@/api/chat';
 export function ConversationItem({
   session,
   active,
+  project,
   onSelect,
   onRename,
   onRequestDelete,
 }: {
   session: ChatSession;
   active: boolean;
+  // 소속 프로젝트 메타(ADR-0021) — 있으면 일반 대화와 구분되게 배지 표시.
+  project?: { name: string; color: string };
   onSelect: () => void;
   onRename: (id: number, title: string) => void;
   onRequestDelete: (session: ChatSession) => void;
@@ -63,10 +66,16 @@ export function ConversationItem({
     >
       <button
         onClick={onSelect}
-        className="flex-1 truncate px-3 py-2 text-start text-sm"
+        className="min-w-0 flex-1 px-3 py-2 text-start"
         title={session.title || '새 대화'}
       >
-        {session.title || '새 대화'}
+        <span className="block truncate text-sm">{session.title || '새 대화'}</span>
+        {project && (
+          <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+            <FolderKanban className="size-3 shrink-0" style={{ color: project.color }} />
+            <span className="truncate">{project.name}</span>
+          </span>
+        )}
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

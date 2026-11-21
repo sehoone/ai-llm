@@ -12,6 +12,7 @@ from sqlmodel import Session
 from src.core.db import get_session
 from src.core.response import ApiResponse
 from src.domains.artifact.schema import (
+    ArtifactCreate,
     ArtifactDataResponse,
     ArtifactDataUpdate,
     ArtifactDetail,
@@ -40,6 +41,16 @@ def _parse_session_id(raw: str | None) -> int | None:
 
 
 # ── 인증 ──
+@router.post("", response_model=ApiResponse[ArtifactDetail])
+def create_artifact(
+    body: ArtifactCreate,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> ApiResponse[ArtifactDetail]:
+    art = ArtifactService(session).create(user, body.title, body.artifact_type, body.content)
+    return ApiResponse.ok(ArtifactDetail.from_models(art, body.content))
+
+
 @router.get("", response_model=ApiResponse[ArtifactListResponse])
 def list_artifacts(
     session_id: str | None = Query(default=None),

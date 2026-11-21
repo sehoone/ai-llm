@@ -1,10 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { Menu } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { ChatMessages } from '@/components/chat/chat-messages';
 import { Composer } from '@/components/chat/composer';
 import { ArtifactPanel } from '@/components/chat/artifact-panel';
@@ -12,16 +8,10 @@ import { useChat } from '@/hooks/use-chat';
 import { useArtifactStore } from '@/stores/artifact-store';
 
 export default function ChatPage() {
-  const { loadSessions, selectSession, newChat, send, regenerate, stop, rename, remove, submitApproval } =
-    useChat();
+  const { newChat, send, regenerate, stop, submitApproval, submitClarification } = useChat();
   const panelOpen = useArtifactStore((s) => s.panelOpen);
   const [draft, setDraft] = React.useState('');
-  const [mobileOpen, setMobileOpen] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-  React.useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
 
   // 단축키: ⌘/Ctrl+K → 새 대화 + 입력창 포커스
   React.useEffect(() => {
@@ -49,42 +39,15 @@ export default function ChatPage() {
     textareaRef.current?.focus();
   }
 
-  const renderSidebar = (onNavigate?: () => void) => (
-    <ChatSidebar
-      onSelect={selectSession}
-      onNewChat={newChat}
-      onRename={rename}
-      onRemove={remove}
-      onNavigate={onNavigate}
-    />
-  );
-
+  // 셸이 사이드바·모바일 헤더를 담당. 여기선 본문(메시지+입력) + 아티팩트 패널만.
   return (
-    <div className="flex h-svh">
-      <aside className="hidden w-72 shrink-0 border-e border-sidebar-border md:block">
-        {renderSidebar()}
-      </aside>
-
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-border p-2 md:hidden">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="대화 목록 열기">
-                <Menu />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
-              <SheetTitle className="sr-only">대화 목록</SheetTitle>
-              {renderSidebar(() => setMobileOpen(false))}
-            </SheetContent>
-          </Sheet>
-          <span className="text-sm font-medium">AI 포털</span>
-        </header>
-
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <ChatMessages
           onRegenerate={regenerate}
           onPickPrompt={pickPrompt}
           onApprovalDecision={submitApproval}
+          onClarify={submitClarification}
         />
         <Composer
           value={draft}
@@ -93,7 +56,7 @@ export default function ChatPage() {
           onStop={stop}
           textareaRef={textareaRef}
         />
-      </main>
+      </div>
 
       {panelOpen && <ArtifactPanel />}
     </div>

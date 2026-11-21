@@ -1,9 +1,17 @@
 'use client';
 
 import { Markdown } from '@/components/markdown';
+import { SandboxFrame } from '@/components/artifacts/sandbox-frame';
 
-// 정적 렌더(샌드박스 iframe, 스크립트 불가 — 안전한 미리보기). react·mermaid 등 JS 필요 타입은 소스 표시.
-const SANDBOXED = new Set(['text/html', 'image/svg+xml']);
+type DataRecord = Record<string, unknown>;
+
+// 샌드박스 iframe에서 실행/렌더하는 타입 (allow-scripts + CSP 잠금).
+const SANDBOXED = new Set([
+  'text/html',
+  'application/vnd.react',
+  'image/svg+xml',
+  'application/vnd.mermaid',
+]);
 
 function SourceView({ content, note }: { content: string; note?: string }) {
   return (
@@ -20,10 +28,14 @@ export function ArtifactRenderer({
   type,
   content,
   complete = true,
+  dataGet,
+  dataSet,
 }: {
   type: string;
   content: string;
   complete?: boolean;
+  dataGet?: () => Promise<DataRecord>;
+  dataSet?: (data: DataRecord) => Promise<void>;
 }) {
   if (type === 'text/markdown') {
     return (
@@ -34,20 +46,11 @@ export function ArtifactRenderer({
   }
 
   if (SANDBOXED.has(type)) {
-    // 스트리밍 중에는 소스를 라이브로 보여주고(재로드 폭주 방지), 완료 후 iframe을 1회 마운트.
+    // 스트리밍 중에는 소스를 보여주고(부분 코드 실행 방지), 완료 후 샌드박스에서 실행.
     if (!complete) return <SourceView content={content} note="생성 중…" />;
-    return (
-      <iframe
-        // sandbox="" → 스크립트·폼·동일출처 전부 차단, HTML/CSS/SVG만 정적 렌더.
-        key={content.length}
-        sandbox=""
-        srcDoc={content}
-        title="artifact"
-        className="h-full w-full border-0 bg-white"
-      />
-    );
+    return <SandboxFrame type={type} content={content} dataGet={dataGet} dataSet={dataSet} />;
   }
 
-  // application/vnd.code · mermaid · react · unknown → 실행하지 않고 소스 표시.
+  // application/vnd.code · 기타 → 실행하지 않고 소스 표시.
   return <SourceView content={content} />;
 }

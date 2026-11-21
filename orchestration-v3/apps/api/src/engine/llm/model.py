@@ -45,6 +45,24 @@ class LlmChatModel:
         # chat model은 AIMessage를 반환하지만 방어적으로 변환.
         return AIMessage(content=getattr(result, "content", str(result)))
 
+    async def ainvoke(self, messages: list[BaseMessage], config: Any = None) -> AIMessage:
+        """`invoke`의 async 버전 (ADR-0026). 그래프 노드가 **취소 가능한** 모델 호출로 사용한다.
+
+        클라이언트 연결 종료 시 태스크 취소가 이 await를 통해 내부 LLM 호출(astream/httpx)까지
+        전파돼 토큰 생성·과금이 즉시 멈춘다. system prompt 선주입·config 포워딩은 `invoke`와 동일.
+        """
+        msgs = list(messages)
+        if self._system_prompt and not any(isinstance(m, SystemMessage) for m in msgs):
+            msgs = [SystemMessage(content=self._system_prompt), *msgs]
+        result = (
+            await self._runnable.ainvoke(msgs, config=config)
+            if config is not None
+            else await self._runnable.ainvoke(msgs)
+        )
+        if isinstance(result, AIMessage):
+            return result
+        return AIMessage(content=getattr(result, "content", str(result)))
+
     def stream(self, messages: list[BaseMessage], config: Any = None) -> Iterator[str]:
         """토큰 텍스트 조각을 순차 yield (HITL·도구 불필요한 단순 챗용).
 

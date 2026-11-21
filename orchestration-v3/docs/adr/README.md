@@ -35,7 +35,15 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0018](0018-env-config-layout.md) | env 설정 레이아웃 — 환경별 단일 소스 | Accepted |
 | [0019](0019-workflow-engine.md) | 워크플로우 — 노드 그래프 실행 엔진 + workflow 도메인 | Proposed |
 | [0020](0020-user-portal-frontend.md) | 사용자 포털 프론트 분리 (apps/portal — 경로 분리·셀프 가입) | Proposed |
+| [0021](0021-projects.md) | 프로젝트 — 대화·지침·지식 작업공간 (chat 재사용 + project 도메인) | Accepted |
+| [0022](0022-connectors-mcp.md) | 커넥터 — 챗 도구를 사내 MCP 서버로 확장 (connector 도메인 + engine MCP 로더) | Accepted |
 | [0023](0023-admin-portal-split.md) | 관리자/사용자 포털 분리 (admin web ↔ user portal — 상위 아키텍처 결정) | Accepted |
+| [0024](0024-skills-instruction-presets.md) | 스킬 — 재사용 지침 프리셋 (skill 도메인 + system prompt 합성) | Accepted |
+| [0025](0025-chat-clarification-and-interrupt.md) | 챗 되묻기·사람 개입 (ask_user 인터럽트 + 중단 내구화) | Accepted |
+| [0026](0026-chat-async-streaming.md) | chat 비동기 스트리밍 전환 (취소 가능한 중단 — ADR-0011 §2 개정) | Accepted |
+| [0027](0027-async-db-session.md) | 비동기 DB 세션 (AsyncSession/psycopg async — 단계적·조건부) | Proposed |
+| [0028](0028-langgraph-postgres-checkpointer.md) | LangGraph Postgres 체크포인터 (AsyncPostgresSaver — 세션 내구화) | Accepted |
+| [0029](0029-chat-checkpointer-operations.md) | chat 체크포인터·승인 운영 (정리·기동 경쟁·관측) | Proposed |
 
 ## 관련 문서
 

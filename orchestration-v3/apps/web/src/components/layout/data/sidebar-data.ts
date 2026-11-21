@@ -58,11 +58,6 @@ export const sidebarData: SidebarData = {
               icon: MessagesSquare,
             },
             {
-              title: 'Artifacts',
-              url: '/artifacts',
-              icon: Shapes,
-            },
-            {
               title: 'Agents',
               url: '/agents',
               icon: BrainCog,

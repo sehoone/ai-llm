@@ -88,9 +88,12 @@ CREATE TABLE IF NOT EXISTS llmonl.chat_message (
     role        VARCHAR(20)  NOT NULL,   -- user | assistant | tool
     content     TEXT         NOT NULL DEFAULT '',
     tool_calls  JSONB,
+    status      VARCHAR(20)  NOT NULL DEFAULT 'complete',  -- complete | aborted (중단 부분응답, ADR-0025 §5)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON llmonl.chat_message (session_id);
+-- 기존 볼륨 멱등 ALTER (thread_rev와 동일 재실행-안전 패턴).
+ALTER TABLE llmonl.chat_message ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'complete';
 
 -- 승인 요청·결정 감사 (LangGraph 체크포인트와 분리 — 이력·재생방지·TTL·UI용)
 CREATE TABLE IF NOT EXISTS llmonl.chat_approval (
@@ -377,3 +380,131 @@ CREATE TABLE IF NOT EXISTS llmonl.workflow_endpoint (
 );
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_workflow_id ON llmonl.workflow_endpoint (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_endpoint_path        ON llmonl.workflow_endpoint (path);
+
+-- ─────────────────────────────────────────────────────────────
+-- project 도메인 (ADR-0021): 대화·지침·지식을 묶는 작업공간.
+-- 대화는 chat 스택 재사용(chat_session.project_id), 지식은 rag 전용 그룹 재사용.
+-- FK CASCADE 없음 — 프로젝트 삭제 시 앱(repository)이 세션·지식 연쇄 정리.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.project (
+    id            TEXT         PRIMARY KEY,                 -- uuid
+    user_id       BIGINT       NOT NULL,
+    name          TEXT         NOT NULL,
+    description   TEXT,
+    instructions  TEXT         NOT NULL DEFAULT '',         -- 공유 system prompt
+    rag_key       TEXT         NOT NULL,                    -- 전용 지식베이스 키
+    rag_group     TEXT         NOT NULL,                    -- rag_group_config.name (1:1)
+    icon          TEXT         NOT NULL DEFAULT 'folder',
+    color         TEXT         NOT NULL DEFAULT '#6366f1',
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_project_user_id ON llmonl.project (user_id);
+
+-- chat_session에 소속 프로젝트 연결 (thread_rev와 동일한 재실행-안전 ALTER 패턴).
+ALTER TABLE llmonl.chat_session ADD COLUMN IF NOT EXISTS project_id TEXT;  -- NULL = 일반 대화
+CREATE INDEX IF NOT EXISTS idx_chat_session_project_id ON llmonl.chat_session (project_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- connector 도메인 (ADR-0022): 챗 도구를 사내 MCP 서버로 확장.
+-- 등록·인가는 domain, 도구 로드·위험도는 engine/agent. sk- 키는 참조로만 보관.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.connector (
+    id             TEXT         PRIMARY KEY,                -- uuid
+    user_id        BIGINT       NOT NULL,
+    name           TEXT         NOT NULL,
+    description    TEXT,
+    mcp_url        TEXT         NOT NULL,                   -- spring-ai-mcp /mcp 좌표
+    credential_ref TEXT,                                    -- sk- 키 참조(평문 금지)
+    enabled        BOOLEAN      NOT NULL DEFAULT true,
+    created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_connector_user_id ON llmonl.connector (user_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- skill 도메인 (ADR-0024): 재사용 지침 프리셋. body를 system prompt에 합성.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.skill (
+    id           TEXT         PRIMARY KEY,                  -- uuid
+    user_id      BIGINT       NOT NULL,
+    name         TEXT         NOT NULL,
+    description  TEXT,
+    body         TEXT         NOT NULL DEFAULT '',          -- 지침 본문
+    icon         TEXT         NOT NULL DEFAULT 'sparkles',
+    color        TEXT         NOT NULL DEFAULT '#6366f1',
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_skill_user_id ON llmonl.skill (user_id);
+
+-- project ↔ skill 기본 활성 스킬 (ADR-0024 §4 · ADR-0021): 프로젝트 대화에 자동 적용.
+-- FK 없음(도메인 관례) — 연쇄 정리는 앱이 수행. sort_order로 합성 순서(우선순위)를 보존.
+CREATE TABLE IF NOT EXISTS llmonl.project_skill (
+    project_id  TEXT     NOT NULL,
+    skill_id    TEXT     NOT NULL,
+    sort_order  INT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, skill_id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_skill_project ON llmonl.project_skill (project_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- LangGraph 체크포인터 (ADR-0028): HITL 승인·되묻기·중단 세션의 재개 상태 저장소.
+-- 스키마는 langgraph-checkpoint-postgres가 소유하나, 본 프로젝트는 **DDL을 init.sql로만 관리**한다
+-- (AsyncPostgresSaver.setup() 런타임 DDL 미사용 — ADR-0028 개정). 아래는 v3.2.1 런타임이 쓰는 테이블.
+-- 개발 단계 정책: **migration 버전 관리 없음**(checkpoint_migrations·seed 제외). 런타임(aput/aget/alist/
+-- adelete)은 아래 3개 테이블만 쓰고 checkpoint_migrations는 setup() 전용이라 불요. 스키마가 바뀌면
+-- (langgraph 업그레이드 등) **DB 볼륨을 재생성**한다(task deploy-down ENV=<e> → 재배포). 즉 "지우고 다시 생성".
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.checkpoints (
+    thread_id            TEXT  NOT NULL,
+    checkpoint_ns        TEXT  NOT NULL DEFAULT '',
+    checkpoint_id        TEXT  NOT NULL,
+    parent_checkpoint_id TEXT,
+    type                 TEXT,
+    checkpoint           JSONB NOT NULL,
+    metadata             JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+);
+CREATE INDEX IF NOT EXISTS checkpoints_thread_id_idx ON llmonl.checkpoints USING btree (thread_id);
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_blobs (
+    thread_id     TEXT  NOT NULL,
+    checkpoint_ns TEXT  NOT NULL DEFAULT '',
+    channel       TEXT  NOT NULL,
+    version       TEXT  NOT NULL,
+    type          TEXT  NOT NULL,
+    blob          BYTEA,
+    PRIMARY KEY (thread_id, checkpoint_ns, channel, version)
+);
+CREATE INDEX IF NOT EXISTS checkpoint_blobs_thread_id_idx ON llmonl.checkpoint_blobs USING btree (thread_id);
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_writes (
+    thread_id     TEXT    NOT NULL,
+    checkpoint_ns TEXT    NOT NULL DEFAULT '',
+    checkpoint_id TEXT    NOT NULL,
+    task_id       TEXT    NOT NULL,
+    idx           INTEGER NOT NULL,
+    channel       TEXT    NOT NULL,
+    type          TEXT,
+    blob          BYTEA   NOT NULL,
+    task_path     TEXT    NOT NULL DEFAULT '',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
+);
+CREATE INDEX IF NOT EXISTS checkpoint_writes_thread_id_idx ON llmonl.checkpoint_writes USING btree (thread_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- 장기 메모리 collection (ADR-0015): mem0 pgvector 벡터 스토어.
+-- mem0는 테이블이 **없을 때만** create_col()을 실행하므로(_ensure_collection: list_cols 확인 후 skip),
+-- 여기서 **선재 생성**하면 앱(mem0)은 DDL을 전혀 실행하지 않는다(ADR-0028 "앱 테이블 생성 금지" 정책 일관).
+-- 스키마·인덱스명은 mem0 create_col과 동일하게 맞춘다(hnsw=기본 on, diskann=off).
+-- ⚠️ vector(1536)의 차원은 **임베더 모델 출력 차원**과 일치해야 한다 — `MEMORY_EMBEDDER_DIMS`(기본 1536 =
+--    text-embedding-3-small)와 동일 값. 임베더를 다른 차원 모델로 바꾸면 이 숫자도 바꾸고 볼륨을 재생성한다.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.longterm_memory (
+    id      UUID         PRIMARY KEY,
+    vector  vector(1536),
+    payload JSONB
+);
+CREATE INDEX IF NOT EXISTS longterm_memory_hnsw_idx
+    ON llmonl.longterm_memory USING hnsw (vector vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS longterm_memory_text_lemmatized_idx
+    ON llmonl.longterm_memory USING gin (to_tsvector('simple', payload->>'text_lemmatized'));

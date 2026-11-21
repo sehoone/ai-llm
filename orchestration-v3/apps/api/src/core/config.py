@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     chat_approval_ttl_seconds: int = 900  # 승인 대기 만료 (15분)
     chat_checkpointer: str = "memory"     # "memory"(인프로세스) | "postgres"(후속)
 
+    # 챗 유지보수 스윕 (ADR-0029) — 만료 승인 정리(+후속: 체크포인트 보존). 다중 인스턴스 안전(advisory lock).
+    chat_maintenance_enabled: bool = True
+    chat_maintenance_cron: str = "0 * * * *"  # 기본 매시 정각(UTC)
+
     # 워크플로우 엔진 (ADR-0019)
     workflow_scheduler_enabled: bool = True  # cron 스케줄(APScheduler) 기동 on/off
     workflow_http_timeout: int = 30          # http/loop 노드 기본 타임아웃(초)
@@ -88,6 +92,9 @@ class Settings(BaseSettings):
     memory_enabled: bool = False
     memory_collection: str = "longterm_memory"
     memory_max_count: int = 100
+    # 임베딩 차원 — pgvector collection의 vector(N)·임베더 모델 출력 차원과 일치해야 한다(ADR-0015).
+    # init.sql의 longterm_memory.vector(1536)와 동일 값을 유지. 모델 변경 시 함께 변경 + 볼륨 재생성.
+    memory_embedder_dims: int = 1536
     postgres_schema: str = "llmonl"
 
     # Langfuse (LLM 관측 — ADR-0007). self-host 또는 cloud. 키 없으면 비활성.

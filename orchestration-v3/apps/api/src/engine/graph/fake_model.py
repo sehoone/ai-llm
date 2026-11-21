@@ -35,3 +35,7 @@ class FakeToolCallingModel:
                 }
             ],
         )
+
+    async def ainvoke(self, messages: list[BaseMessage], config: Any = None) -> AIMessage:
+        """async 그래프(ADR-0026)용 — 결정적 스텁이라 동기 invoke로 위임한다."""
+        return self.invoke(messages, config)

@@ -7,8 +7,10 @@ import {
   regenerate as apiRegenerate,
   streamMessage,
   submitApprovals,
+  submitClarify,
   type ApprovalDecision,
   type AttachmentMeta,
+  type ClarifyAnswer,
   type FileAttachment,
   type StreamCallbacks,
 } from '@/api/chat';
@@ -74,6 +76,10 @@ export function useChat() {
           // 스트림이 닫히고 승인 대기 — 승인 카드로 표시(use-chat submitApproval이 재개).
           getState().setPendingApproval({ sessionId, ...data });
         },
+        onClarificationRequired: (data) => {
+          // 되묻기(ADR-0025): 스트림이 닫히고 사용자 응답 대기 — 되묻기 카드로 표시.
+          getState().setPendingClarification({ sessionId, ...data });
+        },
         onError: (d) => toast.error(d),
         // 아티팩트(ADR-0013): 시작 시 패널 자동 오픈, 델타 누적.
         onArtifactStart: (id, type, title) => {
@@ -87,14 +93,17 @@ export function useChat() {
         await call(cb, controller.signal);
       } finally {
         stopFlushing();
-        flush();
+        flush(); // 버퍼에 남은 토큰을 마지막 버블에 먼저 반영(중단 표시보다 선행).
         abortRef.current = null;
         getState().setSending(false);
-        // 완료 후 정규화: 서버 메시지로 교체해 첨부 id·assistant id를 확정(다운로드 가능).
-        // 중단·세션 이탈·승인 대기(턴 미완료) 시엔 생략(낙관적 메시지 보존).
-        if (
-          !controller.signal.aborted &&
+        // 중단(ADR-0025 §5): flush 뒤 마지막 assistant 버블을 "중단됨"으로 표시(부분 응답 보존).
+        if (controller.signal.aborted) {
+          getState().markLastAssistantAborted();
+        } else if (
+          // 완료 후 정규화: 서버 메시지로 교체해 첨부 id·assistant id를 확정(다운로드 가능).
+          // 승인/되묻기 대기(턴 미완료) 시엔 생략(낙관적 메시지 보존).
           !getState().pendingApproval &&
+          !getState().pendingClarification &&
           getState().activeId === sessionId
         ) {
           try {
@@ -122,6 +131,7 @@ export function useChat() {
     if (st.sending || st.activeId === id) return;
     st.setActiveId(id);
     st.setPendingApproval(null);
+    st.setPendingClarification(null);
     st.setMessages([]);
     st.setMessagesLoading(true);
     getArt().reset();
@@ -141,6 +151,7 @@ export function useChat() {
     st.setActiveId(null);
     st.setMessages([]);
     st.setPendingApproval(null);
+    st.setPendingClarification(null);
     getArt().reset();
   }, []);
 
@@ -149,12 +160,15 @@ export function useChat() {
       const text = content.trim();
       const st = getState();
       if ((!text && files.length === 0) || st.sending) return;
+      // 승인·되묻기 대기 중엔 새 전송을 막는다 — 응답 카드로만 진행(ADR-0008·0025).
+      if (st.pendingApproval || st.pendingClarification) return;
       st.setSending(true);
 
       let sessionId = st.activeId;
       if (sessionId == null) {
         try {
-          const s = await chatApi.createSession();
+          // 새 대화가 프로젝트 소속이면 project_id를 실어 생성 — 지침·지식 자동 주입(ADR-0021).
+          const s = await chatApi.createSession(undefined, st.activeProjectId);
           sessionId = s.id;
           getState().setActiveId(s.id);
           getState().upsertSessionFront(s);
@@ -208,7 +222,8 @@ export function useChat() {
           signal,
           fileAttachments,
           getState().selectedModelId,
-          getState().selectedRagGroup
+          getState().selectedRagGroup,
+          getState().selectedSkillIds
         )
       );
     },
@@ -250,6 +265,25 @@ export function useChat() {
     [drive]
   );
 
+  /** 되묻기 응답 제출 → 그래프 재개(ADR-0025). answer는 자유입력(text) 또는 보기선택(value). */
+  const submitClarification = useCallback(
+    async (answer: ClarifyAnswer) => {
+      const pending = getState().pendingClarification;
+      if (!pending || getState().sending) return;
+      getState().setPendingClarification(null);
+      getState().setSending(true);
+      // 재개 content는 이어지는 assistant 턴 — 마지막이 assistant가 아니면 빈 버블 추가.
+      const msgs = getState().messages;
+      if (!msgs.length || msgs[msgs.length - 1].role !== 'assistant') {
+        getState().appendMessages({ id: Date.now(), role: 'assistant', content: '' });
+      }
+      await drive(pending.sessionId, (cb, signal) =>
+        submitClarify(pending.sessionId, pending.tool_call_id, answer, cb, signal)
+      );
+    },
+    [drive]
+  );
+
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -284,5 +318,6 @@ export function useChat() {
     rename,
     remove,
     submitApproval,
+    submitClarification,
   };
 }

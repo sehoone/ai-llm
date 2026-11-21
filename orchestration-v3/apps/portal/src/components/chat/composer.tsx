@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ModelSelector } from '@/components/chat/model-selector';
 import { RagSelector } from '@/components/chat/rag-selector';
+import { SkillSelector } from '@/components/chat/skill-selector';
 import { useChatStore } from '@/stores/chat-store';
 import { ACCEPT_ATTR, isImageType, validateFile } from '@/lib/files';
 
@@ -103,6 +104,7 @@ export function Composer({
           <div className="flex items-center gap-1 px-2 pt-1">
             <ModelSelector />
             <RagSelector />
+            <SkillSelector />
           </div>
 
           <div className="flex items-end gap-1 p-1 pt-0">

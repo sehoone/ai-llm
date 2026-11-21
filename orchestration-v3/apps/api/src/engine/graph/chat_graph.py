@@ -12,6 +12,7 @@ engine 규칙(ADR-0005): FastAPI·domains 비의존. 역할·오버라이드는 
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Annotated, Any, Protocol, TypedDict
 
@@ -23,7 +24,7 @@ from langgraph.graph.message import add_messages
 from langgraph.types import interrupt
 
 from src.engine.agent.policy import ApprovalPolicy, Decision, PolicyContext, ToolCall
-from src.engine.agent.registry import ToolRegistry
+from src.engine.agent.registry import ToolKind, ToolRegistry
 
 
 class ChatModel(Protocol):
@@ -31,9 +32,15 @@ class ChatModel(Protocol):
 
     `config`는 LangGraph가 노드에 준 RunnableConfig — `stream_mode="messages"` 토큰 콜백이
     LLM 호출까지 전파되도록 모델이 내부 Runnable에 포워딩한다(ADR-0011 §2).
+
+    `ainvoke`는 async 그래프(ADR-0026)에서 **취소 가능한** 모델 호출로 쓴다.
     """
 
     def invoke(self, messages: list[BaseMessage], config: RunnableConfig | None = None) -> AIMessage: ...
+
+    async def ainvoke(
+        self, messages: list[BaseMessage], config: RunnableConfig | None = None
+    ) -> AIMessage: ...
 
 
 class ChatState(TypedDict, total=False):
@@ -55,6 +62,12 @@ def _tool_calls(msg: BaseMessage) -> list[dict[str, Any]]:
     return list(getattr(msg, "tool_calls", None) or [])
 
 
+def _is_interrupt_tool(registry: ToolRegistry, name: str) -> bool:
+    """되묻기(ask_user) 같은 INTERRUPT 종류 도구인지 (ADR-0025 §2)."""
+    spec = registry.get(name)
+    return spec is not None and spec.kind is ToolKind.INTERRUPT
+
+
 def build_chat_graph(
     *,
     model: "ChatModel | Callable[[RunnableConfig], ChatModel]",
@@ -69,11 +82,11 @@ def build_chat_graph(
     리졸버가 해석한다(ADR-0005 — 도메인이 값 주입, engine은 DB 미조회).
     """
 
-    def agent(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    async def agent(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         # 리졸버면 config로 모델 선택, 아니면 고정 모델 사용.
         m: ChatModel = model(config) if callable(model) else model
-        # config 전달 → 토큰 스트리밍 콜백이 LLM 호출까지 전파 (ADR-0011 §2).
-        ai = m.invoke(state["messages"], config)
+        # await ainvoke → config 전달(토큰 스트리밍 콜백, ADR-0011 §2) + 취소 전파(ADR-0026).
+        ai = await m.ainvoke(state["messages"], config)
         return {"messages": [ai]}
 
     def route(state: ChatState) -> str:
@@ -82,10 +95,37 @@ def build_chat_graph(
     def approval_gate(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         ai = state["messages"][-1]
         ctx = _policy_ctx(config)
+        calls = _tool_calls(ai)
+
+        # 되묻기(INTERRUPT 도구) 우선 (ADR-0025 §3): ask_user가 있으면 이번 턴은 되묻기만 처리하고
+        # 외부 도구 호출은 보류(거부)한다 — 사용자 답변 후 모델이 재계획한다.
+        clarify_tc = next(
+            (tc for tc in calls if _is_interrupt_tool(registry, tc["name"])), None
+        )
+        if clarify_tc is not None:
+            req = {
+                "tool_call_id": clarify_tc["id"],
+                "question": str(clarify_tc["args"].get("question", "")),
+                "options": clarify_tc["args"].get("options") or None,
+                "allow_free_text": bool(clarify_tc["args"].get("allow_free_text", True)),
+            }
+            # 그래프 일시중지 → 체크포인트 저장. resume 값으로 여기 재개.
+            # human: {tool_call_id: {"text"?: str, "value"?: str}}
+            human = interrupt({"type": "clarification_required", "requests": [req]})
+            ans = (human or {}).get(clarify_tc["id"]) or {}
+            answer = str(ans.get("text") or ans.get("value") or "").strip()
+            decisions = {
+                clarify_tc["id"]: {"approved": True, "clarify_answer": answer or "(사용자가 응답하지 않음)"}
+            }
+            for tc in calls:
+                if tc["id"] not in decisions:
+                    decisions[tc["id"]] = {"approved": False, "reason": "되묻기 응답 후 재계획"}
+            return {"decisions": decisions}
+
         decisions: dict[str, Any] = {}
         confirm_requests: list[dict[str, Any]] = []
 
-        for tc in _tool_calls(ai):
+        for tc in calls:
             result = policy.evaluate(ToolCall(id=tc["id"], name=tc["name"], args=tc["args"]), ctx)
             if result.decision is Decision.ALLOW:
                 decisions[tc["id"]] = {"approved": True, "args": tc["args"]}
@@ -120,12 +160,23 @@ def build_chat_graph(
 
         return {"decisions": decisions}
 
-    def tools(state: ChatState) -> dict[str, Any]:
+    async def tools(state: ChatState) -> dict[str, Any]:
         ai = state["messages"][-1]
         decisions = state.get("decisions", {})
         out: list[BaseMessage] = []
         for tc in _tool_calls(ai):
             d = decisions.get(tc["id"], {"approved": False, "reason": "미결정"})
+            spec = registry.get(tc["name"])
+            # 되묻기(INTERRUPT): 핸들러를 실행하지 않고 사용자 답변을 도구 결과로 주입 (ADR-0025 §3).
+            if spec is not None and spec.kind is ToolKind.INTERRUPT:
+                out.append(
+                    ToolMessage(
+                        content=d.get("clarify_answer") or "(사용자가 응답하지 않음)",
+                        tool_call_id=tc["id"],
+                        name=tc["name"],
+                    )
+                )
+                continue
             if not d.get("approved"):
                 out.append(
                     ToolMessage(
@@ -136,10 +187,14 @@ def build_chat_graph(
                     )
                 )
                 continue
-            spec = registry.get(tc["name"])
             args = d.get("args") or tc["args"]
             try:
-                content = str(spec.handler(**args)) if spec else f"[오류] 미등록 도구 {tc['name']}"
+                # 도구 핸들러는 sync·블로킹(MCP 등)일 수 있어 스레드로 격리 (ADR-0026 §2).
+                content = (
+                    str(await asyncio.to_thread(spec.handler, **args))
+                    if spec
+                    else f"[오류] 미등록 도구 {tc['name']}"
+                )
             except Exception as e:  # noqa: BLE001 — 도구 오류를 모델에 되돌려 복구 기회를 준다
                 content = f"[오류] {tc['name']} 실행 실패: {e}"
             out.append(ToolMessage(content=content, tool_call_id=tc["id"], name=tc["name"]))
