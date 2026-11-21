@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   ListTodo,
   MessagesSquare,
-  Search,
   Settings,
   FileText,
   Mic,
@@ -13,8 +12,6 @@ import {
   Users,
   Key,
   BrainCog,
-  Sparkles,
-  Database,
   Shapes,
   // GalleryVerticalEnd,
 } from 'lucide-react'
@@ -90,21 +87,6 @@ export const sidebarData: SidebarData = {
               title: 'RAG Documents',
               url: '/rag-documents',
               icon: FileText,
-            },
-            {
-              title: 'Natural Language Search',
-              url: '/natural-search',
-              icon: Search,
-            },
-            {
-              title: 'AI Overview',
-              url: '/ai-overview',
-              icon: Sparkles,
-            },
-            {
-              title: 'AI Overview Data',
-              url: '/ai-overview-data',
-              icon: Database,
             },
             {
               title: 'Meeting',
