@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { meetingApi } from '@/api/meetings'
 import { useRecorderStore } from '@/stores/recorder-store'
-import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,8 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { formatTimestamp } from '../lib'
+import { formatTimestamp } from './lib'
 
 const LANGUAGES = [
   { value: 'ko-KR', label: '한국어' },
@@ -29,7 +27,7 @@ const LANGUAGES = [
 
 /**
  * Global finalize dialog for a finished recording. Mounted once in the
- * authenticated layout so a recording can be saved from any page, and so a
+ * authenticated app shell so a recording can be saved from any page, and so a
  * recovered recording (after reload/crash) can be saved too.
  */
 export function SaveRecordingDialog() {
@@ -59,7 +57,7 @@ export function SaveRecordingDialog() {
       discard() // clears blob + IndexedDB + closes (saveOpen=false)
       router.push('/meeting-minutes')
     } catch (err) {
-      logger.error(err)
+      console.error(err)
       toast.error('업로드에 실패했습니다.')
     } finally {
       setSubmitting(false)
@@ -96,7 +94,7 @@ export function SaveRecordingDialog() {
 
           <div className='grid grid-cols-2 gap-3'>
             <div className='space-y-1.5'>
-              <Label htmlFor='save-title'>제목</Label>
+              <label htmlFor='save-title' className='text-sm font-medium leading-none'>제목</label>
               <Input
                 id='save-title'
                 placeholder='예: 주간 기획회의'
@@ -105,7 +103,7 @@ export function SaveRecordingDialog() {
               />
             </div>
             <div className='space-y-1.5'>
-              <Label htmlFor='save-lang'>언어</Label>
+              <label htmlFor='save-lang' className='text-sm font-medium leading-none'>언어</label>
               <select
                 id='save-lang'
                 className='flex h-9 w-full items-center rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring'

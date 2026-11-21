@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { Mic, Pause, Play, Square, Upload, X, FileAudio } from 'lucide-react'
 import { meetingApi } from '@/api/meetings'
 import { useRecorderStore } from '@/stores/recorder-store'
-import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,9 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatTimestamp } from '../lib'
+import { formatTimestamp } from './lib'
 
 const LANGUAGES = [
   { value: 'ko-KR', label: '한국어' },
@@ -33,6 +31,8 @@ interface Props {
 }
 
 export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
+  // portal은 shadcn Tabs를 복제하지 않는다(ADR-0020 린 구성) — useState 세그먼트 토글로 대체.
+  const [tab, setTab] = useState<'record' | 'upload'>('record')
   const [title, setTitle] = useState('')
   const [language, setLanguage] = useState('ko-KR')
   const [file, setFile] = useState<File | null>(null)
@@ -63,7 +63,7 @@ export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
       onCreated()
       close()
     } catch (err) {
-      logger.error(err)
+      console.error(err)
       toast.error('업로드에 실패했습니다.')
     } finally {
       setSubmitting(false)
@@ -76,6 +76,19 @@ export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
     onOpenChange(false)
   }
 
+  const tabBtn = (value: 'record' | 'upload', icon: React.ReactNode, label: string) => (
+    <button
+      type='button'
+      onClick={() => setTab(value)}
+      className={cn(
+        'inline-flex flex-1 items-center justify-center gap-2 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors',
+        tab === value ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+      )}
+    >
+      {icon} {label}
+    </button>
+  )
+
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
       <DialogContent className='max-w-lg'>
@@ -84,18 +97,14 @@ export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
           <DialogDescription>녹음하거나 오디오 파일을 업로드해 회의록을 생성합니다.</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue='record'>
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='record'>
-              <Mic className='mr-2 h-4 w-4' /> 녹음하기
-            </TabsTrigger>
-            <TabsTrigger value='upload'>
-              <Upload className='mr-2 h-4 w-4' /> 파일 업로드
-            </TabsTrigger>
-          </TabsList>
+        <div className='grid w-full grid-cols-2 gap-1 rounded-md bg-muted p-1'>
+          {tabBtn('record', <Mic className='h-4 w-4' />, '녹음하기')}
+          {tabBtn('upload', <Upload className='h-4 w-4' />, '파일 업로드')}
+        </div>
 
-          {/* Record tab — start/control only; finalize is global */}
-          <TabsContent value='record' className='space-y-4 pt-2'>
+        {/* Record tab — start/control only; finalize is global */}
+        {tab === 'record' && (
+          <div className='space-y-4 pt-2'>
             <div className='flex flex-col items-center gap-4 rounded-lg border bg-muted/20 py-8'>
               <div className='font-mono text-3xl tabular-nums'>{formatTimestamp(elapsedMs)}</div>
               {error && <p className='px-6 text-center text-sm text-red-500'>{error}</p>}
@@ -132,13 +141,15 @@ export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
                 닫기
               </Button>
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Upload tab */}
-          <TabsContent value='upload' className='space-y-4 pt-2'>
+        {/* Upload tab */}
+        {tab === 'upload' && (
+          <div className='space-y-4 pt-2'>
             <div className='grid grid-cols-2 gap-3'>
               <div className='space-y-1.5'>
-                <Label htmlFor='meeting-title'>제목</Label>
+                <label htmlFor='meeting-title' className='text-sm font-medium leading-none'>제목</label>
                 <Input
                   id='meeting-title'
                   placeholder='예: 주간 기획회의'
@@ -147,7 +158,7 @@ export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
                 />
               </div>
               <div className='space-y-1.5'>
-                <Label htmlFor='meeting-lang'>언어</Label>
+                <label htmlFor='meeting-lang' className='text-sm font-medium leading-none'>언어</label>
                 <select
                   id='meeting-lang'
                   className='flex h-9 w-full items-center rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring'
@@ -202,8 +213,8 @@ export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
                 {submitting ? '생성 중…' : '생성'}
               </Button>
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

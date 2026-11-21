@@ -5,11 +5,11 @@ import { usePathname } from 'next/navigation'
 import { Mic, Pause, Play, Save, Square, Trash2 } from 'lucide-react'
 import { useRecorderStore } from '@/stores/recorder-store'
 import { Button } from '@/components/ui/button'
-import { formatTimestamp } from '../lib'
+import { formatTimestamp } from './lib'
 
 /**
- * Global floating recording bar. Mounted once in the authenticated layout so the
- * recording keeps running — and stays controllable — while the user navigates
+ * Global floating recording bar. Mounted once in the authenticated app shell so
+ * the recording keeps running — and stays controllable — while the user navigates
  * between menus. Also warns before unload and recovers an interrupted recording.
  */
 export function RecordingBar() {

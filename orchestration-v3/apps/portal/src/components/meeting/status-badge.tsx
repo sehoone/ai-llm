@@ -1,6 +1,5 @@
-import { Badge } from '@/components/ui/badge'
 import type { MeetingStatus } from '@/api/meetings'
-import { STATUS_LABEL, isProcessing } from '../lib'
+import { STATUS_LABEL, isProcessing } from './lib'
 
 const VARIANT: Record<MeetingStatus, string> = {
   UPLOADED: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
@@ -15,11 +14,13 @@ const VARIANT: Record<MeetingStatus, string> = {
 export function StatusBadge({ status }: { status: MeetingStatus }) {
   const processing = isProcessing(status)
   return (
-    <Badge variant='secondary' className={VARIANT[status]}>
+    <span
+      className={`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-medium ${VARIANT[status]}`}
+    >
       {processing && (
         <span className='mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current' />
       )}
       {STATUS_LABEL[status]}
-    </Badge>
+    </span>
   )
 }

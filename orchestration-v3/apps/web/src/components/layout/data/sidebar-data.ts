@@ -2,11 +2,9 @@ import {
   Bot,
   LayoutDashboard,
   ListTodo,
-  MessagesSquare,
   Search,
   Settings,
   FileText,
-  Mic,
   Zap,
   // AudioWaveform,
   Command,
@@ -55,11 +53,6 @@ export const sidebarData: SidebarData = {
           title: 'Chatbot',
           items: [
             {
-              title: 'Chats',
-              url: '/chats',
-              icon: MessagesSquare,
-            },
-            {
               title: 'Agents',
               url: '/agents',
               icon: BrainCog,
@@ -99,11 +92,6 @@ export const sidebarData: SidebarData = {
               title: 'AI Overview Data',
               url: '/ai-overview-data',
               icon: Database,
-            },
-            {
-              title: 'Meeting',
-              url: '/meeting-minutes',
-              icon: Mic,
             },
           ]
         },

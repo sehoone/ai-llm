@@ -8,6 +8,7 @@ import {
   FolderKanban,
   LogOut,
   MessageSquare,
+  Mic,
   PanelLeft,
   Plus,
   Search,
@@ -45,6 +46,7 @@ import { projectsApi } from '@/api/projects';
 const NAV = [
   { href: '/projects', label: '프로젝트', icon: FolderKanban },
   { href: '/chat', label: '채팅', icon: MessageSquare },
+  { href: '/meeting-minutes', label: '회의록', icon: Mic },
 ];
 
 export function ChatSidebar({
