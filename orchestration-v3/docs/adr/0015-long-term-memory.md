@@ -3,7 +3,7 @@
 - 상태: Accepted
 - 날짜: 2026-11-07
 - 결정자: sehoon
-- 관련: [ADR-0010](0010-engine-llm-provider.md)(LLM·키), [ADR-0012](0012-engine-rag.md)(pgvector), [ADR-0011](0011-chat-streaming-contract.md)(system prompt 주입), [ADR-0005](0005-ai-engine-layer.md)(경계)
+- 관련: [ADR-0010](0010-engine-llm-provider.md)(LLM·키), [ADR-0012](0012-engine-rag.md)(pgvector), [ADR-0011](0011-chat-streaming-contract.md)(system prompt 주입), [ADR-0005](0005-ai-engine-layer.md)(경계), [ADR-0028](0028-langgraph-postgres-checkpointer.md)(앱 테이블 생성 금지 — collection DDL은 init.sql)
 - 참조: V2 `common/langgraph/_memory.py`(MemoryMixin), `chatbot/api/chatbot_api.py`(`DELETE /memory`)
 - 로드맵: [v2-chat-migration-roadmap](../v2-chat-migration-roadmap.md) Phase 5
 
@@ -14,8 +14,8 @@ V2는 `mem0ai`(+pgvector)로 사용자별 메모리를 저장하고, 매 턴 마
 검색해 **system prompt에 주입**하며, 턴 종료 후 대화를 메모리에 **추가**한다.
 
 전제:
-- 스택에 pgvector 있음(llmonl). mem0는 자체 컬렉션 테이블을 pgvector에 만든다(우리 세션/ORM과 별개 —
-  mem0가 자체 관리하는 외부 저장소. langfuse처럼 engine이 외부 인프라를 쓰는 패턴).
+- 스택에 pgvector 있음(llmonl). mem0의 컬렉션 테이블은 우리 세션/ORM과 별개의 외부 저장소지만, DDL은
+  **앱이 만들지 않고 init.sql이 선재 생성**한다(ADR-0028 "앱 테이블 생성 금지" 정책 — §1·개정).
 - 메모리 추출은 **LLM 호출**(비용·지연) → 기본 **opt-in**.
 
 ## Decision (결정)
@@ -28,6 +28,13 @@ V2는 `mem0ai`(+pgvector)로 사용자별 메모리를 저장하고, 매 턴 마
   최대 보관 수. OpenAI 키는 `LLM_API_KEY` 재사용(ADR-0010).
 - vector_store = pgvector(우리 DB, `llmonl` 스키마). mem0가 `public`을 하드코딩하는 `list_cols`를
   `llmonl`로 **몽키패치**(V2 계승). 지연 초기화 싱글턴.
+- **collection DDL은 init.sql이 선재 생성**(개정): `longterm_memory` 테이블 + hnsw·gin 인덱스를 mem0
+  `create_col`과 **동일 스키마/인덱스명**으로 init.sql에 둔다. mem0 `_ensure_collection`은 `list_cols`로
+  존재를 확인해 **없을 때만** `create_col`을 호출하므로, 선재 테이블이면 **앱(mem0)은 DDL을 전혀 실행하지
+  않는다**(ADR-0028 정책 일관).
+- **임베딩 차원 설정화**: `vector(N)`의 N은 임베더 모델 출력 차원과 일치해야 한다. `MEMORY_EMBEDDER_DIMS`
+  (기본 1536 = text-embedding-3-small)를 **단일 소스**로 ① init.sql `vector(1536)` ② mem0 `embedding_model_dims`에
+  동일 적용. 모델을 다른 차원으로 바꾸면 이 값·init.sql·DB 볼륨을 함께 재생성(개발 단계 "지우고 다시 생성").
 - **dependency**: `mem0ai`. 미설치/미설정이어도 import가 startup을 깨지 않도록 **지연 import**.
 
 ### 2. chat 통합 (ADR-0011 system prompt 주입)

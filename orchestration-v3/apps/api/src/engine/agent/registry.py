@@ -20,6 +20,13 @@ class RiskTier(StrEnum):
     BLOCK = "BLOCK"      # 노출 금지 — 챗에서 호출 불가
 
 
+class ToolKind(StrEnum):
+    """도구 종류 (ADR-0025 §2)."""
+
+    EXTERNAL = "EXTERNAL"    # 외부 부수효과 도구 — 정책(AUTO/CONFIRM/BLOCK) 평가·실행 대상
+    INTERRUPT = "INTERRUPT"  # 사람 입력 수집용(ask_user) — 실행 대신 interrupt로 사용자에게 되묻는다
+
+
 # 티어 서열 (승격 비교용 — 큰 값일수록 엄격). 정책은 승격만 허용, 강등 금지.
 _SEVERITY = {RiskTier.AUTO: 0, RiskTier.CONFIRM: 1, RiskTier.BLOCK: 2}
 
@@ -36,6 +43,7 @@ class ToolSpec:
     - `risk`: 기본 티어. 명시 안 하면 보수적으로 `CONFIRM`(ADR-0008 §1).
     - `allow_edit`: `CONFIRM` 승인 시 사용자의 인자 수정 허용 여부. 파괴적·비가역 도구는 False.
     - `escalate_when`: 인자 기반 **승격** 술어. 참이면 티어를 최소 `CONFIRM`으로 올린다(강등 불가).
+    - `kind`: 도구 종류(ADR-0025). `INTERRUPT`(ask_user)는 핸들러를 실행하지 않고 되묻기 interrupt를 낸다.
     """
 
     name: str
@@ -44,6 +52,7 @@ class ToolSpec:
     risk: RiskTier = RiskTier.CONFIRM
     allow_edit: bool = True
     escalate_when: Callable[[dict[str, Any]], bool] | None = None
+    kind: ToolKind = ToolKind.EXTERNAL
 
     def effective_risk(self, args: dict[str, Any]) -> RiskTier:
         """인자를 반영한 실효 티어. `escalate_when`은 승격만 한다."""

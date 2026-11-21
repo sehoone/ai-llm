@@ -95,6 +95,10 @@ def _get_memory(llm: LlmConfig, embedder: LlmConfig) -> Any:
                         "config": {
                             "collection_name": settings.memory_collection,
                             "connection_string": conn,
+                            # 차원을 설정에서 명시 주입 — init.sql의 vector(N)·임베더 모델과 단일 소스로 일치
+                            # (ADR-0015). 미주입 시 mem0 기본 1536. 테이블은 init.sql이 선재 생성하므로
+                            # create_col은 호출되지 않지만(테이블 존재), 값 정합을 위해 명시한다.
+                            "embedding_model_dims": settings.memory_embedder_dims,
                         },
                     },
                     "llm": _mem0_component(llm),

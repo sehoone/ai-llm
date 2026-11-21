@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Bot, Plus, Trash2 } from 'lucide-react';
+import { Bot, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -75,16 +75,14 @@ export default function GptsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <header className="mb-6 flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/chat')} aria-label="채팅으로">
-          <ArrowLeft />
-        </Button>
-        <h1 className="flex-1 text-xl font-semibold">커스텀 GPT</h1>
-        <Button onClick={() => setCreating((v) => !v)}>
-          <Plus /> 새 GPT
-        </Button>
-      </header>
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-3xl p-6">
+        <header className="mb-6 flex items-center gap-3">
+          <h1 className="flex-1 text-xl font-semibold">커스텀 GPT</h1>
+          <Button onClick={() => setCreating((v) => !v)}>
+            <Plus /> 새 GPT
+          </Button>
+        </header>
 
       {creating && (
         <div className="mb-6 space-y-3 rounded-xl border border-border bg-card p-4">
@@ -165,6 +163,7 @@ export default function GptsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

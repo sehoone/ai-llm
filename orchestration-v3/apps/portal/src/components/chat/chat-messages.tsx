@@ -4,8 +4,10 @@ import * as React from 'react';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { EmptyState } from '@/components/chat/empty-state';
 import { ApprovalCard } from '@/components/chat/approval-card';
+import { ClarificationCard } from '@/components/chat/clarification-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatStore } from '@/stores/chat-store';
+import type { ClarifyAnswer } from '@/api/chat';
 
 function MessagesSkeleton() {
   return (
@@ -30,10 +32,12 @@ export function ChatMessages({
   onRegenerate,
   onPickPrompt,
   onApprovalDecision,
+  onClarify,
 }: {
   onRegenerate: () => void;
   onPickPrompt: (prompt: string) => void;
   onApprovalDecision: (approved: boolean) => void;
+  onClarify: (answer: ClarifyAnswer) => void;
 }) {
   const messages = useChatStore((s) => s.messages);
   const sending = useChatStore((s) => s.sending);
@@ -87,6 +91,7 @@ export function ChatMessages({
           );
         })}
         <ApprovalCard onDecision={onApprovalDecision} />
+        <ClarificationCard onSubmit={onClarify} />
       </div>
     </div>
   );

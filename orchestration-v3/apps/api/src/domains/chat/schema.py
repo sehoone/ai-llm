@@ -46,6 +46,8 @@ class AttachmentMeta(BaseModel):
 
 class SessionCreateRequest(BaseModel):
     title: str | None = None
+    # 선택: 소속 프로젝트 — 지정 시 project.instructions·지식이 대화에 자동 주입 (ADR-0021).
+    project_id: str | None = None
 
 
 class SessionRenameRequest(BaseModel):
@@ -55,10 +57,11 @@ class SessionRenameRequest(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     title: str
+    project_id: str | None = None
 
     @classmethod
     def from_model(cls, s: ChatSession) -> "SessionResponse":
-        return cls(id=s.id, title=s.title)
+        return cls(id=s.id, title=s.title, project_id=s.project_id)
 
 
 class MessageResponse(BaseModel):
@@ -66,6 +69,7 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     tool_calls: list[dict[str, Any]] | None = None
+    status: str = "complete"  # "complete" | "aborted" (중단된 부분 응답 — ADR-0025 §5)
     attachments: list[AttachmentMeta] | None = None
 
     @classmethod
@@ -77,6 +81,7 @@ class MessageResponse(BaseModel):
             role=m.role,
             content=m.content,
             tool_calls=m.tool_calls,
+            status=getattr(m, "status", "complete"),
             attachments=[AttachmentMeta.from_model(a) for a in attachments] if attachments else None,
         )
 
@@ -89,6 +94,8 @@ class MessageRequest(BaseModel):
     rag_group: str | None = None
     # 선택: 첨부 파일 (base64, 이미지는 비전) — ADR-0014.
     files: list[FileAttachment] | None = None
+    # 선택: 활성 스킬(지침 프리셋) id — system prompt에 본문 합성 (ADR-0024).
+    skill_ids: list[str] | None = None
 
 
 class RegenerateRequest(BaseModel):
@@ -107,6 +114,20 @@ class ApprovalDecision(BaseModel):
 class ApprovalResumeRequest(BaseModel):
     group_key: str
     decisions: list[ApprovalDecision] = Field(min_length=1)
+
+
+class ClarifyAnswer(BaseModel):
+    """되묻기 응답 (ADR-0025 §4). 자유 입력(text) 또는 보기 선택(value) — 적어도 하나."""
+
+    text: str | None = None
+    value: str | None = None
+
+
+class ClarifyResumeRequest(BaseModel):
+    """ask_user 되묻기에 대한 사용자 응답으로 그래프 재개 (ADR-0025 §4)."""
+
+    tool_call_id: str
+    answer: ClarifyAnswer
 
 
 class ChatHistoryItem(BaseModel):
