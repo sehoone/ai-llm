@@ -26,10 +26,15 @@ def build_checkpointer() -> BaseCheckpointSaver:
 
 
 async def open_postgres_checkpointer(conninfo: str) -> tuple[BaseCheckpointSaver, Any]:
-    """AsyncPostgresSaver + 전용 psycopg 풀을 열고 체크포인트 테이블을 setup한다 (ADR-0028).
+    """AsyncPostgresSaver + 전용 psycopg 풀을 연다 (ADR-0028).
 
     반환: `(saver, pool)` — pool은 shutdown 시 `await pool.close()` 용. conninfo는 도메인이 주입
-    (psycopg DSN — SQLAlchemy URL 아님). 테이블은 search_path로 `llmonl`에 생성된다.
+    (psycopg DSN — SQLAlchemy URL 아님).
+
+    ⚠️ **DDL(테이블 생성)은 `deploy/postgres/init.sql`로만 관리**한다 — `saver.setup()`을 호출하지 않는다.
+    런타임 DDL을 없애 다중 인스턴스 기동 경쟁(동시 DDL)을 원천 제거(ADR-0028 개정 / ADR-0029 §A).
+    체크포인트 테이블(`checkpoints`·`checkpoint_blobs`·`checkpoint_writes`·`checkpoint_migrations`)이
+    `llmonl`에 **선재해야** 한다. langgraph-checkpoint-postgres 업그레이드 시 init.sql 블록을 동기화할 것.
     """
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
     from psycopg.rows import dict_row
@@ -42,10 +47,9 @@ async def open_postgres_checkpointer(conninfo: str) -> tuple[BaseCheckpointSaver
             "autocommit": True,          # AsyncPostgresSaver 요구
             "row_factory": dict_row,     # AsyncPostgresSaver 요구
             "prepare_threshold": 0,      # 풀러 환경 prepared-statement 충돌 방지
-            "options": "-csearch_path=llmonl,public",  # core/db와 동일 — 테이블을 llmonl에
+            "options": "-csearch_path=llmonl,public",  # core/db와 동일 — llmonl의 테이블을 사용
         },
     )
     await pool.open()
-    saver = AsyncPostgresSaver(pool)
-    await saver.setup()  # checkpoints·checkpoint_blobs·checkpoint_writes·checkpoint_migrations (llmonl)
+    saver = AsyncPostgresSaver(pool)  # setup() 미호출 — 테이블은 init.sql이 준비(ADR-0028 개정)
     return saver, pool

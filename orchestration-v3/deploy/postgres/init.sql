@@ -481,3 +481,64 @@ CREATE TABLE IF NOT EXISTS llmonl.project_skill (
     PRIMARY KEY (project_id, skill_id)
 );
 CREATE INDEX IF NOT EXISTS idx_project_skill_project ON llmonl.project_skill (project_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- LangGraph 체크포인터 (ADR-0028): HITL 승인·되묻기·중단 세션의 재개 상태 저장소.
+-- 스키마는 langgraph-checkpoint-postgres가 소유하나, 본 프로젝트는 **DDL을 init.sql로만 관리**한다
+-- (AsyncPostgresSaver.setup() 런타임 DDL 미사용 — ADR-0028 개정). 아래는 v3.2.1 런타임이 쓰는 테이블.
+-- 개발 단계 정책: **migration 버전 관리 없음**(checkpoint_migrations·seed 제외). 런타임(aput/aget/alist/
+-- adelete)은 아래 3개 테이블만 쓰고 checkpoint_migrations는 setup() 전용이라 불요. 스키마가 바뀌면
+-- (langgraph 업그레이드 등) **DB 볼륨을 재생성**한다(task deploy-down ENV=<e> → 재배포). 즉 "지우고 다시 생성".
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.checkpoints (
+    thread_id            TEXT  NOT NULL,
+    checkpoint_ns        TEXT  NOT NULL DEFAULT '',
+    checkpoint_id        TEXT  NOT NULL,
+    parent_checkpoint_id TEXT,
+    type                 TEXT,
+    checkpoint           JSONB NOT NULL,
+    metadata             JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+);
+CREATE INDEX IF NOT EXISTS checkpoints_thread_id_idx ON llmonl.checkpoints USING btree (thread_id);
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_blobs (
+    thread_id     TEXT  NOT NULL,
+    checkpoint_ns TEXT  NOT NULL DEFAULT '',
+    channel       TEXT  NOT NULL,
+    version       TEXT  NOT NULL,
+    type          TEXT  NOT NULL,
+    blob          BYTEA,
+    PRIMARY KEY (thread_id, checkpoint_ns, channel, version)
+);
+CREATE INDEX IF NOT EXISTS checkpoint_blobs_thread_id_idx ON llmonl.checkpoint_blobs USING btree (thread_id);
+CREATE TABLE IF NOT EXISTS llmonl.checkpoint_writes (
+    thread_id     TEXT    NOT NULL,
+    checkpoint_ns TEXT    NOT NULL DEFAULT '',
+    checkpoint_id TEXT    NOT NULL,
+    task_id       TEXT    NOT NULL,
+    idx           INTEGER NOT NULL,
+    channel       TEXT    NOT NULL,
+    type          TEXT,
+    blob          BYTEA   NOT NULL,
+    task_path     TEXT    NOT NULL DEFAULT '',
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
+);
+CREATE INDEX IF NOT EXISTS checkpoint_writes_thread_id_idx ON llmonl.checkpoint_writes USING btree (thread_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- 장기 메모리 collection (ADR-0015): mem0 pgvector 벡터 스토어.
+-- mem0는 테이블이 **없을 때만** create_col()을 실행하므로(_ensure_collection: list_cols 확인 후 skip),
+-- 여기서 **선재 생성**하면 앱(mem0)은 DDL을 전혀 실행하지 않는다(ADR-0028 "앱 테이블 생성 금지" 정책 일관).
+-- 스키마·인덱스명은 mem0 create_col과 동일하게 맞춘다(hnsw=기본 on, diskann=off).
+-- ⚠️ vector(1536)의 차원은 **임베더 모델 출력 차원**과 일치해야 한다 — `MEMORY_EMBEDDER_DIMS`(기본 1536 =
+--    text-embedding-3-small)와 동일 값. 임베더를 다른 차원 모델로 바꾸면 이 숫자도 바꾸고 볼륨을 재생성한다.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.longterm_memory (
+    id      UUID         PRIMARY KEY,
+    vector  vector(1536),
+    payload JSONB
+);
+CREATE INDEX IF NOT EXISTS longterm_memory_hnsw_idx
+    ON llmonl.longterm_memory USING hnsw (vector vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS longterm_memory_text_lemmatized_idx
+    ON llmonl.longterm_memory USING gin (to_tsvector('simple', payload->>'text_lemmatized'));

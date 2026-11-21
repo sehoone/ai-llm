@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     memory_enabled: bool = False
     memory_collection: str = "longterm_memory"
     memory_max_count: int = 100
+    # 임베딩 차원 — pgvector collection의 vector(N)·임베더 모델 출력 차원과 일치해야 한다(ADR-0015).
+    # init.sql의 longterm_memory.vector(1536)와 동일 값을 유지. 모델 변경 시 함께 변경 + 볼륨 재생성.
+    memory_embedder_dims: int = 1536
     postgres_schema: str = "llmonl"
 
     # Langfuse (LLM 관측 — ADR-0007). self-host 또는 cloud. 키 없으면 비활성.

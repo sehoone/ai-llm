@@ -42,11 +42,14 @@ AsyncConnectionPool** 위에 올려 체크포인트를 `llmonl`에 영속한다.
               "options": "-csearch_path=llmonl,public"},  # core/db와 동일 — 테이블을 llmonl에
   )
   await pool.open()
-  saver = AsyncPostgresSaver(pool)
-  await saver.setup()   # checkpoints·checkpoint_blobs·checkpoint_writes·checkpoint_migrations 생성(llmonl)
+  saver = AsyncPostgresSaver(pool)   # setup() 미호출 — DDL은 init.sql이 담당(아래)
   ```
   `autocommit=True`·`row_factory=dict_row`·`prepare_threshold=0`은 AsyncPostgresSaver/psycopg 풀 권장값
   (prepare_threshold=0은 풀러 환경의 prepared-statement 충돌 방지).
+
+  **⚠️ DDL은 `deploy/postgres/init.sql`로만 관리한다 — `saver.setup()`(런타임 DDL)을 호출하지 않는다**(프로젝트
+  스키마 관례: 수동 init.sql, create-all 없음). 런타임 DDL을 없애면 다중 인스턴스 동시 기동의 DDL 경쟁이
+  **원천 제거**된다(ADR-0029 §A가 불필요해짐). 체크포인트 테이블은 init.sql에 선재해야 한다.
 
 ### 2. 그래프 라이프사이클 — import 시점 → lifespan
 
@@ -57,7 +60,7 @@ AsyncConnectionPool** 위에 올려 체크포인트를 `llmonl`에 영속한다.
   import 시점에 호출돼 `NotImplementedError`로 **앱 기동이 실패** — 이 결함을 교정). 즉 import 경로에서
   postgres를 시도하지 않는다.
 - **memory 모드(기본)**: import 시점 InMemory 그래프를 그대로 사용(변경 없음).
-- **postgres 모드**: `main.py` lifespan **startup**에서 풀 open + `setup()` 후 그래프를 **재빌드**해 모듈 핸들
+- **postgres 모드**: `main.py` lifespan **startup**에서 풀 open(테이블은 init.sql로 선재) 후 그래프를 **재빌드**해 모듈 핸들
   (`_graph`)을 **교체**하고, **shutdown**에서 풀을 닫는다. 서비스 `_run`은 매 호출 시 모듈 전역 `_graph`를 읽으므로
   교체가 그대로 반영된다(캡처 금지 — 전역 참조 유지).
 - `domains/chat/service`에 `async def start_checkpointer()` / `async def stop_checkpointer()`를 노출하고
@@ -66,7 +69,12 @@ AsyncConnectionPool** 위에 올려 체크포인트를 `llmonl`에 영속한다.
 
 ### 3. 스키마·운영
 
-- 체크포인트 테이블은 `setup()`이 생성·마이그레이션한다(수동 `init.sql` 불필요). `search_path=llmonl`로 `llmonl`에 생성.
+- **체크포인트 테이블 DDL은 `deploy/postgres/init.sql`로 관리**한다 — 런타임이 쓰는 **3개 테이블만**
+  (`checkpoints`·`checkpoint_blobs`·`checkpoint_writes` + 인덱스). `checkpoint_migrations`와 버전 seed는 **두지 않는다**
+  (그 테이블은 `setup()` 전용이고 런타임 aput/aget/alist/adelete는 참조하지 않음 — 패키지 소스로 확인).
+- **개발 단계 정책 — migration 버전 관리 없음**: 스키마가 바뀌면(langgraph 업그레이드 등) 버전 추적·마이그레이션
+  대신 **DB 볼륨을 재생성**한다(`task deploy-down ENV=<e>` → 재배포). 즉 "지우고 다시 생성". 운영 단계 진입 시
+  정식 마이그레이션 전략은 별도 재검토.
 - env(ADR-0018): `api.env.example`에 `CHAT_CHECKPOINTER=memory` 기본 문서화. 운영(stg/prd)에서 `postgres`로 토글.
 - 동일 DB 컨테이너를 재사용(별도 인프라 불필요) — 좌표는 기존 `POSTGRES_*`.
 
@@ -79,6 +87,7 @@ AsyncConnectionPool** 위에 올려 체크포인트를 `llmonl`에 영속한다.
 | **앱 SQLAlchemy 엔진 공유** | langgraph saver는 autocommit·dict_row의 **전용 psycopg 연결**을 기대. 전용 풀이 단순·안전. |
 | **별도 체크포인트 DB** | 운영 부담↑. 같은 `llmonl`에 search_path로 충분(격리는 테이블 네임스페이스). |
 | **import 시점 풀 생성** | 이벤트 루프 부재 + 풀 수명 관리 불가. lifespan이 정석. |
+| **`saver.setup()` 런타임 DDL** | 프로젝트 스키마 관례(수동 init.sql)에 위배 + 다중 인스턴스 DDL 경쟁. **init.sql로 관리**하고 setup() 미호출(버전 커플링은 감수). |
 
 ## Consequences (결과)
 
@@ -89,29 +98,34 @@ AsyncConnectionPool** 위에 올려 체크포인트를 `llmonl`에 영속한다.
 
 **부정 / 리스크**
 - 그래프 생성이 import 시점 → lifespan으로 이동(postgres 모드) — 초기화 순서·실패 처리 필요(풀 open 실패 시 명확한 기동 에러).
-- 체크포인트 테이블 증가 → 보존·정리 정책(오래된 thread 체크포인트 TTL/스윕) 후속 필요.
-- `setup()` 마이그레이션은 기동 시 1회 — 다중 인스턴스 동시 기동 시 경쟁 가능(advisory lock 또는 배포 훅으로 선행).
+- 체크포인트 테이블 증가 → 보존·정리 정책(오래된 thread 체크포인트 스윕) 후속 필요(ADR-0029).
+- **버전 커플링(개발 단계 수용)**: DDL을 init.sql에 고정하므로 langgraph-checkpoint-postgres **업그레이드 시
+  스키마가 바뀌면 init.sql 3-테이블 DDL을 재덤프**해야 한다. 개발 단계라 migration 없이 **볼륨 재생성**으로
+  처리(데이터 보존 비요구). 운영 진입 시 정식 마이그레이션 전략 재검토.
 
 **후속 작업**
-- 체크포인트 보존/정리 잡(완료·만료 thread 정리) — 승인 만료 스윕(ADR-0008 후속)과 함께.
-- 다중 인스턴스 기동 시 `setup()` 경쟁 가드.
-- 부하 테스트: 토큰 스트리밍 중 체크포인트 쓰기 지연 측정.
+- 체크포인트 보존/정리 + 승인 만료 스윕 — **ADR-0029**(다중 인스턴스 안전 스윕).
+- 부하 테스트: 토큰 스트리밍 중 체크포인트 쓰기 지연 측정(ADR-0029 §C).
+- 다중 인스턴스 기동 DDL 경쟁은 **init.sql 전환으로 해소**(런타임 setup() 제거).
 
 ## 검증 (구현 시)
 
-1. `CHAT_CHECKPOINTER=postgres`로 stg 배포 → `llmonl`에 checkpoint 테이블 생성 확인.
-2. 되묻기/승인 중단 발생 → **api 컨테이너 재시작** → `/clarify`·`/approvals` 재개가 정상 이어지는지(InMemory에선 실패했던 시나리오).
-3. 중단(ADR-0026) 후 재개 경로도 재시작 넘어 동작하는지.
+1. **init.sql DDL**: 새 볼륨에서 `llmonl`에 checkpoint **3개 테이블** + 인덱스 생성 확인(migration 테이블·seed 없음).
+2. `CHAT_CHECKPOINTER=postgres` 배포 → api가 `setup()` 없이 3개 테이블만으로 동작, healthy.
+3. 되묻기/승인 중단 → **api 컨테이너 재시작** → `/clarify`·`/approvals` 재개가 정상 이어지는지(InMemory에선 실패했던 시나리오).
 
 ## 검증 (2026-11-21, stg / docker-desktop)
 
 - 구현: `langgraph-checkpoint-postgres v3.2.1` 추가(uv.lock 재생성), `engine/graph/checkpointer.open_postgres_checkpointer`
-  (AsyncPostgresSaver + psycopg AsyncConnectionPool, `autocommit`·`dict_row`·`prepare_threshold=0`·search_path=llmonl),
-  `domains/chat/service.start_checkpointer/stop_checkpointer`(import 시점 InMemory → lifespan 교체), `main.py` lifespan 배선,
+  (AsyncPostgresSaver + psycopg AsyncConnectionPool, `autocommit`·`dict_row`·`prepare_threshold=0`·search_path=llmonl —
+  **setup() 미호출**), `domains/chat/service.start_checkpointer/stop_checkpointer`(import 시점 InMemory → lifespan 교체),
+  `main.py` lifespan 배선, `deploy/postgres/init.sql`에 checkpoint **3-테이블** DDL(migration 없음),
   `docker-compose.yml`·`api.env.example`에 `CHAT_CHECKPOINTER` 토글.
-- `CHAT_CHECKPOINTER=postgres` 배포 → `llmonl`에 `checkpoints`·`checkpoint_blobs`·`checkpoint_writes`·`checkpoint_migrations`
-  자동 생성(`setup()`), api healthy.
+- `CHAT_CHECKPOINTER=postgres` 배포 → `llmonl`의 checkpoint 테이블(init.sql 관리)을 사용, api healthy.
 - **재시작 내구성(핵심)**: 되묻기("번역해줘" → "어떤 언어로…" 중단)로 체크포인트 영속(`checkpoints` 3행) →
   **`docker restart` api** → `/clarify` 재개 성공 → 실모델 답변 "Have a nice day." 스트리밍. InMemory에선 소실돼
   실패하던 시나리오가 postgres로 **정상 동작**함을 확인.
+- **migration 없는 3-테이블 런타임 검증**: 기존 `checkpoint_migrations`를 DROP 후 clarify ask→resume("Thank you.")
+  정상 + 체크포인트 기록(6행) — 런타임이 `checkpoint_migrations`에 비의존함을 실증.
+- init.sql 3-테이블 DDL은 scratch 스키마에서 생성 검증(테이블 3 + 인덱스, 오류 없음).
 - memory 모드(기본)는 import 시점 InMemory 그대로라 무변경(start_checkpointer no-op).

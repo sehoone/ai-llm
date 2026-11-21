@@ -43,6 +43,7 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0026](0026-chat-async-streaming.md) | chat 비동기 스트리밍 전환 (취소 가능한 중단 — ADR-0011 §2 개정) | Accepted |
 | [0027](0027-async-db-session.md) | 비동기 DB 세션 (AsyncSession/psycopg async — 단계적·조건부) | Proposed |
 | [0028](0028-langgraph-postgres-checkpointer.md) | LangGraph Postgres 체크포인터 (AsyncPostgresSaver — 세션 내구화) | Accepted |
+| [0029](0029-chat-checkpointer-operations.md) | chat 체크포인터·승인 운영 (정리·기동 경쟁·관측) | Proposed |
 
 ## 관련 문서
 
