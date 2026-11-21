@@ -68,12 +68,12 @@ class ProjectService:
             setattr(p, key, value)
         return self.repo.save(p)
 
-    def delete(self, project_id: str, user: User) -> None:
+    async def delete(self, project_id: str, user: User) -> None:
         p = self.get_owned(project_id, user)
-        # 소속 대화 연쇄 삭제(첨부·승인·메시지 정리는 ChatService가 수행).
+        # 소속 대화 연쇄 삭제(첨부·승인·메시지·체크포인트 정리는 ChatService가 수행 — async, ADR-0029).
         chat = ChatService(self.session)
         for s in self.repo.list_sessions(p.id):
-            chat.delete_session(s.id, user)
+            await chat.delete_session(s.id, user)
         # 지식 문서 연쇄 삭제.
         rag = RagService(self.session)
         for doc in rag.list_documents(user, rag_group=p.rag_group, rag_key=p.rag_key):

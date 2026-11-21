@@ -70,12 +70,12 @@ def update_project(
 
 
 @router.delete("/{project_id}", response_model=ApiResponse[None])
-def delete_project(
+async def delete_project(
     project_id: str,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ApiResponse[None]:
-    ProjectService(session).delete(project_id, user)
+    await ProjectService(session).delete(project_id, user)
     return ApiResponse.ok(None)
 
 

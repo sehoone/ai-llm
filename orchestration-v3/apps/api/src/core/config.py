@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     chat_approval_ttl_seconds: int = 900  # 승인 대기 만료 (15분)
     chat_checkpointer: str = "memory"     # "memory"(인프로세스) | "postgres"(후속)
 
+    # 챗 유지보수 스윕 (ADR-0029) — 만료 승인 정리(+후속: 체크포인트 보존). 다중 인스턴스 안전(advisory lock).
+    chat_maintenance_enabled: bool = True
+    chat_maintenance_cron: str = "0 * * * *"  # 기본 매시 정각(UTC)
+
     # 워크플로우 엔진 (ADR-0019)
     workflow_scheduler_enabled: bool = True  # cron 스케줄(APScheduler) 기동 on/off
     workflow_http_timeout: int = 30          # http/loop 노드 기본 타임아웃(초)

@@ -290,3 +290,26 @@ class ChatRepository:
         self.session.commit()
         self.session.refresh(row)
         return row
+
+    def expire_pending_approvals(self, now: datetime) -> int:
+        """만료시각이 지난 PENDING 승인을 EXPIRED로 마킹 (ADR-0029 §B / ADR-0008 fail-safe).
+
+        재개 시에도 만료 검증을 하지만(ADR-0008 §5), 재개되지 않고 방치된 PENDING을 주기 스윕으로 정리한다.
+        반환: 만료 처리한 행 수.
+        """
+        rows = list(
+            self.session.exec(
+                select(ChatApproval).where(
+                    ChatApproval.status == ApprovalStatus.PENDING,
+                    ChatApproval.expires_at.is_not(None),  # type: ignore[union-attr]
+                    ChatApproval.expires_at < now,
+                )
+            ).all()
+        )
+        for r in rows:
+            r.status = ApprovalStatus.EXPIRED
+            r.decided_at = now  # 시스템 만료(decided_by=None 유지)
+            self.session.add(r)
+        if rows:
+            self.session.commit()
+        return len(rows)

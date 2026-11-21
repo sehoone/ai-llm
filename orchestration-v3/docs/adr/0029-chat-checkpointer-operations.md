@@ -119,3 +119,19 @@ CHAT_CHECKPOINT_RETENTION_DAYS=30        # 세션 비활성 보존 기간(일)
 - 세션 삭제 → 해당 thread 체크포인트 사라짐. 오래된/고아 thread가 스윕 후 제거.
 - 만료된 PENDING 승인이 `EXPIRED`로 마킹·재개 fail-safe 동작.
 - 부하 스크립트로 memory 대비 postgres 토큰 지연 증가분 수치화.
+
+## 구현 현황 (2026-11-21, stg 실증)
+
+**구현·검증됨 (Phase 1·2 부분)**
+- **승인 만료 스윕**: `chat_maintenance.py`(`run_maintenance`) — APScheduler cron(`CHAT_MAINTENANCE_CRON`, 기본 매시)
+  + **`pg_try_advisory_xact_lock`**(다중 인스턴스 중복 방지, 커밋/세션종료 시 자동 해제 → 락 누수 없음).
+  `ChatRepository.expire_pending_approvals(now)`가 만료 PENDING → EXPIRED. main.py lifespan에서 기동.
+  검증: 만료 PENDING 삽입 → 스윕 → EXPIRED, `pg_locks` advisory 잔존 0.
+- **세션 삭제 시 체크포인트 정리**: `ChatService.delete_session`(async화)이 `cleanup_session_threads`로
+  `adelete_thread(f"{id}:{rev}")`(rev 0..thread_rev) 호출. 직접 삭제 + project 연쇄 삭제 경로 모두 async 전파.
+  검증: 체크포인트 6행 세션 API 삭제 → checkpoints/blobs/writes **0**, 타 세션 미영향.
+- 설정: `CHAT_MAINTENANCE_ENABLED`·`CHAT_MAINTENANCE_CRON`(config + api.env.example).
+
+**미구현 (후속)**
+- 주기 스윕의 **체크포인트 보존**(고아·비활성 thread 제거) — 승인 스윕과 같은 잡에 추가 예정.
+- **관측·부하**(§C): psycopg 풀 통계 노출 + memory vs postgres 토큰 지연 비교.

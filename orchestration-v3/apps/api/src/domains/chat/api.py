@@ -77,12 +77,12 @@ def rename_session(
 
 
 @router.delete("/sessions/{session_id}", response_model=ApiResponse[None])
-def delete_session(
+async def delete_session(
     session_id: int,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ApiResponse[None]:
-    ChatService(session).delete_session(session_id, user)
+    await ChatService(session).delete_session(session_id, user)
     return ApiResponse.ok(None)
 
 

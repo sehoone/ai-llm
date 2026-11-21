@@ -112,14 +112,32 @@ def _config_from_resource(r: LlmResource) -> LlmConfig:
 # lifespan(start_checkpointer)에서 열어 그래프를 교체한다. _run은 호출 시 모듈 전역 _graph를 읽는다.
 _registry = default_registry()
 _policy = ApprovalPolicy(_registry)
+# 활성 체크포인터 핸들(스레드 정리용 — ADR-0029). lifespan에서 postgres로 교체될 수 있다.
+_checkpointer: Any = build_checkpointer()
 _graph = build_chat_graph(
     model=_resolve_model,
     registry=_registry,
     policy=_policy,
-    checkpointer=build_checkpointer(),
+    checkpointer=_checkpointer,
 )
 # postgres 체크포인터 풀 핸들(lifespan 관리). memory 모드면 None 유지.
 _pg_pool: Any = None
+
+
+async def cleanup_session_threads(session_id: int, thread_rev: int) -> None:
+    """세션 삭제 시 해당 세션의 LangGraph 체크포인트 thread를 제거 (ADR-0029 §B).
+
+    thread_id = f"{id}:{rev}" (재생성 포크 — ADR-0020). rev 0..thread_rev를 모두 정리한다.
+    best-effort(실패해도 삭제를 막지 않음) — 남은 고아는 주기 스윕(후속)이 회수.
+    """
+    fn = getattr(_checkpointer, "adelete_thread", None)
+    if fn is None:
+        return
+    for rev in range(thread_rev + 1):
+        try:
+            await fn(f"{session_id}:{rev}")
+        except Exception:
+            logger.exception("checkpoint_thread_delete_failed", extra={"thread": f"{session_id}:{rev}"})
 
 
 def _pg_conninfo() -> str:
@@ -137,11 +155,12 @@ async def start_checkpointer() -> None:
     풀 open/`setup()` 실패는 **그대로 전파**해 기동을 실패시킨다(조용한 memory 폴백 금지 —
     운영에서 내구성 상실을 숨기지 않도록). memory 모드면 no-op.
     """
-    global _graph, _pg_pool
+    global _graph, _pg_pool, _checkpointer
     if settings.chat_checkpointer != "postgres":
         return
     saver, pool = await open_postgres_checkpointer(_pg_conninfo())
     _pg_pool = pool
+    _checkpointer = saver  # 스레드 정리(cleanup_session_threads)가 활성 saver를 쓴다
     _graph = build_chat_graph(
         model=_resolve_model, registry=_registry, policy=_policy, checkpointer=saver
     )
@@ -257,8 +276,9 @@ class ChatService:
         s = self.get_session_owned(session_id, user)
         return self.repo.rename_session(s, title)
 
-    def delete_session(self, session_id: int, user: User) -> None:
+    async def delete_session(self, session_id: int, user: User) -> None:
         s = self.get_session_owned(session_id, user)
+        thread_rev = s.thread_rev  # 체크포인트 정리용 — 삭제 전에 포착 (ADR-0029 §B)
         storage = get_storage()
         for att in self.repo.list_session_attachments(s.id):
             try:
@@ -266,6 +286,8 @@ class ChatService:
             except Exception:
                 logger.exception("attachment_delete_failed", extra={"key": att.storage_path})
         self.repo.delete_session(s)
+        # LangGraph 체크포인트 thread 정리(ADR-0029) — DB/스토리지 정리 후, best-effort.
+        await cleanup_session_threads(session_id, thread_rev)
 
     def get_session_owned(self, session_id: int, user: User) -> ChatSession:
         s = self.repo.get_session(session_id)
