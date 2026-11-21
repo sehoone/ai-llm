@@ -7,20 +7,23 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
+from starlette.concurrency import run_in_threadpool
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.types import Command
 from sqlmodel import Session
 
 from src.core.config import settings
+from src.core.db import engine
 from src.core.storage import get_storage
 from src.domains.chat.model import ApprovalStatus, ChatSession
 from src.domains.chat.repository import ChatRepository
@@ -46,7 +49,7 @@ from src.domains.user.model import User, UserRole
 from src.engine.artifact import ArtifactStreamParser, EventType
 from src.engine.extraction import ExtractResult, extract_text
 from src.engine.agent.policy import ApprovalPolicy
-from src.engine.agent.tools import default_registry
+from src.engine.agent.tools import default_registry, interrupt_tool_schemas
 from src.engine.graph.chat_graph import build_chat_graph
 from src.engine.graph.checkpointer import build_checkpointer
 from src.engine.graph.fake_model import FakeToolCallingModel
@@ -69,7 +72,8 @@ _model_cache: dict[LlmConfig, Any] = {}
 def _model_for_config(cfg: LlmConfig) -> Any:
     m = _model_cache.get(cfg)
     if m is None:
-        m = build_model_for(cfg)
+        # 되묻기(ADR-0025): ask_user 도구를 실모델에 bind해 모델이 정보 부족 시 되물을 수 있게 한다.
+        m = build_model_for(cfg, tools=interrupt_tool_schemas())
         _model_cache[cfg] = m
     return m
 
@@ -290,7 +294,9 @@ class ChatService:
         return storage.open_stream(att.storage_path), att.filename, att.content_type
 
     # ── 메시지 전송 (SSE) ──
-    def stream_message(
+    # async (ADR-0026): 토큰 루프가 await astream이라 클라이언트 중단이 모델까지 전파된다.
+    # 블로킹 사이드콜(첨부 저장·RAG·추출·메모리)은 run_in_threadpool로 이벤트 루프를 보호한다.
+    async def stream_message(
         self,
         session_id: int,
         user: User,
@@ -299,7 +305,7 @@ class ChatService:
         rag_group: str | None = None,
         files: list[FileAttachment] | None = None,
         skill_ids: list[str] | None = None,
-    ) -> Iterator[str]:
+    ) -> AsyncIterator[str]:
         session = self.get_session_owned(session_id, user)
         # 소속 프로젝트(ADR-0021): 지침·지식(rag_group)을 대화에 자동 주입. 일반 대화면 None.
         project = self._resolve_project(session)
@@ -314,15 +320,16 @@ class ChatService:
         # 각 yield는 즉시 flush되므로 뒤따르는 blocking 작업(추출 등) 전에 클라이언트에 도달한다.
         if files:
             yield _sse("status", {"phase": "uploading"})
-        self._persist_attachments(session, user_msg.id, files)
+        await run_in_threadpool(self._persist_attachments, session, user_msg.id, files)
         llm_config = self._resolve_llm_config(llm_resource_id)
-        text = self._augment_with_rag(user, content, rag_group)
+        text = await run_in_threadpool(self._augment_with_rag, user, content, rag_group)
         if files:
             yield _sse(
                 "status",
                 {"phase": "extracting", "filename": files[0].filename if len(files) == 1 else None},
             )
-        graph_content = _build_graph_content(text, files)  # 파일 있으면 멀티모달 (ADR-0014)
+        # 파일 있으면 멀티모달 (ADR-0014). 추출(markitdown)은 블로킹이라 스레드로.
+        graph_content = await run_in_threadpool(_build_graph_content, text, files)
         # 장기 메모리 주입 (ADR-0015): 관련 메모리를 system prompt로 렌더해 맨 앞에 둔다.
         # LLM·임베더는 DB 리소스에서 해석(env 미참조). 비활성(기본)이면 DB 조회 생략.
         mem_llm, mem_embedder = self._resolve_memory_configs() if memory.is_enabled() else (None, None)
@@ -332,19 +339,20 @@ class ChatService:
         system_text = self._compose_system_prompt(project, user, skill_ids)
         if system_text:
             graph_messages.append(SystemMessage(content=system_text))
-        mem_str = memory.search(user.id, content, mem_llm, mem_embedder)
+        mem_str = await run_in_threadpool(memory.search, user.id, content, mem_llm, mem_embedder)
         if mem_str:
             graph_messages.append(SystemMessage(content=load_system_prompt(long_term_memory=mem_str)))
         graph_messages.append(HumanMessage(content=graph_content))
         graph_input: Any = {"messages": graph_messages}
         yield _sse("status", {"phase": "thinking"})  # 그래프 실행 직전 — 첫 토큰 대기 (ADR-0011 §5)
-        yield from self._run(
+        async for frame in self._run(
             session, user, graph_input, user_content=content, is_first=is_first, llm_config=llm_config
-        )
+        ):
+            yield frame
 
-    def regenerate(
+    async def regenerate(
         self, session_id: int, user: User, llm_resource_id: int | None = None
-    ) -> Iterator[str]:
+    ) -> AsyncIterator[str]:
         """마지막 답변을 새로 생성 — 직전 assistant 턴을 교체 (ADR-0020 / portal-roadmap Phase 1).
 
         마지막 user 메시지 U 이후(직전 답변)를 DB에서 제거하고, 스레드 리비전을 +1 해 체크포인터
@@ -375,14 +383,15 @@ class ChatService:
         last_user_content = messages[last_user_idx].content
         llm_config = self._resolve_llm_config(llm_resource_id)
         yield _sse("status", {"phase": "thinking"})
-        yield from self._run(
+        async for frame in self._run(
             session,
             user,
             {"messages": graph_messages},
             user_content=last_user_content,
             is_first=False,
             llm_config=llm_config,
-        )
+        ):
+            yield frame
 
     def delete_memory(self, user: User) -> None:
         """현재 사용자의 모든 장기 메모리 삭제 (ADR-0015). LLM·임베더는 DB 리소스에서 해석."""
@@ -495,7 +504,9 @@ class ChatService:
         return llm, embedder
 
     # ── 승인 결정 → 재개 (SSE) ──
-    def resume(self, session_id: int, user: User, group_key: str, decisions: list[ApprovalDecision]) -> Iterator[str]:
+    async def resume(
+        self, session_id: int, user: User, group_key: str, decisions: list[ApprovalDecision]
+    ) -> AsyncIterator[str]:
         session = self.get_session_owned(session_id, user)
         pending = {row.tool_call_id: row for row in self.repo.pending_by_group(session.id, group_key)}
         if not pending:
@@ -531,10 +542,34 @@ class ChatService:
                 decision_map[tool_call_id] = {"approved": False, "reason": "미결정(기본 거부)"}
 
         yield _sse("status", {"phase": "thinking"})  # 재개 후 모델 재호출 대기 (ADR-0011 §5)
-        yield from self._run(session, user, Command(resume=decision_map))
+        # 재개 시에도 실모델을 쓰도록 llm_config를 재해석해 주입한다. 생략하면 _resolve_model이
+        # 기본(Fake)로 폴백해 재개 답변이 가짜가 된다. 원 요청의 모델 선택은 미영속이라 기본 chat 리소스를 쓴다.
+        async for frame in self._run(
+            session, user, Command(resume=decision_map), llm_config=self._resolve_llm_config(None)
+        ):
+            yield frame
 
-    # ── 공통 그래프 실행 루프 (토큰 스트리밍 + HITL + 제목, ADR-0011) ──
-    def _run(
+    # ── 되묻기 응답 → 재개 (SSE, ADR-0025 §4) ──
+    async def resume_clarify(
+        self, session_id: int, user: User, tool_call_id: str, text: str | None, value: str | None
+    ) -> AsyncIterator[str]:
+        """사용자의 되묻기 응답으로 그래프를 재개한다(ADR-0025).
+
+        승인(resume)과 달리 감사 테이블이 없다 — 되묻기는 안전 결정이 아니라 대화 내용이라
+        답변이 `ToolMessage`(role=tool)로 영속된다(그래프 tools 노드). pending 여부는 체크포인트가
+        권위(소유자 검증은 get_session_owned, tool_call_id 일치는 재개 시 그래프가 판정).
+        """
+        session = self.get_session_owned(session_id, user)
+        resume_value = {tool_call_id: {"text": text, "value": value}}
+        yield _sse("status", {"phase": "thinking"})
+        # 재개 답변도 실모델로 생성 — llm_config 미주입 시 Fake 폴백(위 resume와 동일 이유).
+        async for frame in self._run(
+            session, user, Command(resume=resume_value), llm_config=self._resolve_llm_config(None)
+        ):
+            yield frame
+
+    # ── 공통 그래프 실행 루프 (토큰 스트리밍 + HITL + 제목, ADR-0011·0026) ──
+    async def _run(
         self,
         session: ChatSession,
         user: User,
@@ -543,7 +578,7 @@ class ChatService:
         user_content: str | None = None,
         is_first: bool = False,
         llm_config: LlmConfig | None = None,
-    ) -> Iterator[str]:
+    ) -> AsyncIterator[str]:
         configurable: dict[str, Any] = {
             # 스레드 리비전 포함 — 재생성 시 포크된 브랜치를 쓴다 (ADR-0020).
             "thread_id": f"{session.id}:{session.thread_rev}",
@@ -626,17 +661,27 @@ class ChatService:
                     yield _sse("artifact_end", {"identifier": ident, "version": version})
 
         try:
-            for mode, chunk in _graph.stream(graph_input, config=config, stream_mode=["updates", "messages"]):
+            # async astream (ADR-0026): await 지점에서 클라이언트 취소가 모델까지 전파된다.
+            async for mode, chunk in _graph.astream(
+                graph_input, config=config, stream_mode=["updates", "messages"]
+            ):
                 if mode == "messages":
                     text = _chunk_text(chunk)
                     if text:
                         streamed_any = True
-                        yield from _emit(parser.feed(text))
+                        for _s in _emit(parser.feed(text)):
+                            yield _s
                     continue
 
                 # mode == "updates"
                 if "__interrupt__" in chunk:
                     payload = chunk["__interrupt__"][0].value
+                    # 되묻기(ADR-0025): 승인과 달리 감사 테이블 없이 대화 메시지로만 영속.
+                    # 질문·보기를 그대로 내고 스트림 종료 → /clarify POST로 재개.
+                    if payload.get("type") == "clarification_required":
+                        yield _sse("clarification_required", payload["requests"][0])
+                        return
+                    # approval_required (ADR-0008) — tool call 승인 중단.
                     group_key = uuid.uuid4().hex
                     self.repo.save_approvals(
                         session.id,
@@ -655,8 +700,10 @@ class ChatService:
                         if isinstance(msg, AIMessage):
                             # 토큰이 안 나온 모델(fake)은 완결본을 파서에 통과시킨다.
                             if not streamed_any:
-                                yield from _emit(parser.feed(msg.content or ""))
-                            yield from _emit(parser.flush())
+                                for _s in _emit(parser.feed(msg.content or "")):
+                                    yield _s
+                            for _s in _emit(parser.flush()):
+                                yield _s
                             display = "".join(display_parts)
                             full_answer += display
                             tool_calls = getattr(msg, "tool_calls", None) or None
@@ -677,21 +724,42 @@ class ChatService:
                             yield _sse("message", {"role": "tool", "content": msg.content, "tool_calls": None})
 
             # 스트림 정상 종료 — 첫 대화면 제목 자동생성 (ADR-0011 §3). 제목 LLM = 이번 턴 DB 설정.
+            # 제목 생성은 블로킹 LLM 호출이라 스레드로 격리 (ADR-0026).
             if is_first and user_content and full_answer.strip():
-                title = self._maybe_generate_title(session, user_content, full_answer, llm_config)
+                title = await run_in_threadpool(
+                    self._maybe_generate_title, session, user_content, full_answer, llm_config
+                )
                 if title:
                     yield _sse("title", {"title": title})
             yield _sse("done", {"session_id": session.id})
-            # done 이후 장기 메모리 적재 (ADR-0015) — 추출 LLM 호출이라 응답을 지연시키지 않는다. 비차단.
+            # done 이후 장기 메모리 적재 (ADR-0015) — 블로킹(LLM+벡터)이라 스레드로 격리 (ADR-0026).
             # LLM·임베더는 DB 리소스에서 해석(env 미참조).
             if user_content and full_answer.strip() and memory.is_enabled():
                 mem_llm, mem_embedder = self._resolve_memory_configs()
-                memory.add(
+                await run_in_threadpool(
+                    memory.add,
                     user.id,
                     [{"role": "user", "content": user_content}, {"role": "assistant", "content": full_answer}],
                     mem_llm,
                     mem_embedder,
                 )
+        except (asyncio.CancelledError, GeneratorExit):
+            # 사용자 중단(ADR-0025 §5 / ADR-0026): 클라이언트 연결 종료 시 async 태스크가 취소되면
+            # await astream에서 CancelledError가, Starlette의 aclose()에선 GeneratorExit가 올라온다.
+            # 취소는 모델 astream까지 전파돼 토큰 생성·과금이 멈춘다. 진행 중이던 assistant 토큰(미영속)을
+            # status="aborted"로 저장해 새로고침 후에도 보이게 한다. display_parts는 노드 완료 시 리셋되므로
+            # 비어 있으면(=이미 완결·영속) 저장 안 함 → 중복 방지("표시용", 체크포인트 미커밋).
+            # 취소 컨텍스트라 await/yield 금지 — **별도 세션**으로 동기 저장 후 재전파만(teardown 경합 회피).
+            partial = "".join(display_parts)
+            if partial.strip():
+                try:
+                    with Session(engine) as abort_session:
+                        ChatRepository(abort_session).add_message(
+                            session.id, "assistant", partial, None, status="aborted"
+                        )
+                except Exception:
+                    logger.exception("aborted_partial_persist_failed")
+            raise
         except Exception as e:  # noqa: BLE001 — SSE로 오류 통지 후 종료
             logger.exception("chat_stream_failed")
             yield _sse("error", {"detail": str(e)})

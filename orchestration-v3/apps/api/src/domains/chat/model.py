@@ -51,6 +51,8 @@ class ChatMessage(SQLModel, table=True):
     content: str = Field(default="")
     # assistant의 tool_calls 또는 tool 메시지 메타 (JSONB)
     tool_calls: list[dict[str, Any]] | None = Field(default=None, sa_column=Column(JSONB))
+    # 메시지 완료 상태 (ADR-0025 §5). "complete" | "aborted"(사용자 중단 시 부분 응답 — 표시용).
+    status: str = Field(default="complete")
     created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
 
 

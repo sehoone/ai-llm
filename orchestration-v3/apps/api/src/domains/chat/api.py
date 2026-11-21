@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, status
@@ -19,6 +20,7 @@ from src.domains.chat.schema import (
     ApprovalResumeRequest,
     ChatHistoryItem,
     ChatHistoryListResponse,
+    ClarifyResumeRequest,
     MessageRequest,
     MessageResponse,
     RegenerateRequest,
@@ -32,6 +34,16 @@ from src.domains.user.model import User
 router = APIRouter()
 
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
+def _sse_response(stream: AsyncIterator[str]) -> StreamingResponse:
+    """async 제너레이터를 SSE 응답으로 감싼다 (ADR-0026).
+
+    서비스 스트림이 async 제너레이터라, 클라이언트 연결 종료 시 Starlette가 이 응답 태스크를
+    취소한다. 취소는 `astream` await를 통해 모델까지 전파돼 생성이 멈추고, 서비스의
+    취소 핸들러가 부분 응답을 영속한다 — 별도 disconnect 폴링이 불필요하다(ADR-0025 §5 한계 해소).
+    """
+    return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
 @router.post("/sessions", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[SessionResponse])
@@ -87,7 +99,7 @@ def get_messages(
 
 
 @router.post("/sessions/{session_id}/messages")
-def send_message(
+async def send_message(
     session_id: int,
     req: MessageRequest,
     user: User = Depends(get_current_user),
@@ -99,11 +111,11 @@ def send_message(
     stream = svc.stream_message(
         session_id, user, req.content, req.llm_resource_id, req.rag_group, req.files, req.skill_ids
     )
-    return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
+    return _sse_response(stream)
 
 
 @router.post("/sessions/{session_id}/regenerate")
-def regenerate_message(
+async def regenerate_message(
     session_id: int,
     req: RegenerateRequest,
     user: User = Depends(get_current_user),
@@ -111,7 +123,7 @@ def regenerate_message(
 ) -> StreamingResponse:
     """마지막 답변을 새로 생성(SSE) — 직전 assistant 턴 교체 (ADR-0020)."""
     stream = ChatService(session).regenerate(session_id, user, req.llm_resource_id)
-    return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
+    return _sse_response(stream)
 
 
 @router.delete("/memory", response_model=ApiResponse[None])
@@ -163,7 +175,7 @@ def download_attachment(
 
 
 @router.post("/sessions/{session_id}/approvals")
-def submit_approvals(
+async def submit_approvals(
     session_id: int,
     req: ApprovalResumeRequest,
     user: User = Depends(get_current_user),
@@ -171,4 +183,18 @@ def submit_approvals(
 ) -> StreamingResponse:
     """승인/거부 결정을 제출하고 그래프 실행을 이어서 스트림한다(ADR-0008 §4)."""
     stream = ChatService(session).resume(session_id, user, req.group_key, req.decisions)
-    return StreamingResponse(stream, media_type="text/event-stream", headers=_SSE_HEADERS)
+    return _sse_response(stream)
+
+
+@router.post("/sessions/{session_id}/clarify")
+async def submit_clarification(
+    session_id: int,
+    req: ClarifyResumeRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> StreamingResponse:
+    """되묻기(ask_user) 응답을 제출하고 그래프 실행을 이어서 스트림한다(ADR-0025 §4)."""
+    stream = ChatService(session).resume_clarify(
+        session_id, user, req.tool_call_id, req.answer.text, req.answer.value
+    )
+    return _sse_response(stream)

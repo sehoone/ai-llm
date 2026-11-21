@@ -88,9 +88,12 @@ CREATE TABLE IF NOT EXISTS llmonl.chat_message (
     role        VARCHAR(20)  NOT NULL,   -- user | assistant | tool
     content     TEXT         NOT NULL DEFAULT '',
     tool_calls  JSONB,
+    status      VARCHAR(20)  NOT NULL DEFAULT 'complete',  -- complete | aborted (중단 부분응답, ADR-0025 §5)
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON llmonl.chat_message (session_id);
+-- 기존 볼륨 멱등 ALTER (thread_rev와 동일 재실행-안전 패턴).
+ALTER TABLE llmonl.chat_message ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'complete';
 
 -- 승인 요청·결정 감사 (LangGraph 체크포인트와 분리 — 이력·재생방지·TTL·UI용)
 CREATE TABLE IF NOT EXISTS llmonl.chat_approval (

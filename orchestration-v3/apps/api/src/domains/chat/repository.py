@@ -120,8 +120,11 @@ class ChatRepository:
         role: str,
         content: str,
         tool_calls: list[dict[str, Any]] | None = None,
+        status: str = "complete",
     ) -> ChatMessage:
-        m = ChatMessage(session_id=session_id, role=role, content=content, tool_calls=tool_calls)
+        m = ChatMessage(
+            session_id=session_id, role=role, content=content, tool_calls=tool_calls, status=status
+        )
         self.session.add(m)
         self.session.commit()
         self.session.refresh(m)

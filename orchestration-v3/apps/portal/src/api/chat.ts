@@ -31,6 +31,7 @@ export interface ChatMessage {
   id: number;
   role: string; // 'user' | 'assistant' | 'tool'
   content: string;
+  status?: string; // 'complete' | 'aborted' (중단된 부분 응답 — ADR-0025 §5)
   attachments?: AttachmentMeta[] | null;
 }
 
@@ -84,10 +85,27 @@ export interface ApprovalDecision {
   args?: Record<string, unknown>;
 }
 
+// 되묻기 (ADR-0025)
+export interface ClarifyOption {
+  value: string;
+  label: string;
+}
+export interface ClarificationRequiredData {
+  tool_call_id: string;
+  question: string;
+  options?: ClarifyOption[] | null;
+  allow_free_text: boolean;
+}
+export interface ClarifyAnswer {
+  text?: string;
+  value?: string;
+}
+
 export interface StreamCallbacks {
   onDelta: (text: string) => void;
   onTitle?: (title: string) => void;
   onApprovalRequired?: (data: ApprovalRequiredData) => void;
+  onClarificationRequired?: (data: ClarificationRequiredData) => void;
   onError?: (detail: string) => void;
   onAborted?: () => void;
   onDone?: () => void;
@@ -137,6 +155,14 @@ async function runStream(
           cb.onApprovalRequired?.({
             group_key: String(d.group_key ?? ''),
             requests: Array.isArray(d.requests) ? (d.requests as ApprovalRequest[]) : [],
+          });
+          break;
+        case 'clarification_required':
+          cb.onClarificationRequired?.({
+            tool_call_id: String(d.tool_call_id ?? ''),
+            question: String(d.question ?? ''),
+            options: Array.isArray(d.options) ? (d.options as ClarifyOption[]) : null,
+            allow_free_text: d.allow_free_text !== false,
           });
           break;
         case 'error':
@@ -214,6 +240,22 @@ export async function submitApprovals(
   await runStream(
     `${BASE}/sessions/${sessionId}/approvals`,
     { group_key: groupKey, decisions },
+    cb,
+    signal
+  );
+}
+
+/** 되묻기(ask_user) 응답 제출 → 그래프 재개 스트리밍(SSE) — ADR-0025 §4. */
+export async function submitClarify(
+  sessionId: number,
+  toolCallId: string,
+  answer: ClarifyAnswer,
+  cb: StreamCallbacks,
+  signal?: AbortSignal
+): Promise<void> {
+  await runStream(
+    `${BASE}/sessions/${sessionId}/clarify`,
+    { tool_call_id: toolCallId, answer },
     cb,
     signal
   );

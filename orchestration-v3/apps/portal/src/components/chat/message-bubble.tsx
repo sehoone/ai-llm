@@ -79,6 +79,9 @@ export const MessageBubble = React.memo(function MessageBubble({
         ) : streaming ? (
           <TypingIndicator />
         ) : null}
+        {message.status === 'aborted' && (
+          <div className="mt-1.5 text-xs text-muted-foreground">중단됨 — 재생성하여 이어갈 수 있습니다.</div>
+        )}
         {attachments && attachments.length > 0 && (
           <div className="mt-2">
             <Attachments items={attachments} />

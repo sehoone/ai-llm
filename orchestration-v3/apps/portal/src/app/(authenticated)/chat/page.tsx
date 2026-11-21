@@ -8,7 +8,7 @@ import { useChat } from '@/hooks/use-chat';
 import { useArtifactStore } from '@/stores/artifact-store';
 
 export default function ChatPage() {
-  const { newChat, send, regenerate, stop, submitApproval } = useChat();
+  const { newChat, send, regenerate, stop, submitApproval, submitClarification } = useChat();
   const panelOpen = useArtifactStore((s) => s.panelOpen);
   const [draft, setDraft] = React.useState('');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -47,6 +47,7 @@ export default function ChatPage() {
           onRegenerate={regenerate}
           onPickPrompt={pickPrompt}
           onApprovalDecision={submitApproval}
+          onClarify={submitClarification}
         />
         <Composer
           value={draft}

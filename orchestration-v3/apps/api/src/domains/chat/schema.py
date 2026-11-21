@@ -69,6 +69,7 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     tool_calls: list[dict[str, Any]] | None = None
+    status: str = "complete"  # "complete" | "aborted" (중단된 부분 응답 — ADR-0025 §5)
     attachments: list[AttachmentMeta] | None = None
 
     @classmethod
@@ -80,6 +81,7 @@ class MessageResponse(BaseModel):
             role=m.role,
             content=m.content,
             tool_calls=m.tool_calls,
+            status=getattr(m, "status", "complete"),
             attachments=[AttachmentMeta.from_model(a) for a in attachments] if attachments else None,
         )
 
@@ -112,6 +114,20 @@ class ApprovalDecision(BaseModel):
 class ApprovalResumeRequest(BaseModel):
     group_key: str
     decisions: list[ApprovalDecision] = Field(min_length=1)
+
+
+class ClarifyAnswer(BaseModel):
+    """되묻기 응답 (ADR-0025 §4). 자유 입력(text) 또는 보기 선택(value) — 적어도 하나."""
+
+    text: str | None = None
+    value: str | None = None
+
+
+class ClarifyResumeRequest(BaseModel):
+    """ask_user 되묻기에 대한 사용자 응답으로 그래프 재개 (ADR-0025 §4)."""
+
+    tool_call_id: str
+    answer: ClarifyAnswer
 
 
 class ChatHistoryItem(BaseModel):

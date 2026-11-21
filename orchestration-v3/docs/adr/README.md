@@ -39,6 +39,8 @@ orchestration-v3의 주요 아키텍처 결정을 기록합니다. 각 ADR은 �
 | [0022](0022-connectors-mcp.md) | 커넥터 — 챗 도구를 사내 MCP 서버로 확장 (connector 도메인 + engine MCP 로더) | Accepted |
 | [0023](0023-admin-portal-split.md) | 관리자/사용자 포털 분리 (admin web ↔ user portal — 상위 아키텍처 결정) | Accepted |
 | [0024](0024-skills-instruction-presets.md) | 스킬 — 재사용 지침 프리셋 (skill 도메인 + system prompt 합성) | Accepted |
+| [0025](0025-chat-clarification-and-interrupt.md) | 챗 되묻기·사람 개입 (ask_user 인터럽트 + 중단 내구화) | Accepted |
+| [0026](0026-chat-async-streaming.md) | chat 비동기 스트리밍 전환 (취소 가능한 중단 — ADR-0011 §2 개정) | Accepted |
 
 ## 관련 문서
 
