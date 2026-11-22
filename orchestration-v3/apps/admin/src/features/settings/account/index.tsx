@@ -1,14 +1,9 @@
 import { ContentSection } from '../components/content-section'
-import { AccountForm } from './account-form'
 
 export function SettingsAccount() {
   return (
-    <ContentSection
-      title='Account'
-      desc='Update your account settings. Set your preferred language and
-          timezone.'
-    >
-      <AccountForm />
+    <ContentSection title='Account' desc='계정 설정입니다.'>
+      <p className='text-sm text-muted-foreground'>준비 중입니다.</p>
     </ContentSection>
   )
 }
