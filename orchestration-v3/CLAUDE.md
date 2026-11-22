@@ -17,9 +17,9 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 | ADR | 결정 |
 |-----|------|
 | [0003](docs/adr/0003-single-python-backend.md) | 단일 Python 백엔드 + IdP 인증 위임 |
-| [0004](docs/adr/0004-apps-packages-monorepo-layout.md) | `apps/*` + `packages/*` 레이아웃 (서비스명 `api`/`web`) |
+| [0004](docs/adr/0004-apps-packages-monorepo-layout.md) | `apps/*` + `packages/*` 레이아웃 (서비스명 `api`/`admin`) |
 | [0005](docs/adr/0005-ai-engine-layer.md) | AI 엔진 레이어 분리 (`domains → engine → core`) |
-| [0006](docs/adr/0006-web-structure-and-oidc.md) | web은 shadcn-admin 구조 + 프론트 OIDC 리다이렉트 (인증 흐름은 0009 대체) |
+| [0006](docs/adr/0006-web-structure-and-oidc.md) | admin은 shadcn-admin 구조 + 프론트 OIDC 리다이렉트 (인증 흐름은 0009 대체) |
 | [0007](docs/adr/0007-llm-observability-langfuse.md) | LLM 관측은 Langfuse(self-host)에 위임 — 계측은 `engine/observability`, 컨텍스트는 도메인이 값 주입 |
 | [0008](docs/adr/0008-chat-human-approval.md) | 챗 사용자 승인(HITL) — tool call 3-티어 정책(engine) + LangGraph interrupt/재개, 인가·영속은 domain |
 | [0009](docs/adr/0009-self-id-password-auth.md) | **자체 ID/PW 인증** — 백엔드가 자격 검증 후 HS256 JWT 발급(0003 IdP 위임 대체). OIDC 코드는 보존(비활성) |
@@ -32,7 +32,7 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 | [0016](docs/adr/0016-document-text-extraction.md) | 문서 텍스트 추출 — `engine/extraction`(markitdown) |
 | [0017](docs/adr/0017-attachment-object-storage-minio.md) | 첨부 객체 저장 — MinIO(S3 호환, `core/storage`), 로컬 디스크 폴백 |
 | [0018](docs/adr/0018-env-config-layout.md) | **env 단일 소스** — `deploy/environments/<env>/{compose.env, api.env}`. api.env는 bare-metal 기준(localhost), docker는 compose가 네트워크 좌표 override. app-level `.env*` 제거 |
-| [0020](docs/adr/0020-user-portal-frontend.md) | **사용자 포털 분리** — `apps/portal`(사용자) + `apps/web`(관리자, basePath=/admin). nginx `/`→portal·`/admin`→web. 백엔드·인증·contracts 공유. 데이터 스코핑 감사 완료(rag·ai_overview 수정) |
+| [0020](docs/adr/0020-user-portal-frontend.md) | **사용자 포털 분리** — `apps/portal`(사용자) + `apps/admin`(관리자, basePath=/admin). nginx `/`→portal·`/admin`→admin. 백엔드·인증·contracts 공유. 데이터 스코핑 감사 완료(rag·ai_overview 수정) |
 
 ## 구조
 
@@ -45,9 +45,9 @@ apps/api/src/
 ├─ engine/        # AI 실행 능력 (ADR-0005) — llm prompts rag agent graph memory artifact extraction observability transcription
 ├─ core/          # config·security(비밀번호 해싱·JWT 발급/검증; OIDC/JWKS 보존)·db(세션)·response(ApiResponse 래퍼)·storage(MinIO 첨부)
 └─ main.py        # 도메인 라우터 등록 지점
-apps/web/src/           # 관리자 UI. shadcn-admin: api·app·features·components·stores·… (ADR-0006, FSD 아님). basePath=/admin (ADR-0020)
+apps/admin/src/         # 관리자 UI. shadcn-admin: api·app·features·components·stores·… (ADR-0006, FSD 아님). basePath=/admin (ADR-0020)
 apps/portal/src/        # 사용자 UI (ADR-0020). 린 구성(shadcn 미복제): app·api·stores·lib. nginx 루트 `/`
-packages/contracts/     # api OpenAPI → web·portal TS (생성물, 커밋 안 함 — openapi.json·api-schema.d.ts gitignore)
+packages/contracts/     # api OpenAPI → admin·portal TS (생성물, 커밋 안 함 — openapi.json·api-schema.d.ts gitignore)
 ```
 
 ### 구현 현황 (디렉터리 ≠ 구현됨)
@@ -59,25 +59,25 @@ packages/contracts/     # api OpenAPI → web·portal TS (생성물, 커밋 안 
 - **artifact(ADR-0013)**: `domains/artifact`(스트리밍 산출물·버전관리·공개 링크) + `engine/artifact`(parser). publish 시 토큰 발급, 공개 라우터로 미인증 조회.
 - **관측(ADR-0007)**: `engine/observability` 구현(`context`·`langfuse`·`runconfig`). `main.py` lifespan 종료 시 `observability_shutdown()`로 Langfuse 트레이스 flush(비활성이면 no-op). 엔진 경계 준수 — 도메인이 컨텍스트 값을 주입.
 - **meeting(V2 포팅)**: `domains/meeting`(음성 회의록 — 업로드·전사·요약·화자매핑·발행) + `engine/transcription`(`stt.py` STT, `minutes.py` 요약). 녹음은 전용 MinIO 버킷(`MEETING_AUDIO_BUCKET`)에 격리 저장. `main.py` lifespan 기동 시 `fail_stuck_meetings()`로 중단된 작업 정리. 라우터 `/api/v1/meetings`.
-- **gpts(V2 포팅)**: `domains/gpts`(사용자 정의 커스텀 GPT — CRUD·세션·Q/A 이력·채팅). 채팅은 도구·HITL 없는 단순 Q/A라 chat의 승인 그래프(ADR-0008)를 쓰지 않고 `engine/llm`의 직접 토큰 스트리밍(`LlmChatModel.stream` — 신규)으로 처리하고 `gpt.instructions`를 system prompt로 주입. 모델 선택은 `llm_resource`(chat 도메인과 동일 규칙), 관측은 `engine/observability` 주입. 테이블 3종(`custom_gpt`·`gpt_session`·`gpt_chat_message`, `init.sql`). **스트리밍 SSE는 아직 web(V2 기준) `data: {content, done, type?, title?}` 포맷** — web src/api 재매핑 시 ADR-0011 event 포맷으로 정렬 예정. GPT 전용 `rag_key` 지식베이스 검색은 미연결(후속).
+- **gpts(V2 포팅)**: `domains/gpts`(사용자 정의 커스텀 GPT — CRUD·세션·Q/A 이력·채팅). 채팅은 도구·HITL 없는 단순 Q/A라 chat의 승인 그래프(ADR-0008)를 쓰지 않고 `engine/llm`의 직접 토큰 스트리밍(`LlmChatModel.stream` — 신규)으로 처리하고 `gpt.instructions`를 system prompt로 주입. 모델 선택은 `llm_resource`(chat 도메인과 동일 규칙), 관측은 `engine/observability` 주입. 테이블 3종(`custom_gpt`·`gpt_session`·`gpt_chat_message`, `init.sql`). **스트리밍 SSE는 아직 admin(V2 기준) `data: {content, done, type?, title?}` 포맷** — admin src/api 재매핑 시 ADR-0011 event 포맷으로 정렬 예정. GPT 전용 `rag_key` 지식베이스 검색은 미연결(후속).
 - **api 빈 골격**: `domains/agent`·`workflow`는 `__init__.py`뿐(이식 대기).
 - **테스트**: `tests/test_health.py`, `tests/engine/test_approval_policy.py`(HITL 정책), `tests/engine/test_artifact_parser.py`(artifact 파서). deploy 도구는 `tools/tests/test_deploy.py`.
-- **web**: shadcn-admin 구조 이식 완료. 로그인은 `/login`의 **ID/PW 폼**(`app/login/page.tsx` → `auth/login`), 토큰은 `stores/auth-store.ts`(쿠키). `(authenticated)` 레이아웃이 `access_token` 쿠키 없으면 `/login`. `api/axios.ts`는 Bearer 첨부 + 401 시 `/login` 이동. **OIDC 흐름(`lib/oidc.ts`·`/auth/callback`·`api/auth.ts`)은 보존·미사용**. `src/api/*.ts`는 아직 V2 엔드포인트 기준(아래 규칙 참고).
+- **admin**: shadcn-admin 구조 이식 완료. 로그인은 `/login`의 **ID/PW 폼**(`app/login/page.tsx` → `auth/login`), 토큰은 `stores/auth-store.ts`(쿠키). `(authenticated)` 레이아웃이 `access_token` 쿠키 없으면 `/login`. `api/axios.ts`는 Bearer 첨부 + 401 시 `/login` 이동. **OIDC 흐름(`lib/oidc.ts`·`/auth/callback`·`api/auth.ts`)은 보존·미사용**. `src/api/*.ts`는 아직 V2 엔드포인트 기준(아래 규칙 참고).
 - 새 도메인 이식 시: 수직 슬라이스(`api`·`service`·`repository`·`schema`) 채우고 `main.py`에 라우터 등록, AI 연산은 `engine/`에 위임.
 
 ### 계약·경계 (여러 파일에 걸친 암묵 규칙)
 
-- **응답 래퍼**: 백엔드는 `ApiResponse[T]`(`{success, message, data}`)로 감싼다(`core/response.py`). web `src/api/axios.ts` 인터셉터가 `{success,data}`를 **자동 unwrap**하므로 web 호출부는 `data`만 다룬다.
-- **인증 흐름(web)**: ID/PW 자체 로그인(ADR-0009). `(authenticated)` 레이아웃이 `access_token` 쿠키 없으면 `/login` → ID/PW 폼이 `POST /api/v1/auth/login` 호출(전역 401 인터셉터 우회 위해 기본 axios 직접 사용) → 반환 JWT를 `auth-store`에 저장. axios는 Bearer 첨부 + **401이면 refresh 없이 `/login?redirect=…`로 이동**.
+- **응답 래퍼**: 백엔드는 `ApiResponse[T]`(`{success, message, data}`)로 감싼다(`core/response.py`). admin `src/api/axios.ts` 인터셉터가 `{success,data}`를 **자동 unwrap**하므로 admin 호출부는 `data`만 다룬다.
+- **인증 흐름(admin)**: ID/PW 자체 로그인(ADR-0009). `(authenticated)` 레이아웃이 `access_token` 쿠키 없으면 `/login` → ID/PW 폼이 `POST /api/v1/auth/login` 호출(전역 401 인터셉터 우회 위해 기본 axios 직접 사용) → 반환 JWT를 `auth-store`에 저장. axios는 Bearer 첨부 + **401이면 refresh 없이 `/login?redirect=…`로 이동**.
 - **엔진 격리**: `engine`은 `domains`·FastAPI를 import하지 않는다. `import-linter` 계약(pyproject)이 강제하며 `poe lint`에 포함.
 
 ## 명령
 
 ```bash
 # 루트 (go-task)
-task dev            # api(:8000) + web(:3000)
+task dev            # api(:8000) + admin(:3000)
 task lint / test
-task gen-types      # api OpenAPI → packages/contracts → web TS 재생성 (단방향)
+task gen-types      # api OpenAPI → packages/contracts → admin TS 재생성 (단방향)
 task deploy ENV=local        # 전체 스택 빌드+기동 (local|dev|stg|prd — tools/deploy.py)
 task deploy-test ENV=local   # 배포 후 로그인 스모크 (tools/smoke_login.py)
 task deploy-down ENV=local   # 스택 종료 (prd는 CONFIRM_PRD=prd 필요)
@@ -91,11 +91,11 @@ uv run poe format
 uv run poe test            # pytest (tests/ — health + HITL 정책)
 uv run pytest tests/path/test_x.py::test_y   # 단일 테스트
 
-# web (Next.js, pnpm) — 로컬은 env 불필요. NEXT_PUBLIC_API_URL 비면 `/api` 상대경로
+# admin (Next.js, pnpm) — 로컬은 env 불필요. NEXT_PUBLIC_API_URL 비면 `/api` 상대경로
 # → next.config rewrite가 localhost:8000으로 프록시. docker는 API_URL build arg 사용.
-cd apps/web && pnpm install
+cd apps/admin && pnpm install
 pnpm dev                   # :3000
-pnpm lint                  # eslint .  (web 테스트 스위트 없음)
+pnpm lint                  # eslint .  (admin 테스트 스위트 없음)
 pnpm build && pnpm start
 ```
 
@@ -112,7 +112,7 @@ docker compose -p orchestration-v3-local --env-file ./environments/local/compose
 ```
 
 - **api는 이미지 빌드(소스 bind-mount 없음)**. 배포 스택의 api는 hot-reload가 아니므로 `apps/api/src/**` 수정은 **재빌드해야 반영**된다(`poe dev` bare-metal 모드만 reload). `api.env` 변경도 **컨테이너 재생성** 필요(`env_file`은 기동 시 주입).
-- 포트: nginx `:8060`(진입점) · api `:8000` · web `:3000` · postgres `:8066` · langfuse `:8067` · minio 콘솔 `:8068`(S3 API 9000은 호스트 미노출) · grafana `:8064`.
+- 포트: nginx `:8060`(진입점) · api `:8000` · admin `:3000` · postgres `:8066` · langfuse `:8067` · minio 콘솔 `:8068`(S3 API 9000은 호스트 미노출) · grafana `:8064`.
 - 컨테이너 내 python은 `/app/.venv/bin/python`(기본 `python`은 앱 의존성 없음). Git Bash에서 `docker exec` 경로가 깨지면 `MSYS_NO_PATHCONV=1` 접두.
 
 ## 규칙
@@ -121,9 +121,9 @@ docker compose -p orchestration-v3-local --env-file ./environments/local/compose
 - **env 단일 소스(ADR-0018)**: 환경 설정은 `deploy/environments/<env>/{compose.env, api.env}`에만 둔다. app-level `.env*`·`deploy/.env` 추가 금지. 새 api 설정은 `api.env.example`에 추가(bare-metal localhost 기준) + 네트워크 좌표면 `docker-compose.yml` api `environment:` override 추가. 실파일은 커밋 금지.
 - 새 도메인은 `apps/api/src/domains/<name>/`에 수직 슬라이스로 추가 후 `main.py`에 라우터 등록.
 - **AI 연산은 `engine/`에 위임** (ADR-0005). 도메인은 HTTP 경계+관계형 영속화만. `engine`은 `domains`·FastAPI를 import 금지(단방향 `domains→engine→core`).
-- 계약 변경 시 `task gen-types`로 web 타입 재생성(단방향).
+- 계약 변경 시 `task gen-types`로 admin 타입 재생성(단방향).
 - 인증(ADR-0009): 백엔드가 ID/PW 검증·JWT 발급을 소유. `JWT_SECRET_KEY`·`SEED_ADMIN_PASSWORD`는 운영에서 반드시 교체. 자작 범위는 로그인·비밀번호 변경으로 최소화(bcrypt·표준 JWT). OIDC 코드는 보존(비활성) — 복귀 시 재활성.
-- **web `src/api/*.ts`는 아직 V2 엔드포인트 기준**(이식 직후). 백엔드 도메인 이식과 함께 `/api/v1/*`·`ApiResponse` 계약으로 재매핑 필요 (ADR-0006 후속).
+- **admin `src/api/*.ts`는 아직 V2 엔드포인트 기준**(이식 직후). 백엔드 도메인 이식과 함께 `/api/v1/*`·`ApiResponse` 계약으로 재매핑 필요 (ADR-0006 후속).
 - **외부 시스템 연동 MCP 서버 추가 시**: `templates/mcp-server/`(복제형 스타터)를 `apps/<name>-mcp/`로 복사해 시작. v3 컨벤션 네이티브(uv·ruff·import-linter, `llmonl` 스키마, 인증은 JWKS 검증만 — ADR-0003). 절차·구조는 `templates/mcp-server/README.md` 참고.
 
 ## 팀 협업 (Claude Code)

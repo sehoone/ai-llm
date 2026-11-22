@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       api: ${{ steps.filter.outputs.api }}
-      web: ${{ steps.filter.outputs.web }}
+      admin: ${{ steps.filter.outputs.admin }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -18,8 +18,8 @@ jobs:
           filters: |
             api:
               - 'apps/api/**'
-            web:
-              - 'apps/web/**'
+            admin:
+              - 'apps/admin/**'
 
   api:
     needs: changes
@@ -35,13 +35,13 @@ jobs:
       - run: uv run poe lint
       - run: uv run poe test
 
-  web:
+  admin:
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.admin == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/web
+        working-directory: apps/admin
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: apps/admin/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build

@@ -11,7 +11,7 @@ __pycache__/
 /deploy/environments/*/compose.env
 /deploy/environments/*/api.env
 
-# --- Node (apps/web) ---
+# --- Node (apps/admin) ---
 node_modules/
 .next/
 out/
@@ -19,7 +19,7 @@ out/
 
 # --- Generated contracts ---
 packages/contracts/openapi.json
-apps/web/src/types/api-schema.d.ts
+apps/admin/src/types/api-schema.d.ts
 
 # --- OS / editor ---
 .DS_Store

@@ -3,15 +3,15 @@ version: '3'
 
 tasks:
   dev:
-    desc: api + web(관리자) + portal(사용자) 개발 서버 동시 기동
-    deps: [dev-api, dev-web, dev-portal]
+    desc: api + admin(관리자) + portal(사용자) 개발 서버 동시 기동
+    deps: [dev-api, dev-admin, dev-portal]
 
   dev-api:
     dir: apps/api
     cmds: [uv run poe dev]
 
-  dev-web:
-    dir: apps/web
+  dev-admin:
+    dir: apps/admin
     cmds: [pnpm dev]
 
   dev-portal:
@@ -21,15 +21,15 @@ tasks:
   lint:
     cmds:
       - task: lint-api
-      - task: lint-web
+      - task: lint-admin
       - task: lint-portal
 
   lint-api:
     dir: apps/api
     cmds: [uv run poe lint]
 
-  lint-web:
-    dir: apps/web
+  lint-admin:
+    dir: apps/admin
     cmds: [pnpm lint]
 
   lint-portal:
@@ -37,18 +37,18 @@ tasks:
     cmds: [pnpm lint]
 
   test:
-    desc: api 테스트 (web 추가 시 확장)
+    desc: api 테스트 (admin 추가 시 확장)
     dir: apps/api
     cmds: [uv run poe test]
 
   gen-types:
-    desc: api OpenAPI → web TS 타입 (단방향 계약 — ADR-0003)
+    desc: api OpenAPI → admin TS 타입 (단방향 계약 — ADR-0003)
     cmds:
       - uv run --project apps/api python tools/export_openapi.py
-      - task: gen-types-web
+      - task: gen-types-admin
 
-  gen-types-web:
-    dir: apps/web
+  gen-types-admin:
+    dir: apps/admin
     cmds: [pnpm gen:types]
 
   deploy:
