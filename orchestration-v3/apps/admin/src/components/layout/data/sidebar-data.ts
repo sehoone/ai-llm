@@ -10,7 +10,6 @@ import {
   Command,
   Users,
   Key,
-  BrainCog,
   Shapes,
   // GalleryVerticalEnd,
 } from 'lucide-react'
@@ -51,11 +50,6 @@ export const sidebarData: SidebarData = {
         {
           title: 'Chatbot',
           items: [
-            {
-              title: 'Agents',
-              url: '/agents',
-              icon: BrainCog,
-            },
             {
               title: 'My GPTs',
               url: '/gpts',
