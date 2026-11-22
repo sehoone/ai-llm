@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 전 반드시 참고. 구조가 표준과 어떻게 정렬되는지·참조 소스는 [`docs/structure-and-references.md`](docs/structure-and-references.md).
+orchestration-v3 작업 시 가이드. 현행 아키텍처 1장 요약은 [`docs/architecture.md`](docs/architecture.md). 설계 근거는 `docs/adr/` — 결정 전 반드시 참고. 구조가 표준과 어떻게 정렬되는지·참조 소스는 [`docs/structure-and-references.md`](docs/structure-and-references.md).
 
-> **현재 상태: 이식 진행 중** — 구조·계약·경계는 확정. 구현됨: 플랫폼 도메인(user·api_key·llm_resource)·인증·chat(HITL + 실 LLM + 첨부 + 장기메모리)·rag·artifact·meeting(음성 회의록 — 업로드·STT·요약·발행)·관측(Langfuse), 엔진 `llm`·`graph`·`agent`·`rag`·`memory`·`artifact`·`extraction`·`transcription`·`observability`·`prompts`. 이식/골격 대기: 도메인 `agent`·`workflow`. 정확한 범위는 아래 "구현 현황" 참고.
+> **현재 상태: 이식 진행 중** — 구조·계약·경계는 확정. 구현됨: 플랫폼 도메인(user·api_key·llm_resource)·인증·chat(HITL + 실 LLM + 첨부 + 장기메모리)·gpts·project·skill·connector·rag·artifact·meeting(음성 회의록)·workflow(노드 그래프 + 스케줄러)·관측(Langfuse), 엔진 `llm`·`prompts`·`graph`·`agent`·`rag`·`memory`·`artifact`·`extraction`·`transcription`·`observability`·`workflow`. 골격만(이식 대기): 도메인 `agent`. 정확한 범위는 아래 "구현 현황" 참고.
 
 ## 핵심 설계 (ADR-0003)
 
@@ -32,7 +32,12 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 | [0016](docs/adr/0016-document-text-extraction.md) | 문서 텍스트 추출 — `engine/extraction`(markitdown) |
 | [0017](docs/adr/0017-attachment-object-storage-minio.md) | 첨부 객체 저장 — MinIO(S3 호환, `core/storage`), 로컬 디스크 폴백 |
 | [0018](docs/adr/0018-env-config-layout.md) | **env 단일 소스** — `deploy/environments/<env>/{compose.env, api.env}`. api.env는 bare-metal 기준(localhost), docker는 compose가 네트워크 좌표 override. app-level `.env*` 제거 |
+| [0019](docs/adr/0019-workflow-engine.md) | 워크플로우 — 노드 그래프 실행 엔진(`engine/workflow`) + `domains/workflow`(스케줄러 포함) |
 | [0020](docs/adr/0020-user-portal-frontend.md) | **사용자 포털 분리** — `apps/portal`(사용자) + `apps/admin`(관리자, basePath=/admin). nginx `/`→portal·`/admin`→admin. 백엔드·인증·contracts 공유. 데이터 스코핑 감사 완료(rag·ai_overview 수정) |
+| [0021](docs/adr/0021-projects.md) | 프로젝트 — 대화·지침·지식 작업공간(`domains/project`, chat 재사용) |
+| [0022](docs/adr/0022-connectors-mcp.md) | 커넥터 — 챗 도구를 사내 MCP 서버로 확장(`domains/connector` + engine MCP 로더) |
+| [0023](docs/adr/0023-admin-portal-split.md) | 관리자/사용자 포털 분리 (admin web ↔ user portal — 상위 아키텍처 결정) |
+| [0024](docs/adr/0024-skills-instruction-presets.md) | 스킬 — 재사용 지침 프리셋(`domains/skill` + system prompt 합성) |
 
 ## 구조
 
@@ -41,8 +46,8 @@ orchestration-v3 작업 시 가이드. 설계 근거는 `docs/adr/` — 결정 �
 ```
 apps/api/src/
 ├─ domains/<d>/   # api·service·repository·schema 계층 (수직 슬라이스 / HTTP 경계)
-│                 # chat rag agent workflow meeting user api_key llm_resource auth
-├─ engine/        # AI 실행 능력 (ADR-0005) — llm prompts rag agent graph memory artifact extraction observability transcription
+│                 # auth user api_key llm_resource chat gpts project skill connector rag artifact meeting workflow agent(골격)
+├─ engine/        # AI 실행 능력 (ADR-0005) — llm prompts rag agent graph memory artifact extraction observability transcription workflow
 ├─ core/          # config·security(비밀번호 해싱·JWT 발급/검증; OIDC/JWKS 보존)·db(세션)·response(ApiResponse 래퍼)·storage(MinIO 첨부)
 └─ main.py        # 도메인 라우터 등록 지점
 apps/admin/src/         # 관리자 UI. shadcn-admin: api·app·features·components·stores·… (ADR-0006, FSD 아님). basePath=/admin (ADR-0020)
@@ -52,7 +57,7 @@ packages/contracts/     # api OpenAPI → admin·portal TS (생성물, 커밋 �
 
 ### 구현 현황 (디렉터리 ≠ 구현됨)
 
-- **api 구현·등록 완료**: `domains/user`·`api_key`·`llm_resource`·`chat`·`gpts`·`rag`·`artifact`·`meeting`이 `main.py`에 라우터 등록됨(`/api/v1/*`). artifact는 공개 링크용 `public_router`(`/api/v1/public/artifacts`, 미인증)도 등록.
+- **api 구현·등록 완료**: `domains/user`·`api_key`·`llm_resource`·`chat`·`gpts`·`project`·`skill`·`connector`·`rag`·`artifact`·`meeting`·`workflow`가 `main.py`에 라우터 등록됨(`/api/v1/*`). artifact는 공개 링크용 `public_router`(`/api/v1/public/artifacts`, 미인증)도, workflow는 트리거용 라우터(`workflow_trigger_router`)도 등록.
 - **인증(api) — 자체 ID/PW (ADR-0009)**: `POST /api/v1/auth/login`이 username+password를 검증하고 **HS256 JWT**를 발급(`core/security.create_access_token`, subject=로컬 user id). 비밀번호는 bcrypt(`users.hashed_password`). `dependencies.py get_current_user`가 두 경로를 처리 — ① `sk-` API 키, ② 자체 JWT(`decode_access_token` 후 user id로 조회). 계정 생성은 관리자 전용(`POST /api/v1/users`) + 기동 시 seed SUPERADMIN(`SEED_ADMIN_*`). 비밀번호 변경 `POST /api/v1/auth/password`. 권한은 `require_admin`·`require_superadmin`. **OIDC(JWKS 검증 `verify_token`·`provision_user`)는 보존된 비활성 코드** — IdP 복귀용.
 - **chat(ADR-0008·0010·0011·0014·0015)**: HITL 승인 골격 + 실 LLM. `engine/agent`(정책·레지스트리)·`engine/graph`(interrupt 게이트). 모델 노드는 `_resolve_model` 리졸버(`domains/chat/service.py`)가 per-request `LlmConfig`로 실모델(`engine/llm.build_chat_model` — ChatLiteLLM)을 조립; `FakeToolCallingModel`(`fake_model.py`)은 리졸브 실패 시 기본 폴백. 스트리밍은 SSE + `stream_mode="messages"`(ADR-0011). 첨부(ADR-0014)는 `engine/extraction`(markitdown) 추출 + `core/storage`(MinIO) 저장. 장기 메모리(ADR-0015)는 `engine/memory`(mem0+pgvector, opt-in `MEMORY_ENABLED`). 체크포인터는 InMemory(`checkpointer.py`, `CHAT_CHECKPOINTER=postgres`는 후속).
 - **rag(ADR-0012)**: `domains/rag`(그룹·키·문서 CRUD + 검색)가 `engine/rag`(chunk·embed, pgvector) 위임. 수직 슬라이스 구현됨.
@@ -60,7 +65,11 @@ packages/contracts/     # api OpenAPI → admin·portal TS (생성물, 커밋 �
 - **관측(ADR-0007)**: `engine/observability` 구현(`context`·`langfuse`·`runconfig`). `main.py` lifespan 종료 시 `observability_shutdown()`로 Langfuse 트레이스 flush(비활성이면 no-op). 엔진 경계 준수 — 도메인이 컨텍스트 값을 주입.
 - **meeting(V2 포팅)**: `domains/meeting`(음성 회의록 — 업로드·전사·요약·화자매핑·발행) + `engine/transcription`(`stt.py` STT, `minutes.py` 요약). 녹음은 전용 MinIO 버킷(`MEETING_AUDIO_BUCKET`)에 격리 저장. `main.py` lifespan 기동 시 `fail_stuck_meetings()`로 중단된 작업 정리. 라우터 `/api/v1/meetings`.
 - **gpts(V2 포팅)**: `domains/gpts`(사용자 정의 커스텀 GPT — CRUD·세션·Q/A 이력·채팅). 채팅은 도구·HITL 없는 단순 Q/A라 chat의 승인 그래프(ADR-0008)를 쓰지 않고 `engine/llm`의 직접 토큰 스트리밍(`LlmChatModel.stream` — 신규)으로 처리하고 `gpt.instructions`를 system prompt로 주입. 모델 선택은 `llm_resource`(chat 도메인과 동일 규칙), 관측은 `engine/observability` 주입. 테이블 3종(`custom_gpt`·`gpt_session`·`gpt_chat_message`, `init.sql`). **스트리밍 SSE는 아직 admin(V2 기준) `data: {content, done, type?, title?}` 포맷** — admin src/api 재매핑 시 ADR-0011 event 포맷으로 정렬 예정. GPT 전용 `rag_key` 지식베이스 검색은 미연결(후속).
-- **api 빈 골격**: `domains/agent`·`workflow`는 `__init__.py`뿐(이식 대기).
+- **project(ADR-0021)**: `domains/project`(대화·지침·지식 작업공간 — 수직 슬라이스). chat을 재사용하며 프로젝트 스코프 지침·지식을 주입. 라우터 `/api/v1/projects`.
+- **skill(ADR-0024)**: `domains/skill`(재사용 지침 프리셋 CRUD). 선택한 스킬을 system prompt에 합성. 라우터 `/api/v1/skills`.
+- **connector(ADR-0022)**: `domains/connector`(사내 MCP 서버 등록·관리로 챗 도구 확장). engine MCP 로더 위임. 라우터 `/api/v1/connectors`.
+- **workflow(ADR-0019)**: `domains/workflow`(노드 그래프 정의·실행 + `scheduler.py` 스케줄 트리거) + `engine/workflow`(실행 엔진). 라우터 `/api/v1/workflows` + 트리거 라우터(`/api/v1`).
+- **api 빈 골격**: `domains/agent`는 `__init__.py`뿐(이식 대기).
 - **테스트**: `tests/test_health.py`, `tests/engine/test_approval_policy.py`(HITL 정책), `tests/engine/test_artifact_parser.py`(artifact 파서). deploy 도구는 `tools/tests/test_deploy.py`.
 - **admin**: shadcn-admin 구조 이식 완료. 로그인은 `/login`의 **ID/PW 폼**(`app/login/page.tsx` → `auth/login`), 토큰은 `stores/auth-store.ts`(쿠키). `(authenticated)` 레이아웃이 `access_token` 쿠키 없으면 `/login`. `api/axios.ts`는 Bearer 첨부 + 401 시 `/login` 이동. **OIDC 흐름(`lib/oidc.ts`·`/auth/callback`·`api/auth.ts`)은 보존·미사용**. `src/api/*.ts`는 아직 V2 엔드포인트 기준(아래 규칙 참고).
 - 새 도메인 이식 시: 수직 슬라이스(`api`·`service`·`repository`·`schema`) 채우고 `main.py`에 라우터 등록, AI 연산은 `engine/`에 위임.

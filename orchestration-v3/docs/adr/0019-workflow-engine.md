@@ -1,6 +1,6 @@
 # ADR-0019: 워크플로우 — 노드 그래프 실행 엔진 + workflow 도메인
 
-- 상태: Proposed
+- 상태: Accepted (구현 완료 — 2026-11-22)
 - 날짜: 2026-11-08
 - 결정자: sehoon
 - 관련: [ADR-0005](0005-ai-engine-layer.md) (engine 레이어 경계), [ADR-0010](0010-engine-llm-provider.md) (LlmConfig 주입), [ADR-0011](0011-chat-streaming-contract.md) (SSE 계약), [ADR-0012](0012-engine-rag.md) (rag 도메인 검색)
