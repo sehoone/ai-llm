@@ -1,4 +1,4 @@
-# web
+# admin
 
 Next.js(TS) 관리자 UI. V2 `admin-front`(shadcn-admin 기반)에서 이식 (ADR-0006).
 

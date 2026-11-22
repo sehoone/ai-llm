@@ -9,9 +9,9 @@ LLM 오케스트레이션 플랫폼 v3. **단일 Python 백엔드(FastAPI) + Nex
 orchestration-v3/
 ├─ apps/
 │  ├─ api/       FastAPI 단일 백엔드 (uv) — LLM + 플랫폼 도메인, OIDC 토큰 검증
-│  └─ web/       Next.js (TS) — 관리자 UI (admin-front 이식, shadcn-admin · OIDC — ADR-0006)
+│  └─ admin/     Next.js (TS) — 관리자 UI (admin-front 이식, shadcn-admin · OIDC — ADR-0006)
 ├─ packages/
-│  └─ contracts/ api OpenAPI → web TS 타입 (단방향 생성물)
+│  └─ contracts/ api OpenAPI → admin TS 타입 (단방향 생성물)
 ├─ deploy/       Docker Compose · Nginx · 관측 스택 (V2 계승 예정)
 ├─ tools/        OpenAPI export 등 유틸
 ├─ docs/adr/     아키텍처 결정 기록
@@ -28,16 +28,16 @@ orchestration-v3/
 
 ```bash
 # 전제: uv, pnpm, go-task 설치
-task dev          # api(:8000) + web(:3000) 동시 기동
+task dev          # api(:8000) + admin(:3000) 동시 기동
 task lint
 task test
-task gen-types    # api OpenAPI → web TS 타입 재생성
+task gen-types    # api OpenAPI → admin TS 타입 재생성
 ```
 
 개별 서비스:
 ```bash
 cd apps/api && uv sync --group dev && uv run poe dev   # :8000
-cd apps/web && pnpm install && pnpm dev                # :3000
+cd apps/admin && pnpm install && pnpm dev              # :3000
 ```
 
 > ⚠️ 현재는 **골격(skeleton)** 단계입니다. 도메인 로직은 V2에서 이식 예정이며,

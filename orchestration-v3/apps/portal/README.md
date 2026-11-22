@@ -1,10 +1,10 @@
 # portal (사용자 포털)
 
-최종 사용자용 Next.js 프론트엔드. 관리자 UI(`apps/web`)와 **별도 앱**으로 분리 — 설계 근거는
+최종 사용자용 Next.js 프론트엔드. 관리자 UI(`apps/admin`)와 **별도 앱**으로 분리 — 설계 근거는
 [ADR-0020](../../docs/adr/0020-user-portal-frontend.md).
 
-- 백엔드·인증(ID/PW → JWT, ADR-0009)·`packages/contracts` 타입은 `web`과 **공유**한다.
-- nginx 단일 진입점에서 `/` → portal, `/admin` → web, `/api/*` → api 로 라우팅.
+- 백엔드·인증(ID/PW → JWT, ADR-0009)·`packages/contracts` 타입은 `admin`과 **공유**한다.
+- nginx 단일 진입점에서 `/` → portal, `/admin` → admin, `/api/*` → api 로 라우팅.
 - 로그인(`/login`) · **셀프 가입(`/register`, role=USER)** + 인증 게이트(`(authenticated)`) + 랜딩.
 - **챗(`/chat`) — "클로드급" 코어(Phase 1, [portal-roadmap](../../docs/portal-roadmap.md))**:
   shadcn + 라이트/다크 테마 · **마크다운/코드 렌더링**(스트리밍 안전) · 스트리밍 **중단**·**복사**·**재생성** ·
