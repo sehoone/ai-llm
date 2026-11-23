@@ -1,10 +1,11 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from sqlmodel import Session
 
 from src.core.config import settings
-from src.core.db import engine
+from src.core.db import check_connection, engine
 from src.domains.api_key.api import router as api_key_router
 from src.domains.artifact.api import public_router as artifact_public_router
 from src.domains.artifact.api import router as artifact_router
@@ -27,9 +28,18 @@ from src.domains.workflow.api import trigger_router as workflow_trigger_router
 from src.domains.workflow.scheduler import workflow_scheduler
 from src.engine.observability import shutdown as observability_shutdown
 
+# 루트 로깅 설정 — 없으면 도메인·엔진의 logger 출력이 사라진다(루트 핸들러 부재).
+# uvicorn 로거와 공존(disable_existing_loggers=False). log_level 설정으로 조절(기본 INFO).
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 기동 시 DB 연결을 먼저 점검 — 끊겼으면 좌표·사유를 로깅하고 즉시 중단(요청 수신 전 fail-fast).
+    check_connection()
     # 기동 시 seed 관리자 보장 (최초 로그인용 — SEED_ADMIN_PASSWORD 설정 시).
     with Session(engine) as session:
         ensure_seed_admin(session)

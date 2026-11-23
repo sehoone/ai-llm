@@ -13,8 +13,13 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
 
+    # 로깅 — 루트 로거 레벨(main.py basicConfig). DEBUG/INFO/WARNING/ERROR.
+    log_level: str = "INFO"
+
     # PostgreSQL (schema: llmonl)
-    postgres_host: str = "localhost"
+    # 127.0.0.1 명시(localhost 아님) — Windows에서 localhost는 IPv6 ::1을 먼저 시도하는데
+    # docker 포트는 IPv4 127.0.0.1에만 바인딩되어, ::1 연결이 타임아웃까지 멈춘다(기동 지연/hang).
+    postgres_host: str = "127.0.0.1"
     postgres_port: int = 8066
     postgres_db: str = "mydb"
     postgres_user: str = "postgres"
@@ -100,7 +105,7 @@ class Settings(BaseSettings):
     # Langfuse (LLM 관측 — ADR-0007). self-host 또는 cloud. 키 없으면 비활성.
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
-    langfuse_host: str = "http://localhost:8067"
+    langfuse_host: str = "http://127.0.0.1:8067"  # localhost 아님 — Windows IPv6 ::1 stall 회피
     langfuse_enabled: bool = True
 
     @property
