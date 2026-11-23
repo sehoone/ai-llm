@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { meetingApi } from '@/api/meetings'
 import { useRecorderStore } from '@/stores/recorder-store'
+import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -57,7 +58,7 @@ export function SaveRecordingDialog() {
       discard() // clears blob + IndexedDB + closes (saveOpen=false)
       router.push('/meeting-minutes')
     } catch (err) {
-      console.error(err)
+      logger.error(err)
       toast.error('업로드에 실패했습니다.')
     } finally {
       setSubmitting(false)

@@ -39,7 +39,7 @@ export default function ApiKeys() {
       const data = await getApiKeys()
       setKeys(data)
     } catch (error) {
-      logger.error(error)
+      logger.error('fetch api-keys failed', error)
       toast.error('Failed to fetch API keys')
     } finally {
       setIsLoading(false)
@@ -63,7 +63,7 @@ export default function ApiKeys() {
       setNewlyCreatedKey(created.key)
       fetchKeys()
     } catch (error) {
-      logger.error(error)
+      logger.error('create api-key failed', error)
       toast.error('Failed to create API key')
     }
   }
@@ -77,7 +77,7 @@ export default function ApiKeys() {
       toast.success('API Key revoked successfully')
       fetchKeys()
     } catch (error) {
-      logger.error(error)
+      logger.error('revoke api-key failed', error)
       toast.error('Failed to revoke API key')
     } finally {
       setIsRevoking(false)

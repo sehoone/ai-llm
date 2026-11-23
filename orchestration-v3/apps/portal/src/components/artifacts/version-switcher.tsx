@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { History } from 'lucide-react';
 import { artifactApi, type ArtifactVersionItem } from '@/api/artifacts';
+import { logger } from '@/lib/logger';
 
 interface VersionSwitcherProps {
   artifactId: string;
@@ -26,7 +27,7 @@ export function VersionSwitcher({ artifactId, currentVersion, onSelectVersion }:
       .then((items) => {
         if (!cancelled) setVersions(items);
       })
-      .catch((e) => console.error('Failed to load artifact versions', e));
+      .catch((e) => logger.error('Failed to load artifact versions', e));
     return () => {
       cancelled = true;
     };
@@ -41,7 +42,7 @@ export function VersionSwitcher({ artifactId, currentVersion, onSelectVersion }:
       const v = await artifactApi.getVersion(artifactId, version);
       onSelectVersion(v.content, v.version);
     } catch (e) {
-      console.error('Failed to load artifact version', e);
+      logger.error('Failed to load artifact version', e);
     }
   }
 
