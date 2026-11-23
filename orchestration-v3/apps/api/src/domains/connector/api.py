@@ -23,7 +23,7 @@ from src.domains.user.model import User
 router = APIRouter()
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[ConnectorResponse])
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[ConnectorResponse])
 def create_connector(
     req: ConnectorCreateRequest,
     user: User = Depends(get_current_user),
@@ -33,7 +33,7 @@ def create_connector(
     return ApiResponse.ok(ConnectorResponse.from_model(c))
 
 
-@router.get("/", response_model=ApiResponse[list[ConnectorResponse]])
+@router.get("", response_model=ApiResponse[list[ConnectorResponse]])
 def list_connectors(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),

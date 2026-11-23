@@ -20,8 +20,9 @@ const LEVEL_TO_CONSOLE: Record<number, 'debug' | 'info' | 'warn' | 'error'> = {
 };
 
 /** 브라우저 콘솔 출력 포맷 — level 숨김, time은 읽기 쉬운 시각으로 변환. */
-function writeToConsole(o: Record<string, unknown>) {
-  const { level, time, msg, ...rest } = o;
+// pino WriteFn 시그니처는 (o: object) => void — 내부에서 레코드로 좁혀 사용한다.
+function writeToConsole(o: object) {
+  const { level, time, msg, ...rest } = o as Record<string, unknown>;
   const method = LEVEL_TO_CONSOLE[level as number] ?? 'log';
   const ts = typeof time === 'number' ? new Date(time).toLocaleTimeString() : time;
   const prefix = `[${ts}]${msg ? ` ${msg}` : ''}`;

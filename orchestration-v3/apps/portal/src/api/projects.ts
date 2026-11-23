@@ -37,7 +37,7 @@ export interface ProjectArtifact {
 }
 
 export const projectsApi = {
-  list: async (): Promise<Project[]> => (await api.get<Project[]>(`${BASE}/`)).data,
+  list: async (): Promise<Project[]> => (await api.get<Project[]>(BASE)).data,
   get: async (id: string): Promise<Project> => (await api.get<Project>(`${BASE}/${id}`)).data,
   create: async (body: {
     name: string;
@@ -45,7 +45,7 @@ export const projectsApi = {
     instructions?: string;
     icon?: string;
     color?: string;
-  }): Promise<Project> => (await api.post<Project>(`${BASE}/`, body)).data,
+  }): Promise<Project> => (await api.post<Project>(BASE, body)).data,
   update: async (
     id: string,
     body: Partial<Pick<Project, 'name' | 'description' | 'instructions' | 'icon' | 'color'>>

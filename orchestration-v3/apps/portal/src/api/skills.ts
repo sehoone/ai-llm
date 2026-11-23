@@ -16,7 +16,7 @@ export interface Skill {
 }
 
 export const skillsApi = {
-  list: async (): Promise<Skill[]> => (await api.get<Skill[]>(`${BASE}/`)).data,
+  list: async (): Promise<Skill[]> => (await api.get<Skill[]>(BASE)).data,
   get: async (id: string): Promise<Skill> => (await api.get<Skill>(`${BASE}/${id}`)).data,
   create: async (body: {
     name: string;
@@ -24,7 +24,7 @@ export const skillsApi = {
     body: string;
     icon?: string;
     color?: string;
-  }): Promise<Skill> => (await api.post<Skill>(`${BASE}/`, body)).data,
+  }): Promise<Skill> => (await api.post<Skill>(BASE, body)).data,
   update: async (
     id: string,
     body: Partial<Pick<Skill, 'name' | 'description' | 'body' | 'icon' | 'color'>>
