@@ -130,6 +130,7 @@ docker compose -p orchestration-v3-local --env-file ./environments/local/compose
 - **env 단일 소스(ADR-0018)**: 환경 설정은 `deploy/environments/<env>/{compose.env, api.env}`에만 둔다. app-level `.env*`·`deploy/.env` 추가 금지. 새 api 설정은 `api.env.example`에 추가(bare-metal localhost 기준) + 네트워크 좌표면 `docker-compose.yml` api `environment:` override 추가. 실파일은 커밋 금지.
 - 새 도메인은 `apps/api/src/domains/<name>/`에 수직 슬라이스로 추가 후 `main.py`에 라우터 등록.
 - **AI 연산은 `engine/`에 위임** (ADR-0005). 도메인은 HTTP 경계+관계형 영속화만. `engine`은 `domains`·FastAPI를 import 금지(단방향 `domains→engine→core`).
+- **로깅(ADR-0031)**: 모듈마다 `logging.getLogger(__name__)`. 메시지는 snake_case 이벤트 키(`meeting_processing_start`), 가변값은 `extra={}`(JSON 필드화) 또는 `%s` lazy 포맷 — **f-string 금지**. 예외는 `logger.exception(...)`, 비밀값 로깅 금지(`db.py _masked_url` 패턴). 설정은 `core/logging.py` 소유, `request_id`는 미들웨어가 자동 주입(contextvar).
 - 계약 변경 시 `task gen-types`로 admin 타입 재생성(단방향).
 - 인증(ADR-0009): 백엔드가 ID/PW 검증·JWT 발급을 소유. `JWT_SECRET_KEY`·`SEED_ADMIN_PASSWORD`는 운영에서 반드시 교체. 자작 범위는 로그인·비밀번호 변경으로 최소화(bcrypt·표준 JWT). OIDC 코드는 보존(비활성) — 복귀 시 재활성.
 - **admin `src/api/*.ts`는 아직 V2 엔드포인트 기준**(이식 직후). 백엔드 도메인 이식과 함께 `/api/v1/*`·`ApiResponse` 계약으로 재매핑 필요 (ADR-0006 후속).

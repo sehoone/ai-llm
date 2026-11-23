@@ -41,9 +41,21 @@ scrape_configs:
         replacement: 'docker'
 
     pipeline_stages:
-      # api(uvicorn)·web(Next.js)는 평문 로그. 로그 라인에서 레벨만 추출해 라벨화.
-      # (구조화 JSON 로깅 도입 시 json stage로 교체)
-      - regex:
-          expression: '(?P<level>INFO|WARN|WARNING|ERROR|DEBUG|CRITICAL)'
-      - labels:
-          level:
+      # api는 구조화 JSON 로깅(ADR-0031, LOG_FORMAT=json) → level만 라벨로 승격.
+      # request_id·logger는 고카디널리티라 라벨 안 함 — 쿼리 시 `{service="api"} | json | request_id="…"`로 접근.
+      - match:
+          selector: '{service="api"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+            - labels:
+                level:
+      # 그 외(web 등)는 평문 — 라인에서 레벨만 추출해 라벨화.
+      - match:
+          selector: '{service!="api"}'
+          stages:
+            - regex:
+                expression: '(?P<level>INFO|WARN|WARNING|ERROR|DEBUG|CRITICAL)'
+            - labels:
+                level:

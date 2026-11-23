@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,6 +5,8 @@ from sqlmodel import Session
 
 from src.core.config import settings
 from src.core.db import check_connection, engine
+from src.core.logging import configure_logging
+from src.core.middleware import RequestLoggingMiddleware
 from src.domains.api_key.api import router as api_key_router
 from src.domains.artifact.api import public_router as artifact_public_router
 from src.domains.artifact.api import router as artifact_router
@@ -28,12 +29,9 @@ from src.domains.workflow.api import trigger_router as workflow_trigger_router
 from src.domains.workflow.scheduler import workflow_scheduler
 from src.engine.observability import shutdown as observability_shutdown
 
-# 루트 로깅 설정 — 없으면 도메인·엔진의 logger 출력이 사라진다(루트 핸들러 부재).
-# uvicorn 로거와 공존(disable_existing_loggers=False). log_level 설정으로 조절(기본 INFO).
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+# 루트 로깅 설정 (ADR-0031) — console/json 포맷 + 요청 상관관계 contextvar 주입.
+# 없으면 도메인·엔진 logger 출력이 사라진다(루트 핸들러 부재). uvicorn 로거와 공존.
+configure_logging()
 
 
 @asynccontextmanager
@@ -61,6 +59,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="orchestration-v3 api", version="0.1.0", lifespan=lifespan)
+
+# 요청 상관관계 + 액세스 로그 (ADR-0031). 순수 ASGI 미들웨어로 엔드포인트와 컨텍스트를 공유한다.
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.get("/health")

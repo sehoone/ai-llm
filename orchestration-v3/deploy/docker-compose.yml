@@ -61,6 +61,8 @@ services:
       - ./environments/${DEPLOY_ENV:?DEPLOY_ENV is required}/api.env
     environment:
       - APP_ENV=${DEPLOY_ENV:?DEPLOY_ENV is required}
+      # 로깅(ADR-0031): docker는 구조화 JSON → Promtail json stage가 필드 파싱(level·logger·request_id).
+      - LOG_FORMAT=json
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}

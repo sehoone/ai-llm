@@ -13,8 +13,10 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
 
-    # 로깅 — 루트 로거 레벨(main.py basicConfig). DEBUG/INFO/WARNING/ERROR.
+    # 로깅 (ADR-0031) — core/logging.configure_logging()이 사용. 레벨 DEBUG/INFO/WARNING/ERROR.
     log_level: str = "INFO"
+    # 포맷: console(로컬 dev 기본, 사람이 읽는 평문) | json(docker/prd, Loki 필드 쿼리).
+    log_format: str = "console"
 
     # PostgreSQL (schema: llmonl)
     # 127.0.0.1 명시(localhost 아님) — Windows에서 localhost는 IPv6 ::1을 먼저 시도하는데
