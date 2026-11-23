@@ -14,9 +14,19 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 import urllib.error
 import urllib.request
+
+# Windows 콘솔(cp949 등)은 한글 외 문자(em-대시 '—' 등)를 인코딩하지 못해
+# print 시 UnicodeEncodeError로 죽는다. stdout/stderr를 UTF-8로 재설정해 회피.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except (AttributeError, ValueError):
+        pass
+
 RETRY_SECONDS = 180  # api 콜드 스타트(빌드 직후) 여유
 RETRY_INTERVAL = 3
 

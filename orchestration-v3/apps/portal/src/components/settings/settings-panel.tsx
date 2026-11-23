@@ -136,7 +136,7 @@ export function SettingsPanel({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex min-h-0 flex-1">
       {/* 왼쪽 탭 사이드바 */}
-      <nav className="w-48 shrink-0 space-y-1 border-e border-border bg-muted/30 p-3">
+      <nav className="w-56 shrink-0 space-y-1 border-e border-border bg-muted/30 p-3">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -156,7 +156,7 @@ export function SettingsPanel({ onNavigate }: { onNavigate?: () => void }) {
       {/* 오른쪽 내용 */}
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
         {tab === 'profile' && (
-          <div className="max-w-md space-y-4">
+          <div className="max-w-xl space-y-4">
             <h2 className="text-base font-semibold">프로필</h2>
             <Field label="아이디">
               <Input value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -178,7 +178,7 @@ export function SettingsPanel({ onNavigate }: { onNavigate?: () => void }) {
         )}
 
         {tab === 'security' && (
-          <div className="max-w-md space-y-4">
+          <div className="max-w-xl space-y-4">
             <h2 className="text-base font-semibold">비밀번호 변경</h2>
             <Input
               type="password"
@@ -210,7 +210,7 @@ export function SettingsPanel({ onNavigate }: { onNavigate?: () => void }) {
         )}
 
         {tab === 'integrations' && (
-          <div className="max-w-md space-y-4">
+          <div className="max-w-xl space-y-4">
             <h2 className="text-base font-semibold">스킬·커넥터</h2>
             <div className="flex flex-col gap-2">
               <Link
@@ -232,7 +232,7 @@ export function SettingsPanel({ onNavigate }: { onNavigate?: () => void }) {
         )}
 
         {tab === 'appearance' && (
-          <div className="max-w-md space-y-4">
+          <div className="max-w-xl space-y-4">
             <h2 className="text-base font-semibold">테마</h2>
             <div className="flex gap-2">
               {THEMES.map((t) => {
@@ -254,7 +254,7 @@ export function SettingsPanel({ onNavigate }: { onNavigate?: () => void }) {
         )}
 
         {tab === 'data' && (
-          <div className="max-w-md space-y-4">
+          <div className="max-w-xl space-y-4">
             <h2 className="text-base font-semibold">장기 메모리</h2>
             <p className="text-sm text-muted-foreground">
               대화에서 학습된 장기 메모리를 모두 삭제합니다. 되돌릴 수 없습니다.

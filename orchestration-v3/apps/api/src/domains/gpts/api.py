@@ -31,7 +31,7 @@ _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
 # ── CustomGPT CRUD ──
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[CustomGptResponse])
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[CustomGptResponse])
 def create_gpt(
     req: CustomGptCreateRequest,
     user: User = Depends(get_current_user),
@@ -41,7 +41,7 @@ def create_gpt(
     return ApiResponse.ok(CustomGptResponse.from_model(g))
 
 
-@router.get("/", response_model=ApiResponse[list[CustomGptResponse]])
+@router.get("", response_model=ApiResponse[list[CustomGptResponse]])
 def list_gpts(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),

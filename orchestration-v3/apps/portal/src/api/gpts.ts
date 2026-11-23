@@ -28,13 +28,13 @@ export interface GptMessage {
 }
 
 export const gptsApi = {
-  list: async (): Promise<CustomGpt[]> => (await api.get<CustomGpt[]>(`${BASE}/`)).data,
+  list: async (): Promise<CustomGpt[]> => (await api.get<CustomGpt[]>(BASE)).data,
   get: async (id: string): Promise<CustomGpt> => (await api.get<CustomGpt>(`${BASE}/${id}`)).data,
   create: async (body: {
     name: string;
     description?: string;
     instructions: string;
-  }): Promise<CustomGpt> => (await api.post<CustomGpt>(`${BASE}/`, body)).data,
+  }): Promise<CustomGpt> => (await api.post<CustomGpt>(BASE, body)).data,
   remove: async (id: string): Promise<void> => {
     await api.delete(`${BASE}/${id}`);
   },

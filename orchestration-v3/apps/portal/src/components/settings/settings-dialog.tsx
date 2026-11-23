@@ -18,7 +18,7 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="flex h-[80vh] max-h-[640px] w-full max-w-3xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[85vh] max-h-[820px] w-full max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
         <DialogHeader className="shrink-0 border-b border-border px-6 py-4">
           <DialogTitle>설정</DialogTitle>
           <DialogDescription className="sr-only">

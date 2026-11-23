@@ -5,6 +5,9 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   basePath: '/admin',
+  experimental: {
+    agentUpgrade: 'security',
+  },
   async rewrites() {
     return [
       {

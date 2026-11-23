@@ -13,6 +13,7 @@ import { TranscriptTimeline } from './transcript-timeline'
 import { AudioPlayer } from './audio-player'
 import { MinutesPanel } from './minutes-panel'
 import { MinutesEditor } from './minutes-editor'
+import { logger } from '@/lib/logger'
 import { SpeakerMappingDialog } from './speaker-mapping-dialog'
 import { formatDuration, isProcessing, STATUS_LABEL } from './lib'
 
@@ -103,7 +104,7 @@ export function MeetingDetail() {
       toast.success('회의록을 재생성했습니다.')
       refetch()
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('재생성에 실패했습니다.')
     } finally {
       setRegenerating(false)
@@ -118,7 +119,7 @@ export function MeetingDetail() {
       setEditing(false)
       refetch()
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('저장에 실패했습니다.')
     } finally {
       setSavingMinutes(false)
@@ -134,7 +135,7 @@ export function MeetingDetail() {
       toast.success('공개 링크를 클립보드에 복사했습니다.')
       refetch()
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('발행에 실패했습니다.')
     }
   }

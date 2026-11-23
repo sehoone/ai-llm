@@ -23,7 +23,7 @@ export interface ConnectorTool {
 }
 
 export const connectorsApi = {
-  list: async (): Promise<Connector[]> => (await api.get<Connector[]>(`${BASE}/`)).data,
+  list: async (): Promise<Connector[]> => (await api.get<Connector[]>(BASE)).data,
   get: async (id: string): Promise<Connector> => (await api.get<Connector>(`${BASE}/${id}`)).data,
   create: async (body: {
     name: string;
@@ -31,7 +31,7 @@ export const connectorsApi = {
     mcp_url: string;
     credential_ref?: string;
     enabled?: boolean;
-  }): Promise<Connector> => (await api.post<Connector>(`${BASE}/`, body)).data,
+  }): Promise<Connector> => (await api.post<Connector>(BASE, body)).data,
   update: async (
     id: string,
     body: Partial<{

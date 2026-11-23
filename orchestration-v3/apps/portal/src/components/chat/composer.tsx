@@ -136,7 +136,7 @@ export function Composer({
               onKeyDown={onKeyDown}
               rows={1}
               placeholder="메시지를 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)"
-              className="max-h-48 resize-none border-0 bg-transparent py-2 shadow-none focus-visible:ring-0"
+              className="max-h-48 min-h-0 resize-none border-0 bg-transparent py-2 shadow-none focus-visible:ring-0"
             />
             <Button
               type="button"

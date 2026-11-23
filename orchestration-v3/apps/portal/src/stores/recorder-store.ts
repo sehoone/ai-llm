@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { idbAddChunk, idbClear, idbGetChunks, idbGetMeta, idbSetMeta } from '@/lib/recorder-idb'
+import { logger } from '@/lib/logger'
 
 export type RecorderStatus = 'idle' | 'recording' | 'paused' | 'stopped'
 
@@ -107,7 +108,7 @@ export const useRecorderStore = create<RecorderState>((set, get) => ({
       void idbSetMeta({ status: 'recording', mimeType: MIME, elapsedMs: 0, updatedAt: Date.now() })
       set({ status: 'recording', elapsedMs: 0, error: null, blob: null, blobUrl: null, recovered: false })
     } catch (err) {
-      console.error('[recorder-store] start failed', err)
+      logger.error('[recorder-store] start failed', err)
       const name = err instanceof DOMException ? err.name : ''
       set({
         error:

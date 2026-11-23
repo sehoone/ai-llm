@@ -27,6 +27,8 @@ _INVALID_CREDS = HTTPException(
 )
 
 
+# sync 유지 — 동기 Session으로 블로킹 DB를 호출하므로 FastAPI 스레드풀에서 돌려 이벤트 루프를
+# 막지 않는다. (로그의 user_id는 async 전환 대신 미들웨어가 JWT sub로 best-effort 주입 — ADR-0031.)
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     session: Session = Depends(get_session),

@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 # ── CRUD ──
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[ProjectResponse])
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[ProjectResponse])
 def create_project(
     req: ProjectCreateRequest,
     user: User = Depends(get_current_user),
@@ -39,7 +39,7 @@ def create_project(
     return ApiResponse.ok(ProjectResponse.from_model(p))
 
 
-@router.get("/", response_model=ApiResponse[list[ProjectResponse]])
+@router.get("", response_model=ApiResponse[list[ProjectResponse]])
 def list_projects(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),

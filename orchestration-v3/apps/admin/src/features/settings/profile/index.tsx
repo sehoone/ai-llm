@@ -1,13 +1,9 @@
 import { ContentSection } from '../components/content-section'
-import { ProfileForm } from './profile-form'
 
 export function SettingsProfile() {
   return (
-    <ContentSection
-      title='Profile'
-      desc='This is how others will see you on the site.'
-    >
-      <ProfileForm />
+    <ContentSection title='Profile' desc='프로필 설정입니다.'>
+      <p className='text-sm text-muted-foreground'>준비 중입니다.</p>
     </ContentSection>
   )
 }

@@ -15,7 +15,7 @@ from src.domains.user.model import User
 router = APIRouter()
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[SkillResponse])
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[SkillResponse])
 def create_skill(
     req: SkillCreateRequest,
     user: User = Depends(get_current_user),
@@ -37,7 +37,7 @@ async def import_skill(
     return ApiResponse.ok(SkillResponse.from_model(s))
 
 
-@router.get("/", response_model=ApiResponse[list[SkillResponse]])
+@router.get("", response_model=ApiResponse[list[SkillResponse]])
 def list_skills(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Mic, Pause, Play, Square, Upload, X, FileAudio } from 'lucide-react'
 import { meetingApi } from '@/api/meetings'
 import { useRecorderStore } from '@/stores/recorder-store'
+import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -63,7 +64,7 @@ export function NewMeetingDialog({ open, onOpenChange, onCreated }: Props) {
       onCreated()
       close()
     } catch (err) {
-      console.error(err)
+      logger.error(err)
       toast.error('업로드에 실패했습니다.')
     } finally {
       setSubmitting(false)

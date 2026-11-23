@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from './status-badge'
 import { NewMeetingDialog } from './new-meeting-dialog'
 import { formatDuration, isProcessing } from './lib'
+import { logger } from '@/lib/logger'
 
 export function MeetingList() {
   const router = useRouter()
@@ -33,7 +34,7 @@ export function MeetingList() {
       toast.success('삭제되었습니다.')
       refetch()
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error('삭제에 실패했습니다.')
     }
   }

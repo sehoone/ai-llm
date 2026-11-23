@@ -4,7 +4,9 @@ from fastapi import FastAPI
 from sqlmodel import Session
 
 from src.core.config import settings
-from src.core.db import engine
+from src.core.db import check_connection, engine
+from src.core.logging import configure_logging
+from src.core.middleware import RequestLoggingMiddleware
 from src.domains.api_key.api import router as api_key_router
 from src.domains.artifact.api import public_router as artifact_public_router
 from src.domains.artifact.api import router as artifact_router
@@ -27,9 +29,15 @@ from src.domains.workflow.api import trigger_router as workflow_trigger_router
 from src.domains.workflow.scheduler import workflow_scheduler
 from src.engine.observability import shutdown as observability_shutdown
 
+# 루트 로깅 설정 (ADR-0031) — console/json 포맷 + 요청 상관관계 contextvar 주입.
+# 없으면 도메인·엔진 logger 출력이 사라진다(루트 핸들러 부재). uvicorn 로거와 공존.
+configure_logging()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 기동 시 DB 연결을 먼저 점검 — 끊겼으면 좌표·사유를 로깅하고 즉시 중단(요청 수신 전 fail-fast).
+    check_connection()
     # 기동 시 seed 관리자 보장 (최초 로그인용 — SEED_ADMIN_PASSWORD 설정 시).
     with Session(engine) as session:
         ensure_seed_admin(session)
@@ -51,6 +59,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="orchestration-v3 api", version="0.1.0", lifespan=lifespan)
+
+# 요청 상관관계 + 액세스 로그 (ADR-0031). 순수 ASGI 미들웨어로 엔드포인트와 컨텍스트를 공유한다.
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.get("/health")
