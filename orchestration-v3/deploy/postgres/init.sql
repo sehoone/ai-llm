@@ -508,3 +508,24 @@ CREATE INDEX IF NOT EXISTS longterm_memory_hnsw_idx
     ON llmonl.longterm_memory USING hnsw (vector vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS longterm_memory_text_lemmatized_idx
     ON llmonl.longterm_memory USING gin (to_tsvector('simple', payload->>'text_lemmatized'));
+
+-- ─────────────────────────────────────────────────────────────
+-- 작업 큐 (ADR-0032 Phase 2) — Postgres SELECT … FOR UPDATE SKIP LOCKED 기반.
+-- meeting 전사·요약 등 장기 작업을 API 프로세스에서 분리(재시작 내구·재시도·레플리카 분산).
+-- status: queued|running|done|failed. 크래시 복구는 visibility timeout(locked_at)으로 재큐잉.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.job_queue (
+    id            BIGSERIAL    PRIMARY KEY,
+    job_type      VARCHAR(100) NOT NULL,
+    payload       JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    status        VARCHAR(20)  NOT NULL DEFAULT 'queued',
+    attempts      INT          NOT NULL DEFAULT 0,
+    max_attempts  INT          NOT NULL DEFAULT 3,
+    run_after     TIMESTAMP    NOT NULL DEFAULT NOW(),
+    locked_at     TIMESTAMP,
+    last_error    TEXT,
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+-- 클레임 조회(status='queued' AND run_after<=now, id 순) + 재큐잉 스캔(status='running')용.
+CREATE INDEX IF NOT EXISTS idx_job_queue_claim ON llmonl.job_queue (status, run_after);

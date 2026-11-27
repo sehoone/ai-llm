@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -24,7 +25,6 @@ from src.domains.connector.api import router as connector_router
 from src.domains.gpts.api import router as gpts_router
 from src.domains.llm_resource.api import router as llm_resource_router
 from src.domains.meeting.api import router as meeting_router
-from src.domains.meeting.service import fail_stuck_meetings
 from src.domains.project.api import router as project_router
 from src.domains.rag.api import router as rag_router
 from src.domains.skill.api import router as skill_router
@@ -46,8 +46,6 @@ async def lifespan(app: FastAPI):
     # 기동 시 seed 관리자 보장 (최초 로그인용 — SEED_ADMIN_PASSWORD 설정 시).
     with Session(engine) as session:
         ensure_seed_admin(session)
-    # 인프로세스 BackgroundTask로 처리되는 회의는 재시작 시 고아가 된다 → 비종료 상태를 FAILED로 정리.
-    fail_stuck_meetings()
     # chat 체크포인터(ADR-0028): postgres 모드면 AsyncPostgresSaver 풀을 열고 그래프를 교체(내구화).
     # memory 모드(기본)면 no-op. 풀 open 실패 시 기동 실패(내구성 상실을 숨기지 않음).
     await start_checkpointer()
@@ -55,8 +53,19 @@ async def lifespan(app: FastAPI):
     workflow_scheduler.start()
     # chat 유지보수 스윕(ADR-0029) — 만료 승인 정리. 비활성/미설치면 no-op.
     chat_maintenance_scheduler.start()
+    # 작업 큐 워커(ADR-0032 Phase 2) — in-process면 asyncio 태스크로 기동(bare-metal·단일 인스턴스).
+    # docker는 전용 worker 컨테이너를 쓰므로 off. 큐는 재시작 시 작업을 잃지 않는다.
+    worker_stop = asyncio.Event()
+    worker_task: asyncio.Task | None = None
+    if settings.worker_in_process:
+        from src.worker import worker_loop
+
+        worker_task = asyncio.create_task(worker_loop(worker_stop))
     yield
-    # 종료 시 스케줄러 정리 + 체크포인터 풀 닫기 + 버퍼된 Langfuse 트레이스 flush (ADR-0007/0019/0028/0029).
+    # 종료 시 워커 정지 + 스케줄러 정리 + 체크포인터 풀 닫기 + Langfuse flush (ADR-0032 등).
+    if worker_task is not None:
+        worker_stop.set()
+        await worker_task
     workflow_scheduler.shutdown()
     chat_maintenance_scheduler.shutdown()
     await stop_checkpointer()

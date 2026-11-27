@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     workflow_scheduler_enabled: bool = True  # cron 스케줄(APScheduler) 기동 on/off
     workflow_http_timeout: int = 30          # http/loop 노드 기본 타임아웃(초)
 
+    # 작업 큐 (ADR-0032 Phase 2) — Postgres SKIP LOCKED. meeting 등 장기작업을 API에서 분리.
+    # worker_in_process: api 프로세스 안에서 워커 루프를 돌릴지(bare-metal/단일 인스턴스 기본 on).
+    #   docker는 전용 worker 컨테이너를 쓰므로 compose가 api에 WORKER_IN_PROCESS=false override.
+    worker_in_process: bool = True
+    worker_poll_interval_seconds: int = 5          # 큐가 비었을 때 폴링 간격
+    job_visibility_timeout_seconds: int = 1800     # running 작업 재큐잉 임계(크래시 복구, 30분)
+
     # engine/llm — 실 LLM 호출 (ADR-0010). provider·model·key·endpoint는 전적으로 `llm_resource`
     # 테이블에서 온다(env 미참조). 아래는 테이블에 없는 생성 튜닝 기본값만 — 모델 선택과 무관.
     llm_temperature: float = 0.7

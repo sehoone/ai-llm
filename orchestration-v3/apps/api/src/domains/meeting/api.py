@@ -10,7 +10,6 @@ import json
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -23,6 +22,7 @@ from sqlmodel import Session
 
 from src.core.config import settings
 from src.core.db import get_session
+from src.core.jobqueue import enqueue
 from src.core.response import ApiResponse
 from src.domains.auth.dependencies import get_current_user
 from src.domains.meeting.model import MeetingStatus
@@ -42,7 +42,6 @@ from src.domains.meeting.service import (
     MeetingService,
     audio_content_type,
     meeting_storage,
-    run_process_meeting,
 )
 from src.domains.user.model import User
 
@@ -77,7 +76,6 @@ def _minutes_response(service: MeetingService, meeting_id: str) -> MinutesRespon
 
 @router.post("", response_model=ApiResponse[CreateMeetingResponse])
 async def create_meeting(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(default=""),
     language: str = Form(default=""),
@@ -104,7 +102,8 @@ async def create_meeting(
         data=data,
         language=(language or settings.meeting_default_locale),
     )
-    background_tasks.add_task(run_process_meeting, meeting.id)
+    # 장기 작업(전사·요약)은 작업 큐로 분리 (ADR-0032 Phase 2) — 재시작 내구·재시도.
+    enqueue("meeting_process", {"meeting_id": meeting.id})
     return ApiResponse.ok(CreateMeetingResponse(id=meeting.id, status=meeting.status))
 
 

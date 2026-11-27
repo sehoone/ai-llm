@@ -59,7 +59,7 @@ services:
       context: ../apps/api
     env_file:
       - ./environments/${DEPLOY_ENV:?DEPLOY_ENV is required}/api.env
-    environment:
+    environment: &api_env
       - APP_ENV=${DEPLOY_ENV:?DEPLOY_ENV is required}
       # 로깅(ADR-0031): docker는 구조화 JSON → Promtail json stage가 필드 파싱(level·logger·request_id).
       - LOG_FORMAT=json
@@ -83,6 +83,8 @@ services:
       # chat 체크포인터(ADR-0028): postgres면 HITL/중단 세션이 재시작·다중 인스턴스에서 내구적.
       # 기본 memory. 배포 시 CHAT_CHECKPOINTER=postgres로 토글(shell/compose.env). 테이블은 db의 llmonl에 생성.
       - CHAT_CHECKPOINTER=${CHAT_CHECKPOINTER:-memory}
+      # 작업 큐 워커(ADR-0032 Phase 2)는 아래 전용 worker 컨테이너가 담당 → api는 in-process 워커 off.
+      - WORKER_IN_PROCESS=false
     volumes:
       - api-uploads:/data/uploads
     depends_on:
@@ -98,6 +100,29 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+  # ─────────────────────────────────────────────
+  # worker (작업 큐 소비 — ADR-0032 Phase 2)
+  # api와 동일 이미지·env(앵커 *api_env)를 쓰되 command만 다름(python -m src.worker).
+  # Postgres SKIP LOCKED라 여러 worker를 띄워도 안전(각자 다른 작업 claim). 장기작업(meeting 전사·요약)을
+  # api 프로세스에서 분리해 격리한다. uploads 볼륨은 local 스토리지 폴백용으로만 공유(docker는 MinIO).
+  # ─────────────────────────────────────────────
+  worker:
+    build:
+      context: ../apps/api
+    command: ["uv", "run", "--no-dev", "python", "-m", "src.worker"]
+    env_file:
+      - ./environments/${DEPLOY_ENV:?DEPLOY_ENV is required}/api.env
+    environment: *api_env
+    volumes:
+      - api-uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [app-network]
+    restart: always
 
   # ─────────────────────────────────────────────
   # PostgreSQL + pgvector
