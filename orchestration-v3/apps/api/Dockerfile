@@ -14,5 +14,14 @@ RUN uv sync --frozen --no-dev
 
 COPY . .
 
+# 비루트 실행 (ADR-0032) — 컨테이너 탈취 시 영향 축소. /app·uploads 소유권을 appuser로.
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /data/uploads \
+    && chown -R appuser:appuser /app /data
+USER appuser
+
 EXPOSE 8000
-CMD ["uv", "run", "--no-dev", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --proxy-headers + --forwarded-allow-ips: nginx 뒤라 X-Forwarded-* 를 신뢰해 scheme·client IP를 복원.
+CMD ["uv", "run", "--no-dev", "uvicorn", "src.main:app", \
+     "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]

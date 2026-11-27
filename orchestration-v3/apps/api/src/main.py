@@ -1,12 +1,16 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from sqlmodel import Session
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from src.core.config import settings
-from src.core.db import check_connection, engine
+from src.core.db import check_connection, engine, ping
+from src.core.errors import register_exception_handlers
 from src.core.logging import configure_logging
 from src.core.middleware import RequestLoggingMiddleware
+from src.core.storage import check_storage
 from src.domains.api_key.api import router as api_key_router
 from src.domains.artifact.api import public_router as artifact_public_router
 from src.domains.artifact.api import router as artifact_router
@@ -60,13 +64,37 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="orchestration-v3 api", version="0.1.0", lifespan=lifespan)
 
+# 전역 예외 핸들러 (ADR-0032) — 모든 에러를 ApiResponse(success=False)로 정규화(프론트 unwrap 계약).
+register_exception_handlers(app)
+
+# 허용 Host 화이트리스트 (ADR-0032) — "*"가 아니면 Host 헤더를 검증(스푸핑 차단). 상용에서 좁힌다.
+if settings.allowed_hosts_list != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
+
 # 요청 상관관계 + 액세스 로그 (ADR-0031). 순수 ASGI 미들웨어로 엔드포인트와 컨텍스트를 공유한다.
 app.add_middleware(RequestLoggingMiddleware)
 
 
+# ── 헬스 (ADR-0032) ──
+# liveness: 프로세스 생존만(의존성 미조회) — k8s/compose가 재시작 판단. /health는 하위호환 별칭.
+# readiness: DB(필수)+스토리지(권장)까지 확인 — LB가 트래픽 투입/드레인 판단.
 @app.get("/health")
-def health() -> dict[str, str]:
+@app.get("/health/live")
+def health_live() -> dict[str, str]:
     return {"status": "ok", "env": settings.app_env}
+
+
+@app.get("/health/ready")
+def health_ready() -> JSONResponse:
+    db_ok = ping()
+    # 스토리지는 soft: 다운돼도 텍스트 챗은 동작하므로 readiness를 깨지 않고 상태만 보고한다.
+    storage_ok = check_storage()
+    ready = db_ok  # DB는 hard — 실패 시 503으로 트래픽 차단.
+    body = {
+        "status": "ok" if ready else "unavailable",
+        "checks": {"db": "ok" if db_ok else "fail", "storage": "ok" if storage_ok else "fail"},
+    }
+    return JSONResponse(status_code=200 if ready else 503, content=body)
 
 
 # ── 인증 (ID/PW 로그인 → HS256 JWT 발급) ──

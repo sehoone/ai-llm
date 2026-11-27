@@ -39,6 +39,17 @@ def check_connection() -> None:
     logger.info("DB 연결 성공: %s", _masked_url())
 
 
+def ping() -> bool:
+    """readiness 프로브용 조용한 연결 점검 (ADR-0032). 성공 로깅 없음(프로브 노이즈 방지)."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception as exc:
+        logger.warning("db_ping_failed %s: %s", type(exc).__name__, exc)
+        return False
+
+
 def get_session() -> Generator[Session, None, None]:
     with Session(engine) as session:
         yield session

@@ -13,6 +13,10 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
 
+    # 허용 Host 화이트리스트 (ADR-0032) — 콤마 구분. "*"면 전체 허용(로컬 기본).
+    # 상용은 실제 호스트명으로 좁혀 Host 헤더 스푸핑을 차단한다. TrustedHostMiddleware가 사용.
+    allowed_hosts: str = "*"
+
     # 로깅 (ADR-0031) — core/logging.configure_logging()이 사용. 레벨 DEBUG/INFO/WARNING/ERROR.
     log_level: str = "INFO"
     # 포맷: console(로컬 dev 기본, 사람이 읽는 평문) | json(docker/prd, Loki 필드 쿼리).
@@ -114,6 +118,11 @@ class Settings(BaseSettings):
     def langfuse_is_enabled(self) -> bool:
         """키가 모두 존재하고 enabled일 때만 관측 활성 (ADR-0007)."""
         return self.langfuse_enabled and bool(self.langfuse_public_key) and bool(self.langfuse_secret_key)
+
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        """콤마 구분 allowed_hosts를 리스트로 (TrustedHostMiddleware용)."""
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
 
     @property
     def database_url(self) -> str:

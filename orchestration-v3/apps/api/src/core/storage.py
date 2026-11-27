@@ -49,6 +49,10 @@ class FileStorage(Protocol):
 
     def delete(self, key: str) -> None: ...
 
+    def health(self) -> bool:
+        """readiness 프로브용 경량 점검 (ADR-0032) — 백엔드가 응답하는지만 확인."""
+        ...
+
 
 class LocalFileStorage:
     """로컬 디스크 저장 (bare 개발·폴백). V2 FileStorageService 동기 이식."""
@@ -78,6 +82,14 @@ class LocalFileStorage:
         path = self.base_dir / key
         if path.exists():
             path.unlink()
+
+    def health(self) -> bool:
+        # 저장 루트가 쓰기 가능한지(없으면 생성 가능한지) 확인.
+        try:
+            self.base_dir.mkdir(parents=True, exist_ok=True)
+            return True
+        except OSError:
+            return False
 
 
 class MinioFileStorage:
@@ -128,6 +140,13 @@ class MinioFileStorage:
     def delete(self, key: str) -> None:
         self._client.remove_object(self._bucket, key)
 
+    def health(self) -> bool:
+        # 버킷 존재 확인 — MinIO 라이브(네트워크·자격) 여부를 가볍게 검증.
+        try:
+            return self._client.bucket_exists(self._bucket)
+        except Exception:
+            return False
+
 
 _storage_cache: dict[str | None, FileStorage] = {}
 
@@ -144,3 +163,11 @@ def get_storage(bucket: str | None = None) -> FileStorage:
         else:
             _storage_cache[bucket] = LocalFileStorage()
     return _storage_cache[bucket]
+
+
+def check_storage() -> bool:
+    """readiness 프로브용 기본 버킷 점검 (ADR-0032). 클라이언트 생성 실패도 False로 흡수."""
+    try:
+        return get_storage().health()
+    except Exception:
+        return False
