@@ -169,7 +169,21 @@
   DDL migrations/0003. 검증: 유효 토큰 200 → logout 200 → 같은 토큰 재사용 **401**.
 - 테스트: `tests/test_auth_token.py`(jti 고유성) 추가. `uv run pytest` 전체 통과(35+). `lint-imports` 2 kept.
 
-**미구현 (후속 — Phase 3)**
-- DB 백업/PITR·외부화, compose 리소스 limit(cpu/mem), (필요 시) k8s 이행, Alertmanager 알림 규칙.
-- TLS 실제 종단 구성(배포 인프라 — 본 ADR은 앱/프록시 수용 준비까지).
-- (후속 폴리시) 비밀번호 변경 시 전 세션 폐기(users.token_version), unknown job_type 즉시 failed(현재 재시도 소진).
+## 구현 현황 — Phase 3 (부분, 2026-11-28)
+
+**구현·stg 검증됨**
+- **DB 백업/복구 런북**: `tools/backup_db.py`(pg_dump -Fc mydb+langfuse) + `docs/runbooks/db-backup-restore.md`.
+  검증: stg 덤프 생성(mydb/langfuse) + `pg_restore --list`로 llmonl 객체 222개 복구가능 확인.
+- **Alertmanager + 경보 규칙**: `deploy/prometheus/alerts.yml`(ApiDown·ApiHighErrorRate·ApiHighLatencyP95·
+  TargetDown) + prometheus `rule_files`·`alerting` + compose `alertmanager` 서비스(내부 전용). 검증: promtool/amtool
+  통과, prometheus가 4규칙 로드·alertmanager 연결, ApiDown이 재배포 중 pending→복구 후 inactive.
+- **폴리시: unknown job_type 즉시 failed**: `jobqueue.mark_failed(force_fail=True)` — 재시도 소진 없이 실패.
+
+**미구현 (후속)**
+- compose 리소스 limit(cpu/mem) — 호스트별 상이해 환경 튜닝 필요(하드코딩 보류, 런북 권장값으로).
+- DB 외부화(관리형+PITR), (필요 시) k8s/Ingress 이행 — 인프라 결정 필요.
+- TLS 실제 종단 구성(앱/프록시 수용은 Phase 1에서 준비됨).
+- 알림 수신 채널(Slack/webhook) 연결 — `alertmanager.yml`에 템플릿만(비밀값은 ADR-0018대로 분리).
+- (폴리시) 비밀번호 변경 시 전 세션 폐기(users.token_version), 프론트 logout→`/auth/logout` 연결.
+
+> lint/test는 uv가 Claude 셸 PATH에 없어 미실행 — 사용자가 `uv run poe lint` / `uv run poe test`로 확인 필요. (`py_compile` 구문 검사만 수행.)

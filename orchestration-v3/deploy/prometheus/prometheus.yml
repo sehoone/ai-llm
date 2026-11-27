@@ -2,6 +2,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# 경보 규칙 + Alertmanager 라우팅 (ADR-0032 Phase 3).
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: prometheus
     static_configs:

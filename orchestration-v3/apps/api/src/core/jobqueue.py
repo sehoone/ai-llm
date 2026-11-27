@@ -86,9 +86,14 @@ def mark_done(job_id: int) -> None:
         )
 
 
-def mark_failed(job: Job, error: str, *, backoff_seconds: int = 60) -> None:
-    """실패 처리 — attempts<max면 backoff 후 재큐잉, 아니면 failed로 종료."""
-    retry = job.attempts < job.max_attempts
+def mark_failed(
+    job: Job, error: str, *, backoff_seconds: int = 60, force_fail: bool = False
+) -> None:
+    """실패 처리 — attempts<max면 backoff 후 재큐잉, 아니면 failed로 종료.
+
+    force_fail이면 attempts와 무관하게 즉시 failed(재시도 무의미한 영구 오류 — unknown job_type 등).
+    """
+    retry = (not force_fail) and job.attempts < job.max_attempts
     with engine.begin() as conn:
         if retry:
             conn.execute(

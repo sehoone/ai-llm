@@ -39,8 +39,8 @@ HANDLERS: dict[str, Callable[[dict], Awaitable[None]]] = {
 async def _run_job(job: Job) -> None:
     handler = HANDLERS.get(job.job_type)
     if handler is None:
-        jobqueue.mark_failed(job, f"unknown job_type: {job.job_type}", backoff_seconds=0)
-        # unknown은 재시도 의미 없음 — max_attempts까지 돌지 않도록 즉시 failed 처리를 유도.
+        # unknown type은 재시도해도 소용없음 — force_fail로 즉시 failed (ADR-0032 Phase 3 폴리시).
+        jobqueue.mark_failed(job, f"unknown job_type: {job.job_type}", force_fail=True)
         return
     try:
         await handler(job.payload)

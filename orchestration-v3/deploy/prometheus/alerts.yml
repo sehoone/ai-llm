@@ -1,0 +1,49 @@
+# Prometheus 경보 규칙 (ADR-0032 Phase 3) — api /metrics(#4) + 타겟 상태 기반.
+# 알림은 Alertmanager(alertmanager:9093)로 라우팅. 수신 채널은 alertmanager.yml에서 연결.
+groups:
+  - name: api
+    rules:
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "api 타겟 다운 ({{ $labels.instance }})"
+          description: "Prometheus가 2분간 api /metrics 스크레이프에 실패. api 컨테이너·헬스 확인."
+
+      - alert: ApiHighErrorRate
+        # 최근 5분 5xx 비율 > 5%. http_requests_total은 prometheus-fastapi-instrumentator 기본 메트릭.
+        expr: |
+          sum(rate(http_requests_total{job="api",status=~"5.."}[5m]))
+            / sum(rate(http_requests_total{job="api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "api 5xx 에러율 > 5% (5분)"
+          description: "최근 5분 5xx 비율이 5%를 초과. 로그(request_id)·의존성(DB/MinIO) 확인."
+
+      - alert: ApiHighLatencyP95
+        # p95 요청 지연 > 2s (5분). 히스토그램 버킷 기반.
+        expr: |
+          histogram_quantile(
+            0.95, sum(rate(http_request_duration_seconds_bucket{job="api"}[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "api p95 지연 > 2s (5분)"
+          description: "느린 응답 지속. LLM/DB/워크로드 확인."
+
+  - name: targets
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "스크레이프 타겟 다운 ({{ $labels.job }} / {{ $labels.instance }})"
+          description: "Prometheus 타겟이 5분간 응답 없음."
