@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
 import bcrypt
 import jwt
@@ -46,6 +47,7 @@ def create_access_token(subject: str, claims: dict | None = None) -> str:
     now = dt.datetime.now(dt.timezone.utc)
     payload: dict = {
         "sub": subject,
+        "jti": uuid.uuid4().hex,  # 폐기(로그아웃) 식별자 — revoked_token 블랙리스트 키 (ADR-0032)
         "iat": now,
         "exp": now + dt.timedelta(minutes=settings.access_token_expire_minutes),
         **(claims or {}),

@@ -4,13 +4,23 @@
 토큰 subject는 로컬 user id이며, role·username·email을 클레임으로 담아 프론트 표시에 쓴다.
 """
 
+from datetime import UTC, datetime
+
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import Session
 
 from src.core.db import get_session
 from src.core.response import ApiResponse
-from src.core.security import create_access_token, hash_password, verify_password
+from src.core.security import (
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+)
 from src.domains.auth.dependencies import get_current_user
+from src.domains.auth.repository import RevokedTokenRepository
 from src.domains.auth.schema import (
     LoginRequest,
     LoginResponse,
@@ -23,6 +33,7 @@ from src.domains.user.repository import UserRepository
 from src.domains.user.schema import UserResponse
 
 router = APIRouter()
+_bearer = HTTPBearer()
 
 
 def _issue_login(user: User) -> ApiResponse[LoginResponse]:
@@ -80,3 +91,26 @@ def change_password(
     current.hashed_password = hash_password(req.new_password)
     UserRepository(session).save(current)
     return ApiResponse.ok(message="비밀번호가 변경되었습니다.")
+
+
+@router.post("/logout", response_model=ApiResponse[None])
+def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    session: Session = Depends(get_session),
+) -> ApiResponse[None]:
+    """현재 JWT를 폐기(블랙리스트 등록) — 만료 전이라도 이후 인증을 차단 (ADR-0032 Phase 2).
+
+    API 키(sk-)는 로그아웃 대상이 아니다(활성/만료로 관리). 토큰이 유효하지 않으면 멱등하게 ok.
+    """
+    token = credentials.credentials
+    if token.startswith("sk-"):
+        raise HTTPException(status_code=400, detail="API 키는 로그아웃 대상이 아닙니다.")
+    try:
+        claims = decode_access_token(token)
+    except jwt.PyJWTError:
+        return ApiResponse.ok(message="로그아웃되었습니다.")  # 이미 무효 — 멱등
+    jti, sub, exp = claims.get("jti"), claims.get("sub"), claims.get("exp")
+    if jti and sub and exp:
+        expires_at = datetime.fromtimestamp(exp, tz=UTC).replace(tzinfo=None)
+        RevokedTokenRepository(session).revoke(jti, int(sub), expires_at)
+    return ApiResponse.ok(message="로그아웃되었습니다.")

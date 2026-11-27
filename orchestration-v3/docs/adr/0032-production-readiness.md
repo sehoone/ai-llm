@@ -148,8 +148,28 @@
 - `uv run pytest` — 전체 35건 통과(신규 health 3 + error-handler 3 포함, 회귀 없음).
 - Dockerfile non-root 변경은 이미지 빌드 미실행(로직 검토만) — 실배포 전 `task deploy ENV=stg`로 빌드·기동 확인 권장.
 
-**미구현 (후속 — Phase 2·3)**
-- 본문 §Phase 2·3 전부(레이트리밋 nginx 이전, workflow advisory lock, Postgres SKIP LOCKED 큐+worker, `/metrics`+Alertmanager, JWT 폐기, DB 백업/외부화, 리소스 limit).
-- TLS 실제 종단 구성(배포 인프라 — 본 ADR은 앱/프록시 수용 준비까지).
+## 구현 현황 — Phase 2 (2026-11-28)
 
-> lint/test는 uv가 Claude 셸 PATH에 없어 미실행 — 사용자가 `uv run poe lint` / `uv run poe test`로 확인 필요. (`py_compile` 구문 검사만 수행.)
+**구현·stg 실배포 검증됨 (Phase 2 전부)**
+- **#1 레이트리밋 nginx 이전**: `core/ratelimit.py` 제거, auth login/register의 `Depends(rate_limit)` 제거 →
+  nginx `limit_req_zone`(login 20r/m·burst10, register 5r/m·burst5). 검증: 동시 로그인 60연타 429 49건 + nginx
+  error log `limiting requests by zone "login"`.
+- **#2 workflow 스케줄러 advisory lock**: `scheduler._fire`가 전용 커넥션 세션 레벨
+  `pg_try_advisory_lock(ns, hashtext(schedule_id))`로 리더만 실행(finally 명시 해제). cron 중복 발화 제거.
+- **#6 nginx readiness 프록시**: `location /health/` 추가 — `/health/live`·`/health/ready`가 nginx 경유로 200.
+- **#4 `/metrics`**: `prometheus-fastapi-instrumentator`로 GET /metrics 노출(내부망). Prometheus `api` 타겟
+  404→**up** 전환 확인.
+- **#3 Postgres 작업 큐 + worker**: `core/jobqueue`(SKIP LOCKED: enqueue/claim/mark/requeue_stuck) +
+  `src/worker`(핸들러 레지스트리·루프, in-process/standalone). meeting 업로드가 `enqueue('meeting_process')`로
+  전환(기동 시 `fail_stuck_meetings` 제거 → visibility timeout 재큐잉으로 대체). compose 전용 `worker` 서비스
+  (api env 앵커 재사용, api는 `WORKER_IN_PROCESS=false`). DDL `llmonl.job_queue`(init.sql + migrations/0002).
+  검증: meeting_process job done / unknown job 재시도후 failed.
+- **#5 JWT 폐기**: 토큰에 `jti` 발급 + `llmonl.revoked_token` 블랙리스트(`domains/auth/model·repository`).
+  `POST /api/v1/auth/logout`이 jti 등록, `get_current_user`가 차단. 만료분은 유지보수 스윕(advisory lock)이 정리.
+  DDL migrations/0003. 검증: 유효 토큰 200 → logout 200 → 같은 토큰 재사용 **401**.
+- 테스트: `tests/test_auth_token.py`(jti 고유성) 추가. `uv run pytest` 전체 통과(35+). `lint-imports` 2 kept.
+
+**미구현 (후속 — Phase 3)**
+- DB 백업/PITR·외부화, compose 리소스 limit(cpu/mem), (필요 시) k8s 이행, Alertmanager 알림 규칙.
+- TLS 실제 종단 구성(배포 인프라 — 본 ADR은 앱/프록시 수용 준비까지).
+- (후속 폴리시) 비밀번호 변경 시 전 세션 폐기(users.token_version), unknown job_type 즉시 failed(현재 재시도 소진).

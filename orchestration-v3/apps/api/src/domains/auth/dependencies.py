@@ -15,6 +15,7 @@ from sqlmodel import Session
 from src.core.db import get_session
 from src.core.security import decode_access_token
 from src.domains.api_key.repository import ApiKeyRepository
+from src.domains.auth.repository import RevokedTokenRepository
 from src.domains.user.model import User, UserRole
 from src.domains.user.repository import UserRepository
 
@@ -51,6 +52,11 @@ def get_current_user(
         user_id = int(claims["sub"])
     except (jwt.PyJWTError, KeyError, ValueError) as e:
         raise _INVALID_CREDS from e
+
+    # 폐기(로그아웃) 토큰 차단 (ADR-0032 Phase 2) — jti가 블랙리스트에 있으면 거부.
+    jti = claims.get("jti")
+    if jti and RevokedTokenRepository(session).is_revoked(jti):
+        raise _INVALID_CREDS
 
     user = UserRepository(session).get(user_id)
     if user is None or user.status != "active":

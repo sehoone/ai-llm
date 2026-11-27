@@ -529,3 +529,15 @@ CREATE TABLE IF NOT EXISTS llmonl.job_queue (
 );
 -- 클레임 조회(status='queued' AND run_after<=now, id 순) + 재큐잉 스캔(status='running')용.
 CREATE INDEX IF NOT EXISTS idx_job_queue_claim ON llmonl.job_queue (status, run_after);
+
+-- ─────────────────────────────────────────────────────────────
+-- 폐기 토큰 블랙리스트 (ADR-0032 Phase 2) — 로그아웃 시 JWT jti를 등록해 만료 전 무효화.
+-- get_current_user가 jti 조회로 차단. 만료분은 유지보수 스윕이 삭제(테이블 증가 방지).
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llmonl.revoked_token (
+    jti        VARCHAR(64) PRIMARY KEY,
+    user_id    BIGINT      NOT NULL,
+    expires_at TIMESTAMP   NOT NULL,
+    revoked_at TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_revoked_token_expires ON llmonl.revoked_token (expires_at);

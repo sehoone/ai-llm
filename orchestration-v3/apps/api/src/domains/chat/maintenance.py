@@ -32,6 +32,7 @@ async def run_maintenance() -> None:
     from sqlmodel import Session
 
     from src.core.db import engine
+    from src.domains.auth.repository import RevokedTokenRepository
     from src.domains.chat.repository import ChatRepository
 
     with Session(engine) as session:
@@ -40,10 +41,15 @@ async def run_maintenance() -> None:
         ).scalar()
         if not acquired:
             return  # 다른 인스턴스가 스윕 중 — skip (트랜잭션 종료 시 lock 자동 해제)
+        now = datetime.utcnow()
         try:
-            n = ChatRepository(session).expire_pending_approvals(datetime.utcnow())
+            n = ChatRepository(session).expire_pending_approvals(now)
             if n:
                 logger.info("chat_maintenance_expired_approvals count=%s", n)
+            # 폐기 토큰 블랙리스트 만료분 정리 (ADR-0032 Phase 2) — 앱 공통 유지보수.
+            r = RevokedTokenRepository(session).delete_expired(now)
+            if r:
+                logger.info("revoked_token_cleanup count=%s", r)
         except Exception:
             logger.exception("chat_maintenance_failed")
 
