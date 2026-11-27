@@ -13,29 +13,57 @@ from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# 스케줄별 advisory lock 네임스페이스 (ADR-0032 Phase 2) — 중복 발화 방지.
+# 2-인자 락 (ns, hashtext(schedule_id)). _SWEEP_LOCK_KEY와 겹치지 않는 상수.
+_SCHEDULE_LOCK_NS = 290_010  # ADR-0032 workflow schedule fire
+
 
 async def _fire(schedule_id: str) -> None:
-    """스케줄 job 본체 — 새 Session에서 워크플로우 1회 실행."""
+    """스케줄 job 본체 — 새 Session에서 워크플로우 1회 실행.
+
+    다중 인스턴스 안전(ADR-0032 Phase 2): 발화 전 **세션 레벨 advisory lock**을 전용 커넥션에
+    잡아 여러 레플리카가 같은 스케줄을 동시에 tick해도 하나만 실행한다. 실행이 길고 서비스가 내부
+    commit을 할 수 있어 트랜잭션 레벨 락(자동 해제) 대신 전용 커넥션 + finally 명시 해제를 쓴다
+    (커넥션 close 시에도 세션 락은 해제되므로 누수 없음).
+    """
+    from sqlalchemy import text
     from sqlmodel import Session
 
     from src.core.db import engine
     from src.domains.workflow.repository import WorkflowRepository
     from src.domains.workflow.service import WorkflowService
 
-    with Session(engine) as session:
-        repo = WorkflowRepository(session)
-        schedule = repo.get_schedule(schedule_id)
-        if schedule is None or not schedule.is_active:
-            return
-        workflow = repo.get(schedule.workflow_id)
-        if workflow is None:
-            return
+    lock_conn = engine.connect()
+    try:
+        acquired = lock_conn.execute(
+            text("SELECT pg_try_advisory_lock(:ns, hashtext(:sid))"),
+            {"ns": _SCHEDULE_LOCK_NS, "sid": schedule_id},
+        ).scalar()
+        if not acquired:
+            return  # 다른 인스턴스가 이 스케줄을 실행 중 — skip
+
+        with Session(engine) as session:
+            repo = WorkflowRepository(session)
+            schedule = repo.get_schedule(schedule_id)
+            if schedule is None or not schedule.is_active:
+                return
+            workflow = repo.get(schedule.workflow_id)
+            if workflow is None:
+                return
+            try:
+                await WorkflowService(session).execute(
+                    workflow, schedule.input_data or {}, schedule.user_id
+                )
+            except Exception:
+                logger.exception("workflow_schedule_fire_failed schedule_id=%s", schedule_id)
+    finally:
         try:
-            await WorkflowService(session).execute(
-                workflow, schedule.input_data or {}, schedule.user_id
+            lock_conn.execute(
+                text("SELECT pg_advisory_unlock(:ns, hashtext(:sid))"),
+                {"ns": _SCHEDULE_LOCK_NS, "sid": schedule_id},
             )
-        except Exception:
-            logger.exception("workflow_schedule_fire_failed schedule_id=%s", schedule_id)
+        finally:
+            lock_conn.close()
 
 
 class WorkflowScheduler:

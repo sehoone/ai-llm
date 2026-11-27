@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from src.core.db import get_session
-from src.core.ratelimit import rate_limit
 from src.core.response import ApiResponse
 from src.core.security import create_access_token, hash_password, verify_password
 from src.domains.auth.dependencies import get_current_user
@@ -41,11 +40,8 @@ def _issue_login(user: User) -> ApiResponse[LoginResponse]:
     )
 
 
-@router.post(
-    "/login",
-    response_model=ApiResponse[LoginResponse],
-    dependencies=[Depends(rate_limit(20, 60))],  # IP당 분당 20회 — 무차별 대입 완화
-)
+# 레이트리밋은 nginx limit_req(zone=login)로 이전 (ADR-0032 Phase 2)
+@router.post("/login", response_model=ApiResponse[LoginResponse])
 def login(
     req: LoginRequest,
     session: Session = Depends(get_session),
@@ -56,11 +52,11 @@ def login(
     return _issue_login(user)
 
 
+# 레이트리밋은 nginx limit_req(zone=register)로 이전 (ADR-0032 Phase 2)
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
     response_model=ApiResponse[LoginResponse],
-    dependencies=[Depends(rate_limit(5, 300))],  # IP당 5분에 5회 — 셀프 가입 남용 완화
 )
 def register_user(
     req: RegisterRequest,

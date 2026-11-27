@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlmodel import Session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -73,6 +74,10 @@ if settings.allowed_hosts_list != ["*"]:
 
 # 요청 상관관계 + 액세스 로그 (ADR-0031). 순수 ASGI 미들웨어로 엔드포인트와 컨텍스트를 공유한다.
 app.add_middleware(RequestLoggingMiddleware)
+
+# Prometheus 메트릭 (ADR-0032 Phase 2) — GET /metrics 노출(요청 수·지연·상태코드).
+# 내부망 전용(nginx는 /api/·/health*만 프록시). prometheus가 api:8000을 직접 스크레이프.
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
 # ── 헬스 (ADR-0032) ──

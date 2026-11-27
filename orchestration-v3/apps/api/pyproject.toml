@@ -18,6 +18,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0",  # Postgres 체크포인터(AsyncPostgresSaver) — HITL/중단 세션 내구화 (ADR-0028)
     "langchain-litellm>=0.2",  # provider 통합(azure/openai/anthropic/google/ollama) — engine/llm (ADR-0010)
     "langfuse>=3",             # LLM 관측 — 트레이스/토큰/비용 (ADR-0007)
+    "prometheus-fastapi-instrumentator>=7.0",  # /metrics 노출 — 요청 수·지연·상태코드 (ADR-0032 Phase 2)
     "mem0ai>=1.0",             # 장기 메모리 (engine/memory, pgvector) — ADR-0015
     "azure-identity>=1.19",    # mem0 azure_openai 임베더/LLM이 top-level import (llm_resource가 azure일 때) — ADR-0015
     "minio>=7.2",              # 첨부 객체 스토리지 (S3 호환) — ADR-0017
