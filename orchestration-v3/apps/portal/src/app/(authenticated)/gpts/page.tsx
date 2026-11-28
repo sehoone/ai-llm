@@ -7,6 +7,7 @@ import { Bot, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { usePageHeader } from '@/hooks/use-page-header';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,16 +75,21 @@ export default function GptsPage() {
     }
   }
 
+  usePageHeader(
+    {
+      title: '커스텀 GPT',
+      actions: (
+        <Button size="sm" onClick={() => setCreating((v) => !v)}>
+          <Plus /> 새 GPT
+        </Button>
+      ),
+    },
+    []
+  );
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-6">
-        <header className="mb-6 flex items-center gap-3">
-          <h1 className="flex-1 text-xl font-semibold">커스텀 GPT</h1>
-          <Button onClick={() => setCreating((v) => !v)}>
-            <Plus /> 새 GPT
-          </Button>
-        </header>
-
       {creating && (
         <div className="mb-6 space-y-3 rounded-xl border border-border bg-card p-4">
           <Input placeholder="이름" value={name} onChange={(e) => setName(e.target.value)} />

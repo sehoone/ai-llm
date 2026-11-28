@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { usePageHeader } from '@/hooks/use-page-header';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -156,30 +157,39 @@ export default function SkillsPage() {
     }
   }
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl p-6">
-        <header className="mb-1 flex items-center gap-3">
-          <h1 className="flex-1 text-xl font-semibold">스킬</h1>
-          <input
-            ref={importRef}
-            type="file"
-            multiple
-            accept=".md,.txt,.zip,text/markdown,text/plain,application/zip"
-            className="hidden"
-            onChange={(e) => onImport(e.target.files)}
-          />
+  usePageHeader(
+    {
+      title: '스킬',
+      actions: (
+        <>
           <Button
             variant="outline"
+            size="sm"
             onClick={() => importRef.current?.click()}
             disabled={importing}
           >
             <Upload /> 가져오기
           </Button>
-          <Button onClick={openNew}>
+          <Button size="sm" onClick={openNew}>
             <Plus /> 새 스킬
           </Button>
-        </header>
+        </>
+      ),
+    },
+    [importing]
+  );
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-3xl p-6">
+        <input
+          ref={importRef}
+          type="file"
+          multiple
+          accept=".md,.txt,.zip,text/markdown,text/plain,application/zip"
+          className="hidden"
+          onChange={(e) => onImport(e.target.files)}
+        />
         <p className="mb-6 text-sm text-muted-foreground">
           재사용 지침 프리셋. 채팅 입력창의 스킬에서 켜면 해당 지침이 대화에 적용됩니다.
         </p>

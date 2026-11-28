@@ -7,6 +7,7 @@ import { FolderKanban, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { usePageHeader } from '@/hooks/use-page-header';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,15 +75,21 @@ export default function ProjectsPage() {
     }
   }
 
+  usePageHeader(
+    {
+      title: '프로젝트',
+      actions: (
+        <Button size="sm" onClick={() => setCreating((v) => !v)}>
+          <Plus /> 새 프로젝트
+        </Button>
+      ),
+    },
+    []
+  );
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-6">
-        <header className="mb-1 flex items-center gap-3">
-          <h1 className="flex-1 text-xl font-semibold">프로젝트</h1>
-          <Button onClick={() => setCreating((v) => !v)}>
-            <Plus /> 새 프로젝트
-          </Button>
-        </header>
         <p className="mb-6 text-sm text-muted-foreground">대화·지침·지식을 한 작업공간에 모으세요.</p>
 
         {creating && (

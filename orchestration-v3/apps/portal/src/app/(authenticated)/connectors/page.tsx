@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Plug, Plus, Trash2, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { usePageHeader } from '@/hooks/use-page-header';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,15 +98,21 @@ export default function ConnectorsPage() {
     }
   }
 
+  usePageHeader(
+    {
+      title: '커넥터',
+      actions: (
+        <Button size="sm" onClick={() => setOpen((v) => !v)}>
+          <Plus /> 커넥터 추가
+        </Button>
+      ),
+    },
+    []
+  );
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-6">
-        <header className="mb-1 flex items-center gap-3">
-          <h1 className="flex-1 text-xl font-semibold">커넥터</h1>
-          <Button onClick={() => setOpen((v) => !v)}>
-            <Plus /> 커넥터 추가
-          </Button>
-        </header>
         <p className="mb-6 text-sm text-muted-foreground">
           사내 MCP 서버를 등록해 챗 도구를 확장합니다. 외부 도구는 실행 전 승인(HITL)을 거칩니다.
         </p>

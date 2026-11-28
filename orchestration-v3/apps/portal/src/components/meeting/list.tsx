@@ -8,6 +8,7 @@ import { meetingApi } from '@/api/meetings'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { usePageHeader } from '@/hooks/use-page-header'
 import { StatusBadge } from './status-badge'
 import { NewMeetingDialog } from './new-meeting-dialog'
 import { formatDuration, isProcessing } from './lib'
@@ -39,19 +40,25 @@ export function MeetingList() {
     }
   }
 
+  usePageHeader(
+    {
+      title: (
+        <span className='flex items-center gap-2'>
+          <Mic className='size-4' /> 회의록
+        </span>
+      ),
+      actions: (
+        <Button size='sm' onClick={() => setDialogOpen(true)}>
+          <Plus className='size-4' /> 새 회의록
+        </Button>
+      ),
+    },
+    []
+  )
+
   return (
     <div className='mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-8'>
-      <div className='flex items-center justify-between'>
-        <div>
-          <h2 className='flex items-center gap-2 text-2xl font-bold tracking-tight'>
-            <Mic className='h-6 w-6' /> 회의록
-          </h2>
-          <p className='text-sm text-muted-foreground'>녹음 또는 파일로 회의록을 자동 생성합니다.</p>
-        </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className='mr-2 h-4 w-4' /> 새 회의록
-        </Button>
-      </div>
+      <p className='text-sm text-muted-foreground'>녹음 또는 파일로 회의록을 자동 생성합니다.</p>
 
       <div className='overflow-hidden rounded-lg border'>
         {/* header row */}

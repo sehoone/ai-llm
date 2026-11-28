@@ -20,6 +20,7 @@ import { ArtifactViewPanel } from '@/components/artifacts/artifact-view-panel';
 import { ArtifactEditor } from '@/components/artifacts/artifact-editor';
 import { artifactApi, type ArtifactDetail, type ArtifactSummary } from '@/api/artifacts';
 import { chatApi } from '@/api/chat';
+import { usePageHeader } from '@/hooks/use-page-header';
 import { useChat } from '@/hooks/use-chat';
 
 const TYPE_FILTERS: { value: string; label: string }[] = [
@@ -112,25 +113,32 @@ export default function ArtifactsPage() {
     router.push('/chat');
   }
 
+  usePageHeader(
+    {
+      title: (
+        <span className="flex items-center gap-2">
+          <Shapes className="size-4" /> 아티팩트
+        </span>
+      ),
+      actions: (
+        <Button
+          size="sm"
+          onClick={() => {
+            setSelected(null);
+            setCreating(true);
+          }}
+        >
+          <Plus className="size-4" /> 새 아티팩트
+        </Button>
+      ),
+    },
+    []
+  );
+
   return (
     <div className="flex min-h-0 flex-1 gap-4 p-4">
       {/* 왼쪽 — 라이브러리 목록 */}
       <div className="flex w-full flex-col gap-3 sm:w-72 lg:w-80">
-        <div className="flex items-center gap-2">
-          <Shapes className="size-5" />
-          <h1 className="text-lg font-semibold">아티팩트</h1>
-          <Button
-            size="sm"
-            className="ms-auto"
-            onClick={() => {
-              setSelected(null);
-              setCreating(true);
-            }}
-          >
-            <Plus className="size-4" /> 새 아티팩트
-          </Button>
-        </div>
-
         <label className="flex h-10 items-center rounded-md border border-border ps-2">
           <SearchIcon className="me-2 size-4 text-muted-foreground" />
           <input

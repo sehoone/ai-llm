@@ -2,15 +2,15 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, PanelLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { AppHeader } from '@/components/layout/app-header';
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { RecordingBar } from '@/components/meeting/recording-bar';
 import { SaveRecordingDialog } from '@/components/meeting/save-recording-dialog';
 import { useChat } from '@/hooks/use-chat';
 import { useChatStore } from '@/stores/chat-store';
+import { useUiStore } from '@/stores/ui-store';
 
 // 인증 구역 공통 앱 셸(ADR-0020 포털). claude.ai식 고정 사이드바 — 모든 화면에서 유지되고
 // 본문(children)만 교체. 세션 목록 로드·사이드바 콜백은 여기서 전역 스토어(use-chat)로 연결한다.
@@ -18,8 +18,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { loadSessions, selectSession, newChat, rename, remove } = useChat();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  // 데스크톱 사이드바 접힘 상태(claude.ai식). 접히면 본문 좌상단 플로팅 버튼으로 다시 펼친다.
-  const [collapsed, setCollapsed] = React.useState(false);
+  // 데스크톱 사이드바 접힘 상태(claude.ai식). 공유 스토어 — AppHeader의 펼치기 버튼과 함께 쓴다.
+  const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const setCollapsed = useUiStore((s) => s.setSidebarCollapsed);
 
   React.useEffect(() => {
     loadSessions();
@@ -57,39 +58,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-border p-2 md:hidden">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="메뉴 열기">
-                <Menu />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
-              <SheetTitle className="sr-only">메뉴</SheetTitle>
-              {sidebar({
-                onNavigate: () => setMobileOpen(false),
-                onToggleCollapse: () => setMobileOpen(false),
-              })}
-            </SheetContent>
-          </Sheet>
-          <span className="text-sm font-medium">AI 포털</span>
-        </header>
-
+        {/* 전 화면 공통 헤더 — 제목·액션은 각 화면이 usePageHeader로 주입(header-store 슬롯). */}
+        <AppHeader onOpenMenu={() => setMobileOpen(true)} />
         {children}
       </div>
 
-      {/* 데스크톱: 접힌 상태에서 사이드바를 다시 펼치는 플로팅 버튼 */}
-      {collapsed && (
-        <Button
-          variant="outline"
-          size="icon"
-          className="fixed start-2 top-2 z-30 hidden size-8 md:flex"
-          onClick={() => setCollapsed(false)}
-          aria-label="사이드바 펼치기"
-        >
-          <PanelLeft className="size-4" />
-        </Button>
-      )}
+      {/* 모바일 사이드바 Sheet — 트리거는 AppHeader 햄버거, 본체는 여기서 1개 유지(사이드바 콜백 소유). */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="w-72 p-0">
+          <SheetTitle className="sr-only">메뉴</SheetTitle>
+          {sidebar({
+            onNavigate: () => setMobileOpen(false),
+            onToggleCollapse: () => setMobileOpen(false),
+          })}
+        </SheetContent>
+      </Sheet>
 
       <SettingsDialog />
       {/* 전역 녹음 바·저장 다이얼로그 — 메뉴 이동 중에도 녹음 유지 (meeting-minutes) */}
